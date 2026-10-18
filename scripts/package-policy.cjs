@@ -12,7 +12,7 @@ const packageFiles = [
   'src/themes.js',
   'src/media.cjs', 'src/model-labels.cjs', 'src/platform.cjs', 'src/preload.cjs', 'src/resource-download.cjs',
   'src/turn-journal.cjs', 'src/usage-quota.cjs',
-  'src/renderer/ambient-audio.js', 'src/renderer/app.js', 'src/renderer/index.html', 'src/renderer/theme-boot.js',
+  'src/renderer/ambient-audio.js', 'src/renderer/app.js', 'src/renderer/index.html',
   'src/renderer/styles.css', 'src/renderer/theme-colors.css', 'src/renderer/themes.css', 'src/renderer/vendor/marked.umd.js',
   'src/renderer/vendor/purify.min.js', 'src/renderer/assets/icon.ico', 'src/renderer/assets/icon.icns',
   'src/renderer/assets/icon.png', 'src/renderer/assets/tokyo-afterimage.wav',

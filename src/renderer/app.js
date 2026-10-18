@@ -11,6 +11,12 @@
   const t = i18n.t;
   const cities = window.TokyoThemes;
   const themeOf = id => cities.themes[cities.normalizeTheme(id)];
+  // Open in the saved city's colors: apply it with transitions suspended and
+  // settle the styles, so nothing eases out of Tokyo's palette on launch.
+  document.documentElement.classList.add('theme-instant');
+  document.documentElement.dataset.theme = cities.normalizeTheme(api?.initialPreferences?.theme);
+  void document.body.offsetHeight;
+  requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('theme-instant')));
   const diagnostic = i18n.localizeDiagnostic;
   const state = {
     settings: { executable: '', workspace: '', rainEnabled: true, subagentsEnabled: true, quotaEnabled: true, musicEnabled: true, musicVolume: 90, theme: cities.defaultTheme, language: 'en', ...api?.initialPreferences },

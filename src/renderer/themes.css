@@ -13,6 +13,8 @@
 .theme-option[data-theme-option="kyoto"] .theme-preview { background-position: 0 33.333%; }
 .theme-option[data-theme-option="okinawa"] .theme-preview { background-position: 0 66.667%; }
 .theme-option[data-theme-option="hokkaido"] .theme-preview { background-position: 0 100%; }
+/* Applying the saved city at launch never animates (see app.js). */
+.theme-instant *, .theme-instant *::before, .theme-instant *::after { transition: none !important; }
 /* Each city has a second accent for its decorative marks. */
 :root:is([data-theme="kyoto"], [data-theme="okinawa"], [data-theme="hokkaido"]) .hero-star { color: var(--accent2); }
 :root:is([data-theme="kyoto"], [data-theme="okinawa"], [data-theme="hokkaido"]) .location-stamp .location-pin { color: var(--accent2); }
