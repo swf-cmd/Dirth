@@ -6,13 +6,17 @@
   <meta name="color-scheme" content="dark">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: tokyo-image:; media-src 'self'; font-src 'self'; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none';">
   <title>Grokbuild · Tokyo</title>
+  <script src="../themes.js"></script>
+  <script src="theme-boot.js"></script>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="theme-colors.css">
+  <link rel="stylesheet" href="themes.css">
 </head>
 <body>
   <div class="app-shell">
     <header class="titlebar">
       <img class="brand-mark" src="assets/icon.png" alt="" aria-hidden="true" draggable="false">
-      <div class="brand-name">grokbuild<span data-i18n="TOKYO EDITION">TOKYO EDITION</span></div>
+      <div class="brand-name">grokbuild<span id="brand-edition" data-i18n="TOKYO EDITION">TOKYO EDITION</span></div>
       <span class="titlebar-center" data-i18n="A PLACE FOR YOUR NEXT IDEA">A PLACE FOR YOUR NEXT IDEA</span>
       <div class="window-controls">
         <button data-window="minimize" aria-label="最小化" data-i18n-aria-label="最小化">−</button>
@@ -44,17 +48,17 @@
       <div class="ambient-image" aria-hidden="true"></div>
       <div class="rain-layer" id="rain-layer" aria-hidden="true"></div>
       <div class="main-topbar">
-        <div class="breadcrumb"><span class="breadcrumb-dot"></span><span id="breadcrumb-title" data-i18n="新对话">新对话</span><span class="breadcrumb-slash">/</span><span class="breadcrumb-subtitle" data-i18n="AFTER HOURS">AFTER HOURS</span></div>
+        <div class="breadcrumb"><span class="breadcrumb-dot"></span><span id="breadcrumb-title" data-i18n="新对话">新对话</span><span class="breadcrumb-slash">/</span><span class="breadcrumb-subtitle" id="breadcrumb-subtitle" data-i18n="AFTER HOURS">AFTER HOURS</span></div>
         <div class="main-actions"><button class="reconnect-button" id="connection-button"><span class="connection-dot" id="connection-dot"></span><span id="connection-label" data-i18n="连接中">连接中</span></button><button class="icon-button" id="export-button" title="导出当前对话" aria-label="导出当前对话" disabled data-i18n-title="导出当前对话" data-i18n-aria-label="导出当前对话"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 3v12m-4-4 4 4 4-4M5 15v5h14v-5"/></svg></button></div>
       </div>
 
       <section class="conversation-scroll" id="conversation-scroll" aria-label="对话" data-i18n-aria-label="对话">
         <section class="welcome" id="welcome">
-          <div class="edition-line"><span class="tiny-cross">＋</span><span data-i18n="YOUR IDEAS. AFTER DARK.">YOUR IDEAS. AFTER DARK.</span><span class="edition-rule"></span><span class="edition-number" data-i18n="VOL. 01">VOL. 01</span></div>
-          <div class="hero-title"><span>TOKYO</span><span class="title-outline"><span data-i18n="AFTER HOURS">AFTER HOURS</span><span class="hero-star">✳</span></span></div>
-          <div class="hero-bottom"><div class="hero-copy"><h1 data-i18n="城市未眠，&#10;你的灵感也是。" class="i18n-multiline">城市未眠，
+          <div class="edition-line"><span class="tiny-cross">＋</span><span data-i18n="YOUR IDEAS. AFTER DARK.">YOUR IDEAS. AFTER DARK.</span><span class="edition-rule"></span><span class="edition-number" id="edition-number" data-i18n="VOL. 01">VOL. 01</span></div>
+          <div class="hero-title"><span id="hero-city">TOKYO</span><span class="title-outline"><span id="hero-subtitle" data-i18n="AFTER HOURS">AFTER HOURS</span><span class="hero-star" id="hero-star">✳</span></span></div>
+          <div class="hero-bottom"><div class="hero-copy"><h1 id="hero-headline" data-i18n="城市未眠，&#10;你的灵感也是。" class="i18n-multiline">城市未眠，
 你的灵感也是。</h1><p data-i18n="代码、构想，还有那些没完成的计划。&#10;让 Grokbuild 陪你把它们变成现实。" class="i18n-multiline">代码、构想，还有那些没完成的计划。
-让 Grokbuild 陪你把它们变成现实。</p></div><div class="location-stamp"><span class="location-pin">◉</span><strong data-i18n="渋谷 · RAINY NIGHT">渋谷 · RAINY NIGHT</strong><span>35°40′ N / 139°42′ E</span><span class="location-time" id="tokyo-time">—</span></div></div>
+让 Grokbuild 陪你把它们变成现实。</p></div><div class="location-stamp"><span class="location-pin">◉</span><strong id="location-name" data-i18n="渋谷 · RAINY NIGHT">渋谷 · RAINY NIGHT</strong><span id="location-coordinates">35°40′ N / 139°42′ E</span><span class="location-time" id="tokyo-time">—</span></div></div>
           <div class="starter-label"><span data-i18n="从一个想法开始">从一个想法开始</span><span>↙</span></div>
           <div class="starter-grid">
             <button class="starter-card" data-prompt="请先查看当前工作目录，帮我理解这个项目的结构、技术栈和运行方式。" data-i18n-prompt="请先查看当前工作目录，帮我理解这个项目的结构、技术栈和运行方式。"><span class="starter-number" data-i18n="01 / EXPLORE">01 / EXPLORE</span><span class="starter-text"><span data-i18n="读懂这个项目">读懂这个项目</span><span>↗</span></span><span class="starter-detail" data-i18n="梳理结构，找到下一步">梳理结构，找到下一步</span></button>
@@ -76,7 +80,7 @@
           <div class="attachment-drafts" id="attachment-drafts" role="group" aria-label="待发送附件" data-i18n-aria-label="待发送附件" aria-live="polite" hidden></div>
           <label class="sr-only" for="prompt" data-i18n="发送给 Grokbuild 的消息">发送给 Grokbuild 的消息</label>
           <textarea id="prompt" rows="2" placeholder="在雨声中，开始你的下一个想法…" spellcheck="false" data-i18n-placeholder="在雨声中，开始你的下一个想法…"></textarea>
-          <div class="composer-toolbar"><div class="composer-options"><button class="attach-button icon-button" id="attach-button" type="button" aria-label="添加图片或附件" data-i18n-aria-label="添加图片或附件" title="添加图片或附件，也可拖放文件或粘贴图片" data-i18n-title="添加图片或附件，也可拖放文件或粘贴图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9m-6 12 8-8" transform="translate(2 2) scale(.85)"/></svg></button><span class="composer-divider"></span><div class="model-select-wrap"><span class="model-orbit" aria-hidden="true">✳</span><select id="model-select" aria-label="模型" data-i18n-aria-label="模型"><option value="" disabled data-i18n="正在读取模型…">正在读取模型…</option></select></div><span class="composer-divider"></span><select id="mode-select" aria-label="推理档位" data-i18n-aria-label="推理档位"><option value="" disabled data-i18n="正在读取推理档位…">正在读取推理档位…</option></select></div><div class="send-area"><span class="keyboard-hint" data-i18n="Enter 发送">Enter 发送</span><button class="send-button" id="send-button" type="submit" aria-label="发送消息" data-i18n-aria-label="发送消息"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button><button class="stop-button" id="stop-button" type="button" aria-label="停止生成" hidden data-i18n-aria-label="停止生成"><span></span></button></div></div>
+          <div class="composer-toolbar"><div class="composer-options"><button class="attach-button icon-button" id="attach-button" type="button" aria-label="添加图片或附件" data-i18n-aria-label="添加图片或附件" title="添加图片或附件，也可拖放文件或粘贴图片" data-i18n-title="添加图片或附件，也可拖放文件或粘贴图片"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m8 12 6-6a3 3 0 0 1 4 4l-8 8a5 5 0 0 1-7-7l9-9m-6 12 8-8" transform="translate(2 2) scale(.85)"/></svg></button><span class="composer-divider"></span><div class="model-select-wrap"><span class="model-orbit" id="model-orbit" aria-hidden="true">✳</span><select id="model-select" aria-label="模型" data-i18n-aria-label="模型"><option value="" disabled data-i18n="正在读取模型…">正在读取模型…</option></select></div><span class="composer-divider"></span><select id="mode-select" aria-label="推理档位" data-i18n-aria-label="推理档位"><option value="" disabled data-i18n="正在读取推理档位…">正在读取推理档位…</option></select></div><div class="send-area"><span class="keyboard-hint" data-i18n="Enter 发送">Enter 发送</span><button class="send-button" id="send-button" type="submit" aria-label="发送消息" data-i18n-aria-label="发送消息"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5m-6 6 6-6 6 6"/></svg></button><button class="stop-button" id="stop-button" type="button" aria-label="停止生成" hidden data-i18n-aria-label="停止生成"><span></span></button></div></div>
         </form>
         <div class="composer-footer"><span><span class="footer-spark">✧</span> <span data-i18n="本地工作空间 · 由 Grokbuild 驱动">本地工作空间 · 由 Grokbuild 驱动</span></span><span id="session-path" title="当前工作目录" data-i18n-title="当前工作目录" data-i18n="TOKYO / NIGHT SHIFT">TOKYO / NIGHT SHIFT</span></div>
       </div>
@@ -110,13 +114,14 @@
         <div class="official-config-note"><strong data-i18n="Grokbuild 官方配置">Grokbuild 官方配置</strong><p data-i18n="模型和推理档位显示具体名称，新对话明确使用当前选择。已有对话可在任务结束后修改，等待引擎确认后用于后续消息。">模型和推理档位显示具体名称，新对话明确使用当前选择。已有对话可在任务结束后修改，等待引擎确认后用于后续消息。</p><p data-i18n="权限、沙箱、MCP 等配置由 Grokbuild CLI 管理，并按所选工作目录加载。修改这些官方配置后，请重新连接引擎。">权限、沙箱、MCP 等配置由 Grokbuild CLI 管理，并按所选工作目录加载。修改这些官方配置后，请重新连接引擎。</p></div>
         <div class="setting-row"><div><strong id="quota-setting-label" data-i18n="显示账户额度">显示账户额度</strong><p id="quota-setting-help" data-i18n="在侧边栏显示当前账户的 Grok 用量额度。&#10;开启后，客户端会使用该账户的 CLI 登录凭据向 xAI 查询；关闭后不会发出此请求。" class="i18n-multiline">在侧边栏显示当前账户的 Grok 用量额度。
 开启后，客户端会使用该账户的 CLI 登录凭据向 xAI 查询；关闭后不会发出此请求。</p></div><label class="switch"><input id="quota-input" type="checkbox" role="switch" aria-labelledby="quota-setting-label" aria-describedby="quota-setting-help" checked><span></span></label></div>
+        <fieldset class="theme-field" id="theme-field" aria-describedby="theme-help"><legend class="field-label" data-i18n="城市主题">城市主题</legend><div class="theme-options"><label class="theme-option" data-theme-option="tokyo"><input type="radio" name="theme" value="tokyo"><span class="theme-preview" aria-hidden="true"></span><span class="theme-name"><span data-i18n="东京">东京</span></span></label><label class="theme-option" data-theme-option="kyoto"><input type="radio" name="theme" value="kyoto"><span class="theme-preview" aria-hidden="true"></span><span class="theme-name"><span data-i18n="京都">京都</span></span></label><label class="theme-option" data-theme-option="okinawa"><input type="radio" name="theme" value="okinawa"><span class="theme-preview" aria-hidden="true"></span><span class="theme-name"><span data-i18n="冲绳">冲绳</span></span></label><label class="theme-option" data-theme-option="hokkaido"><input type="radio" name="theme" value="hokkaido"><span class="theme-preview" aria-hidden="true"></span><span class="theme-name"><span data-i18n="北海道">北海道</span></span></label></div><p id="theme-help" class="field-help" data-i18n="配色、背景、窗外景致与音乐随城市一起切换，选择即可预览。">配色、背景、窗外景致与音乐随城市一起切换，选择即可预览。</p></fieldset>
         <div class="setting-row"><div><strong id="rain-label" data-i18n="窗外有雨">窗外有雨</strong><p id="rain-help" data-i18n="窗前飘落的动态雨滴，切换即可预览。&#10;关闭后保留静态东京夜景；跟随系统的减少动态效果设置。" class="i18n-multiline">窗前飘落的动态雨滴，切换即可预览。
 关闭后保留静态东京夜景；跟随系统的减少动态效果设置。</p></div><label class="switch"><input id="rain-input" type="checkbox" role="switch" aria-labelledby="rain-label" aria-describedby="rain-help" checked><span></span></label></div>
         <div class="setting-row"><div><strong id="music-label" data-i18n="东京午夜电台">东京午夜电台</strong><p id="music-help" data-i18n="日式复古蒸汽波 · 原创器乐循环&#10;温暖电钢琴、合成器与慢拍鼓点，陪你留在八十年代的夜晚。" class="i18n-multiline">日式复古蒸汽波 · 原创器乐循环
 温暖电钢琴、合成器与慢拍鼓点，陪你留在八十年代的夜晚。</p></div><label class="switch"><input id="music-input" type="checkbox" role="switch" aria-labelledby="music-label" aria-describedby="music-help" checked><span></span></label></div>
         <div class="music-volume-row"><label for="music-volume" data-i18n="音乐音量">音乐音量</label><input id="music-volume" type="range" min="0" max="100" step="1" value="90" aria-describedby="music-status"><output id="music-volume-value" for="music-volume">90%</output></div>
         <p id="music-status" class="field-help" role="status" aria-live="polite" data-i18n="音乐准备中…">音乐准备中…</p>
-        <p class="field-help" data-i18n="雨景与音乐即时预览，保存后下次沿用；关闭设置则还原。">雨景与音乐即时预览，保存后下次沿用；关闭设置则还原。</p>
+        <p class="field-help" data-i18n="主题、窗外景致与音乐即时预览，保存后下次沿用；关闭设置则还原。">主题、窗外景致与音乐即时预览，保存后下次沿用；关闭设置则还原。</p>
         <div class="engine-info"><span class="connection-dot" id="settings-dot"></span><span id="settings-engine-status" data-i18n="正在检测 Grokbuild">正在检测 Grokbuild</span><button type="button" id="settings-reconnect" data-i18n="重新连接 ↗">重新连接 ↗</button></div>
       </div>
       <div class="dialog-footer"><span id="settings-feedback" role="status"></span><button type="submit" class="primary-button" id="save-settings-button"><span data-i18n="保存设置">保存设置</span> <span>↗</span></button></div>

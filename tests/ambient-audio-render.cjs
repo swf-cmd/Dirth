@@ -1,7 +1,8 @@
 'use strict';
 
 // Run: node tests/ambient-audio-render.cjs [--packaged]
-// Render the actual player and WAV through Electron's native Web Audio graph.
+// Render the actual player and every city's track through Electron's native
+// Web Audio graph.
 // Only the realtime context lifecycle is adapted; decoding, automation, gain,
 // source looping and any accidentally reintroduced effects remain native.
 const assert = require('node:assert/strict');
@@ -45,8 +46,10 @@ const results = [];
       };
     });
     await page.addScriptTag({ url: pathToFileURL(path.join(sourceRoot, 'src', 'renderer', 'ambient-audio.js')).href });
-    for (const volume of [90, 100]) {
-      const result = await page.evaluate(async volume => {
+    const themes = await page.evaluate(() => Object.keys(window.TokyoAmbience.tracks));
+    assert.deepEqual(themes, ['tokyo', 'kyoto', 'okinawa', 'hokkaido']);
+    for (const theme of themes) for (const volume of [90, 100]) {
+      const result = await page.evaluate(async ({ theme, volume }) => {
         let ready, failed;
         const playing = new Promise((resolve, reject) => { ready = resolve; failed = reject; });
         const deadline = setTimeout(() => failed(new Error('Automatic playback timed out')), 10000);
@@ -55,7 +58,7 @@ const results = [];
           else if (status.state === 'error') failed(new Error(status.error));
         } });
         try {
-          player.setPreferences({ musicEnabled: true, musicVolume: volume });
+          player.setPreferences({ musicEnabled: true, musicVolume: volume, theme });
           await playing;
           const status = player.getStatus();
           if (status.state !== 'playing') throw new Error(`Player failed: ${JSON.stringify(status)}`);
@@ -85,14 +88,14 @@ const results = [];
             }
           }
           return {
-            volume, sourceSeconds: input.duration, renderedSeconds: rendered.duration,
+            theme, title: status.title, volume, sourceSeconds: input.duration, renderedSeconds: rendered.duration,
             channels: input.numberOfChannels, sampleRate: input.sampleRate,
             gain, sourcePeak, outputPeak, clippedSamples, nonFiniteSamples,
             maxSteadyError, maxLoopError,
             relativeErrorDb: 10 * Math.log10(Math.max(errorSquares, Number.MIN_VALUE) / signalSquares),
           };
         } finally { clearTimeout(deadline); player.dispose(); }
-      }, volume);
+      }, { theme, volume });
       results.push(result);
       assert.equal(result.sourceSeconds, 96);
       assert.equal(result.renderedSeconds, 97, 'render the complete track and the next loop seam');
@@ -104,7 +107,7 @@ const results = [];
       assert.ok(result.outputPeak > 0.1, 'the clipping test must not pass with silent output');
       assert.ok(result.maxSteadyError < 0.000002, `preserve the source waveform: ${JSON.stringify(result)}`);
       assert.ok(result.maxLoopError < 0.000002, 'native looping must preserve sample order across the seam');
-      console.log(`PASS ${volume}% volume: ${JSON.stringify(result)}`);
+      console.log(`PASS ${theme} at ${volume}% volume: ${JSON.stringify(result)}`);
     }
     assert.deepEqual(errors, []);
   } finally {

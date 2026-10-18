@@ -9,11 +9,11 @@ const source = fs.readFileSync(path.join(__dirname, '../src/renderer/ambient-aud
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 function fixture() {
-  const calls = { fetch: 0, decode: 0, start: 0, resume: 0, sampleReads: 0 };
+  const calls = { fetch: 0, decode: 0, start: 0, resume: 0, sampleReads: 0, urls: [], stops: 0 };
   const contexts = [];
   const timers = new Map();
   let nextTimer = 0;
-  let resolveDecode, rejectDecode;
+  const decodes = [];
   const frames = 44100 * 96;
   const samples = new Proxy({ length: frames }, {
     get(target, property) {
@@ -29,11 +29,11 @@ function fixture() {
       return { gain: { value: 0, cancelAndHoldAtTime() {}, setTargetAtTime() {} }, connect() {}, disconnect() {} };
     }
     createBufferSource() {
-      return { connect() {}, disconnect() {}, stop() {}, start() { calls.start++; } };
+      return { connect() {}, disconnect() {}, stop() { calls.stops++; }, start() { calls.start++; } };
     }
     decodeAudioData() {
       calls.decode++;
-      return new Promise((resolve, reject) => { resolveDecode = resolve; rejectDecode = reject; });
+      return new Promise((resolve, reject) => { decodes.push({ resolve, reject, url: calls.urls.at(-1) }); });
     }
     async resume() { calls.resume++; this.state = 'running'; }
     async suspend() { this.state = 'suspended'; }
@@ -47,13 +47,14 @@ function fixture() {
   };
   vm.runInNewContext(source, {
     window, document: { baseURI: 'file:///app/src/renderer/index.html' }, URL, Float32Array,
-    fetch: async () => { calls.fetch++; return { ok: true, arrayBuffer: async () => new ArrayBuffer(0) }; },
+    fetch: async url => { calls.fetch++; calls.urls.push(url); return { ok: true, arrayBuffer: async () => new ArrayBuffer(0) }; },
   });
   const player = window.TokyoAmbience.create();
   return {
     player, calls, contexts,
-    complete: () => resolveDecode(buffer),
-    fail: () => rejectDecode(new Error('Fixture decode failed')),
+    // Settle the newest pending decode, or the one for a given track file.
+    complete: (file) => { const index = file ? decodes.findIndex(item => item.url.endsWith(file)) : decodes.length - 1; decodes.splice(index, 1)[0].resolve(buffer); },
+    fail: () => decodes.pop().reject(new Error('Fixture decode failed')),
     finishPause() { const pending = [...timers.values()]; timers.clear(); pending.forEach(callback => callback()); },
   };
 }
@@ -145,3 +146,92 @@ test('disposing during preparation discards the decoded track without starting a
   assert.equal(contexts[0].state, 'closed');
   assert.equal(player.getStatus().ready, false);
 });
+
+test('changing cities while playing crossfades to the new track from its start', async t => {
+  const { player, calls, complete } = fixture();
+  t.after(() => player.dispose());
+  player.setPreferences({ musicEnabled: true, musicVolume: 90, theme: 'tokyo' });
+  await settle();
+  complete();
+  await settle();
+  assert.equal(player.getStatus().state, 'playing');
+  assert.match(calls.urls[0], /assets\/tokyo-afterimage\.wav$/);
+  player.setPreferences({ theme: 'kyoto' });
+  await settle();
+  assert.equal(player.getStatus().state, 'starting', 'the current track keeps playing while the next one loads');
+  assert.match(calls.urls[1], /assets\/kyoto-lanterns\.flac$/);
+  assert.equal(calls.start, 1);
+  complete();
+  await settle();
+  const status = player.getStatus();
+  assert.equal(status.state, 'playing');
+  assert.equal(status.theme, 'kyoto');
+  assert.equal(status.title, 'Kyoto Lanterns · 京都灯籠');
+  assert.equal(status.tempoBpm, 60);
+  assert.equal(status.activeSources, 2, 'Tokyo fades out while Kyoto fades in');
+  assert.equal(status.playbackSeconds, 0);
+  assert.equal(calls.start, 2);
+});
+
+test('rapid city changes keep only the last choice and ignore stale decodes', async t => {
+  const { player, calls, complete } = fixture();
+  t.after(() => player.dispose());
+  player.setPreferences({ musicEnabled: true });
+  await settle();
+  complete();
+  await settle();
+  player.setPreferences({ theme: 'kyoto' });
+  await settle();
+  player.setPreferences({ theme: 'okinawa' });
+  await settle();
+  complete('kyoto-lanterns.flac');
+  await settle();
+  assert.equal(calls.start, 1, 'a decode for an abandoned city never plays');
+  assert.equal(player.getStatus().theme, 'okinawa');
+  complete('okinawa-island-time.flac');
+  await settle();
+  assert.equal(calls.start, 2);
+  assert.equal(player.getStatus().state, 'playing');
+  assert.equal(player.getStatus().title, 'Okinawa Island Time · 沖縄島時間');
+});
+
+test('returning to the playing city before the next loads keeps it playing', async t => {
+  const { player, calls, complete } = fixture();
+  t.after(() => player.dispose());
+  player.setPreferences({ musicEnabled: true, theme: 'hokkaido' });
+  await settle();
+  assert.match(calls.urls[0], /assets\/hokkaido-snowlight\.flac$/);
+  complete();
+  await settle();
+  player.setPreferences({ theme: 'tokyo' });
+  await settle();
+  player.setPreferences({ theme: 'hokkaido' });
+  await settle();
+  assert.equal(player.getStatus().state, 'playing');
+  complete('tokyo-afterimage.wav');
+  await settle();
+  assert.equal(calls.start, 1, 'the original source was never interrupted');
+  assert.equal(calls.stops, 0);
+  assert.equal(player.getStatus().theme, 'hokkaido');
+  assert.equal(player.getStatus().activeSources, 1);
+});
+
+test('a city chosen while music is off loads only when music starts, and unknown cities fall back to Tokyo', async t => {
+  const { player, calls, complete } = fixture();
+  t.after(() => player.dispose());
+  player.setPreferences({ musicEnabled: false, theme: 'okinawa' });
+  await settle();
+  assert.equal(calls.fetch, 0);
+  assert.equal(player.getStatus().title, 'Okinawa Island Time · 沖縄島時間');
+  player.setPreferences({ theme: 'osaka' });
+  assert.equal(player.getStatus().theme, 'tokyo');
+  player.setPreferences({ theme: 'kyoto', musicEnabled: true });
+  await settle();
+  assert.equal(calls.fetch, 1);
+  assert.match(calls.urls[0], /kyoto-lanterns\.flac$/);
+  complete();
+  await settle();
+  assert.equal(player.getStatus().state, 'playing');
+  assert.equal(player.getStatus().ready, true);
+});
+

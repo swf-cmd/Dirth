@@ -80,6 +80,8 @@ jobs:
             work/onboarding-qa/run-*/*.png
             work/onboarding-qa/run-*/results.json
             work/model-refresh-qa/run-*/*.png
+            work/theme-qa/run-*/*.png
+            work/theme-qa/run-*/results.json
           retention-days: 7
           if-no-files-found: ignore
 
@@ -178,5 +180,7 @@ jobs:
             work/onboarding-qa/run-*/*.png
             work/onboarding-qa/run-*/results.json
             work/model-refresh-qa/run-*/*.png
+            work/theme-qa/run-*/*.png
+            work/theme-qa/run-*/results.json
           retention-days: 7
           if-no-files-found: ignore

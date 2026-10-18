@@ -9,3 +9,5 @@
 *.png binary
 *.ico binary
 *.wav binary
+*.webp binary
+*.flac binary

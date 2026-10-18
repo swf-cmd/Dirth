@@ -1,4 +1,5 @@
 const { createI18n, languages, normalizeLanguage } = require('./i18n.js');
+const { themes, defaultTheme, normalizeTheme } = require('./themes.js');
 const { EventEmitter } = require('node:events');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -144,7 +145,7 @@ class AppController extends EventEmitter {
     this.dirtySessions = new Set();
     this.saveQueue = Promise.resolve();
     this.historyQueue = Promise.resolve();
-    this.settings = { executable: findGrokExecutable({ home }), workspace: path.join(root, 'Workspace'), rainEnabled: true, musicEnabled: true, musicVolume: 90, subagentsEnabled: true, quotaEnabled: true, language: 'en' };
+    this.settings = { executable: findGrokExecutable({ home }), workspace: path.join(root, 'Workspace'), rainEnabled: true, musicEnabled: true, musicVolume: 90, theme: defaultTheme, subagentsEnabled: true, quotaEnabled: true, language: 'en' };
     this.t = createI18n(() => this.settings.language);
     this.sessions = [];
     this.accounts = [{ id: 'local', name: '本机 Grok 账户', nameIsDefault: true }];
@@ -186,6 +187,7 @@ class AppController extends EventEmitter {
         if (!data.sessions.every(s => s && typeof s.id === 'string' && typeof s.title === 'string' && typeof s.cwd === 'string' && Array.isArray(s.messages) && s.messages.every(m => m && ['user', 'assistant'].includes(m.role) && typeof m.text === 'string'))) throw new Error('Invalid session data');
         this.settings = { ...this.settings, ...data.settings };
         this.settings.language = normalizeLanguage(this.settings.language);
+        this.settings.theme = normalizeTheme(this.settings.theme);
         for (const key of ['rainEnabled', 'musicEnabled', 'subagentsEnabled', 'quotaEnabled']) {
           if (typeof this.settings[key] !== 'boolean') this.settings[key] = true;
         }
@@ -875,6 +877,10 @@ class AppController extends EventEmitter {
     if (patch.musicVolume !== undefined) {
       if (!Number.isInteger(patch.musicVolume) || patch.musicVolume < 0 || patch.musicVolume > 100) throw new Error(this.t('背景音乐音量必须为 0 到 100 的整数'));
       changes.musicVolume = patch.musicVolume;
+    }
+    if (patch.theme !== undefined) {
+      if (typeof patch.theme !== 'string' || !Object.hasOwn(themes, patch.theme)) throw new Error(this.t('请选择支持的城市主题'));
+      changes.theme = patch.theme;
     }
     if (patch.subagentsEnabled !== undefined) {
       if (typeof patch.subagentsEnabled !== 'boolean') throw new Error(this.t('子代理开关必须为布尔值'));

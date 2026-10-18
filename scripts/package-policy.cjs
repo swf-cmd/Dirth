@@ -9,13 +9,18 @@ const packageFiles = [
   'src/account-manager.cjs', 'src/app-controller.cjs', 'src/app-paths.cjs', 'src/attachments.cjs',
   'src/blob-store.cjs', 'src/history-store.cjs', 'src/history-writer.cjs',
   'src/controller-accounts.cjs', 'src/controller-quota.cjs', 'src/grok-adapter.cjs', 'src/i18n.js', 'src/locales.js', 'src/main.cjs',
+  'src/themes.js',
   'src/media.cjs', 'src/model-labels.cjs', 'src/platform.cjs', 'src/preload.cjs', 'src/resource-download.cjs',
   'src/turn-journal.cjs', 'src/usage-quota.cjs',
-  'src/renderer/ambient-audio.js', 'src/renderer/app.js', 'src/renderer/index.html',
-  'src/renderer/styles.css', 'src/renderer/vendor/marked.umd.js',
+  'src/renderer/ambient-audio.js', 'src/renderer/app.js', 'src/renderer/index.html', 'src/renderer/theme-boot.js',
+  'src/renderer/styles.css', 'src/renderer/theme-colors.css', 'src/renderer/themes.css', 'src/renderer/vendor/marked.umd.js',
   'src/renderer/vendor/purify.min.js', 'src/renderer/assets/icon.ico', 'src/renderer/assets/icon.icns',
   'src/renderer/assets/icon.png', 'src/renderer/assets/tokyo-afterimage.wav',
   'src/renderer/assets/tokyo-rain.png',
+  'src/renderer/assets/kyoto-lanterns.webp', 'src/renderer/assets/kyoto-lanterns.flac',
+  'src/renderer/assets/okinawa-twilight.webp', 'src/renderer/assets/okinawa-island-time.flac',
+  'src/renderer/assets/hokkaido-snowlight.webp', 'src/renderer/assets/hokkaido-snowlight.flac',
+  'src/renderer/assets/theme-previews.webp',
 ];
 const allowed = new Set(['', ...packageFiles]);
 for (const file of packageFiles) {
