@@ -37,6 +37,7 @@ This project is not affiliated with or endorsed by SpaceXAI or xAI. Authenticati
 | Experience | What you can do |
 | --- | --- |
 | **A place to focus** | Rainy Shibuya scenery, optional animated rain and an original offline synth soundtrack. |
+| **Four city editions** | Switch between Tokyo, Kyoto, Okinawa and Hokkaido: each brings its own colors, backdrop, weather outside the window (rain, maple leaves, fireflies, snow) and original soundtrack. |
 | **Several tasks at once** | Run up to four conversations in parallel, each with its own progress, permission prompts, stop button and draft. |
 | **Conversations that stay with you** | Stream Markdown and code, search and rename chats, restore sessions and export Markdown. |
 | **See the agent at work** | Follow tool progress and execution plans, answer each permission request and stop generation at any time. |
@@ -262,6 +263,6 @@ If Grokbuild Tokyo keeps you company on late-night builds, starring the reposito
 
 [MIT](LICENSE) © 2026 swf-cmd and contributors. Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for bundled libraries, Electron and asset provenance.
 
-The Shibuya background is AI-generated; its [prompt is included](src/renderer/assets/IMAGE-PROMPT.md). The icon is drawn by [`scripts/make-icon.py`](scripts/make-icon.py), and **Tokyo Afterimage · 東京残像** is an original synthesized instrumental generated from [`scripts/ambient-score.js`](scripts/ambient-score.js).
+The Shibuya background is AI-generated; its [prompt is included](src/renderer/assets/IMAGE-PROMPT.md). The Kyoto, Okinawa and Hokkaido backdrops are painted in code by [`scripts/backdrop-art.js`](scripts/backdrop-art.js). The icon is drawn by [`scripts/make-icon.py`](scripts/make-icon.py). **Tokyo Afterimage · 東京残像** and the three city soundtracks are original synthesized instrumentals generated from [`scripts/ambient-score.js`](scripts/ambient-score.js) and [`scripts/theme-scores.js`](scripts/theme-scores.js).
 
 Built with [Electron](https://www.electronjs.org/), [Marked](https://github.com/markedjs/marked) and [DOMPurify](https://github.com/cure53/DOMPurify), connected through [ACP](https://agentclientprotocol.com/) to [Grok Build](https://github.com/xai-org/grok-build).

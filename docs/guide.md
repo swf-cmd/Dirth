@@ -113,7 +113,16 @@ If the reasoning selector says **Please update Grok CLI**, the engine reports re
 
 **Allow subagents** passes `GROK_SUBAGENTS=1/0` to the CLI and restarts the account's engine after saving. Permissions, sandboxing, and MCP follow the official configuration precedence; the client does not rewrite the official `config.toml`. Reconnect after changing the official configuration.
 
-**Tokyo Midnight Radio** plays the bundled original synthesizer instrumental *Tokyo Afterimage · 東京残像*: an 80 BPM, 96-second loop that works offline. It is enabled by default at 90% volume. If playback has not started after launch, click the window or press a key. Rain, music, and volume changes preview immediately; saving remembers them, while closing settings restores the previous values. Ambience preferences can be saved during generation without restarting the engine. Rain animation stops when your system enables reduced motion.
+**City theme** switches the whole edition: Tokyo (the original), Kyoto, Okinawa or Hokkaido. Each city changes the interface colors, the backdrop, the welcome copy and location stamp, the weather outside the window and the soundtrack:
+
+| City | Backdrop | Outside the window | Soundtrack |
+| --- | --- | --- | --- |
+| Tokyo | Shibuya on a rainy night | Rain | **Tokyo Midnight Radio** · *Tokyo Afterimage · 東京残像*, retro vaporwave, 80 BPM |
+| Kyoto | Lantern-lit lane below the Yasaka pagoda | Maple leaves | **Kyoto Lantern Radio** · *Kyoto Lanterns · 京都灯籠*, koto, bamboo flute and temple bell, 60 BPM |
+| Okinawa | Twilight over the sea at Cape Manzamo | Fireflies | **Okinawa Sea Breeze Radio** · *Okinawa Island Time · 沖縄島時間*, Ryukyu-scale island groove, 90 BPM |
+| Hokkaido | Otaru canal in falling snow | Snow | **Hokkaido Snow Night Radio** · *Hokkaido Snowlight · 北海道雪あかり*, music box and piano waltz, 75 BPM |
+
+Every soundtrack is an original 96-second loop that works offline, and changing city crossfades to the new one. Music is enabled by default at 90% volume. If playback has not started after launch, click the window or press a key. City, weather, music, and volume changes preview immediately; saving remembers them, while closing settings restores the previous values. These preferences can be saved during generation without restarting the engine. Weather animation stops when your system enables reduced motion.
 
 ## Local data and repository contents
 
@@ -172,7 +181,7 @@ The historical live compatibility baseline is locally installed Grok Build **1.0
 
 This CLI version advertises `image: false` and `audio: false` over ACP. Images and files are passed to CLI tools through baseline `resource_link` content with accurate local paths; the client does not claim unread files have been embedded. Replies still support image previews and saving attachments. The client does not provide dedicated controls for every `x.ai/*` extension or TUI-specific command, including Git/worktree management, session branching/rewind, interactive terminals, or slash-command menus. It therefore does not cover every feature of the official TUI. Incompatible protocols and engines that cannot restore history produce explicit notices.
 
-The backdrop is a generated image of a rainy Shibuya night; its prompt is in [IMAGE-PROMPT.md](../src/renderer/assets/IMAGE-PROMPT.md). The icon is drawn by `scripts/make-icon.py` (requires Python and Pillow). Regenerate the background music from `scripts/ambient-score.js` with `node scripts/render-ambience.cjs`.
+The Tokyo backdrop is a generated image of a rainy Shibuya night; its prompt is in [IMAGE-PROMPT.md](../src/renderer/assets/IMAGE-PROMPT.md). The Kyoto, Okinawa and Hokkaido backdrops and the picker previews are painted from `scripts/backdrop-art.js` with `node scripts/render-backdrops.cjs` (`--preview` writes review copies to `work/backdrops`). The icon is drawn by `scripts/make-icon.py` (requires Python and Pillow). Regenerate Tokyo's music from `scripts/ambient-score.js` with `node scripts/render-ambience.cjs`, and the city soundtracks from `scripts/theme-scores.js` with `node scripts/render-ambience.cjs --theme kyoto` (or `okinawa`, `hokkaido`, `all`); the city tracks are encoded as lossless FLAC with `ffmpeg`. City palettes are generated from `styles.css` into `theme-colors.css` by `node scripts/build-theme-css.cjs`; `npm test` fails if that file is stale.
 
 ## Protocol and official references
 
