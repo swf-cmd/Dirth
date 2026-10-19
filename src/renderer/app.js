@@ -1,4 +1,4 @@
-/* Grokbuild Tokyo — local desktop renderer. All engine access stays in preload. */
+/* Akari — local desktop renderer. All engine access stays in preload. */
 'use strict';
 
 (() => {
@@ -213,11 +213,11 @@
     for (const id of ['sidebar-dot', 'connection-dot', 'settings-dot']) $(id).className = dotClass;
     $('connection-label').textContent = label;
     $('sidebar-status').textContent = !pending && needsSignIn() ? t('登录 Grok，开始对话') : online ? t('本地引擎在线') : pending ? t('正在连接本地引擎') : t('本地引擎离线');
-    $('connection-button').title = needsSignIn() ? t('登录 Grok ↗') : state.connected ? t('Grokbuild 已连接，点击重新连接') : t('点击重新连接 Grokbuild');
-    $('settings-engine-status').textContent = online ? t('Grokbuild {version} · 已连接', { version: state.info.version || '' }) : pending ? t('正在连接本地引擎') : diagnostic(state.lastError) || t('Grokbuild 未连接，请检查文件路径与登录状态');
+    $('connection-button').title = needsSignIn() ? t('登录 Grok ↗') : state.connected ? t('Grok Build 已连接，点击重新连接') : t('点击重新连接 Grok Build');
+    $('settings-engine-status').textContent = online ? t('Grok Build {version} · 已连接', { version: state.info.version || '' }) : pending ? t('正在连接本地引擎') : diagnostic(state.lastError) || t('Grok Build 未连接，请检查文件路径与登录状态');
     $('settings-engine-status').title = $('settings-engine-status').textContent;
     $('version-label').textContent = state.info.version ? `v${String(state.info.version).replace(/^v/, '')}` : t('本地');
-    $('version-label').title = state.info.version || t('本地 Grokbuild');
+    $('version-label').title = state.info.version || t('本地 Grok Build');
     renderSelects();
     renderComposerState();
   }
@@ -306,7 +306,7 @@
     const locked = uiLocked({ engine: true, connected: true, busy: true });
     for (const element of [$('model-select'), $('mode-select')]) {
       element.disabled = locked;
-      element.title = state.login ? t('请先完成或取消账户登录。') : state.configuring ? t('正在等待 Grokbuild 确认配置…') : !state.connected ? t('离线时仅可查看历史，重新连接后可更改配置。') : activeBusy() ? t('任务结束后可更改配置。') : session ? t('更改后由 Grokbuild 确认生效，用于后续消息。') : t('新对话会明确使用所选模型和推理档位。');
+      element.title = state.login ? t('请先完成或取消账户登录。') : state.configuring ? t('正在等待 Grok Build 确认配置…') : !state.connected ? t('离线时仅可查看历史，重新连接后可更改配置。') : activeBusy() ? t('任务结束后可更改配置。') : session ? t('更改后由 Grok Build 确认生效，用于后续消息。') : t('新对话会明确使用所选模型和推理档位。');
     }
     if (!models.length) $('model-select').disabled = true;
     if (!modes.length) {
@@ -637,7 +637,7 @@
       article.dataset.messageId = message.id;
       const heading = document.createElement('div'); heading.className = 'message-heading';
       const avatar = document.createElement('span'); avatar.className = 'message-avatar'; avatar.textContent = message.role === 'user' ? t('你') : activeTheme().glyph; avatar.setAttribute('aria-hidden', 'true');
-      const name = document.createElement('strong'); name.textContent = message.role === 'user' ? t('YOU') : 'GROKBUILD';
+      const name = document.createElement('strong'); name.textContent = message.role === 'user' ? t('YOU') : 'GROK BUILD';
       const time = document.createElement('time');
       if (message.createdAt) { const date = new Date(message.createdAt); if (!Number.isNaN(date.getTime())) { time.dateTime = date.toISOString(); time.textContent = date.toLocaleTimeString(i18n.getLanguage(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); } }
       heading.append(avatar, name, time); article.append(heading);
@@ -749,7 +749,7 @@
     if (!state.busy.has(state.activeId)) return;
     const message = activeSession()?.messages.filter(item => item.role === 'assistant').at(-1);
     const tool = message?.tools?.filter(item => ['running', 'pending', 'in_progress'].includes(item.status)).at(-1);
-    $('activity-text').textContent = sessionPermissions(state.activeId).length ? t('等待你的授权') : tool ? tool.title || t('正在执行工具') : message?.text ? t('Grokbuild 正在回答') : t('Grokbuild 正在思考');
+    $('activity-text').textContent = sessionPermissions(state.activeId).length ? t('等待你的授权') : tool ? tool.title || t('正在执行工具') : message?.text ? t('Grok Build 正在回答') : t('Grok Build 正在思考');
     const start = state.started.get(state.activeId) || Date.now();
     const elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
     $('activity-duration').textContent = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
@@ -761,7 +761,7 @@
     const permission = sessionPermissions(permissionSessionId)[0];
     panel.replaceChildren(); panel.hidden = !permission;
     if (!permission) return;
-    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.textContent = permission.title || permission.toolCall?.title || t('Grokbuild 请求执行操作');
+    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.textContent = permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
     const description = document.createElement('p'); description.className = 'permission-description';
     description.textContent = safeText(permission.toolCall?.rawInput ?? permission.toolCall?.content ?? permission.description) || t('请确认是否允许此操作。你的选择会发送给本地引擎。');
     const actions = document.createElement('div'); actions.className = 'permission-actions';
@@ -903,7 +903,7 @@
       const updated = await call('configureSession', { sessionId: session.id, ...patch });
       if (updated?.id !== session.id) throw new Error(t('引擎未确认这段对话的新配置，请重新连接后重试。'));
       upsertSession(updated);
-      toast(t('对话配置已由 Grokbuild 确认。'));
+      toast(t('对话配置已由 Grok Build 确认。'));
     } finally {
       state.configuring = false;
       renderSelects(); renderComposerState();
@@ -936,7 +936,7 @@
     const attachments = [...draft.attachments];
     if ((!text && !attachments.length) || draft.pending || uiLocked({ engine: true, busy: true })) return;
     if (atCapacity()) { toast(t('最多同时运行 {count} 个任务，请等待其中一个完成。', { count: state.maxConcurrentTurns }), true); return; }
-    if (!state.connected) { toast(t('请先连接本地 Grokbuild。点击右上角的连接状态可重试。'), true); return; }
+    if (!state.connected) { toast(t('请先连接本地 Grok Build。点击右上角的连接状态可重试。'), true); return; }
     if (!newChatConfigReady()) { toast(t('请先选择具体的模型和推理档位。'), true); return; }
     state.sending = true;
     renderComposerState(); renderSelects();
@@ -1395,7 +1395,7 @@
     $('save-settings-button').disabled = true; $('settings-feedback').textContent = '';
     try {
       const patch = settingsPatch();
-      if (!patch.executable) throw new Error(t('请选择 Grokbuild 的 Grok CLI 文件。'));
+      if (!patch.executable) throw new Error(t('请选择 Grok Build CLI 可执行文件。'));
       if (!patch.workspace) throw new Error(t('请选择默认工作目录。'));
       const reconnectRequired = forceReconnect || ['executable', 'workspace', 'subagentsEnabled'].some(key => patch[key] !== state.settings[key]);
       if (reconnectRequired && state.startingEngine) throw new Error(t('请等待当前操作完成，再重新连接引擎。'));
@@ -1432,7 +1432,7 @@
         const session = await call('selectSession', state.activeId);
         if (session?.id) upsertSession(session);
       }
-      renderSelects(); renderWorkspace(); queueMessages(); toast(t('Grokbuild 已重新连接。'));
+      renderSelects(); renderWorkspace(); queueMessages(); toast(t('Grok Build 已重新连接。'));
     } catch (error) { state.connected = false; state.connectionStatus = 'disconnected'; state.lastError = error.message; throw error; }
     finally { state.selecting = false; renderConnection(); }
   }

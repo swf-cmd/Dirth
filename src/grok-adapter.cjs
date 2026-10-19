@@ -208,7 +208,7 @@ class GrokAdapter extends EventEmitter {
     try {
       const result = await this._request('initialize', {
         protocolVersion: PROTOCOL_VERSION,
-        clientInfo: { name: 'grokbuild-tokyo', title: 'Grokbuild Tokyo', version: clientVersion },
+        clientInfo: { name: 'akari', title: 'Akari', version: clientVersion },
         // Grok runs its own tools; do not claim filesystem/terminal delegation.
         clientCapabilities: { fs: { readTextFile: false, writeTextFile: false }, terminal: false },
       });
@@ -611,7 +611,7 @@ class GrokAdapter extends EventEmitter {
         // cannot decode Windows file URIs for automatic @ expansion, so keep
         // the link as a reference and supply the exact tool path below.
         prompt.push({ type: 'resource_link', uri, name: attachment.name, mimeType: attachment.mimeType, size: stat.size,
-          _meta: { 'grokbuild-tokyo/source': 'attachment' } });
+          _meta: { 'akari/source': 'attachment' } });
       }
       manifest.push({ name: attachment.name, path: attachment.path, mimeType: attachment.mimeType, size: stat.size,
         delivery: inlineImage ? 'inline image' : 'local file reference' });

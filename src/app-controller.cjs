@@ -23,6 +23,11 @@ const MEDIA_VERSION = 1;
 // simultaneous turns so a burst of tasks cannot exhaust tools or the account.
 const MAX_CONCURRENT_TURNS = 4;
 
+function isInside(parent, child) {
+  const relative = path.relative(parent, child);
+  return !path.isAbsolute(relative) && relative.split(path.sep)[0] !== '..';
+}
+
 function isPathType(value, type) {
   if (typeof value !== 'string' || !path.isAbsolute(value)) return false;
   try { return fs.statSync(value)[type](); } catch { return false; }
@@ -128,7 +133,7 @@ function recoverReply(message, sessionId, logged) {
 }
 
 class AppController extends EventEmitter {
-  constructor({ root, home, Adapter = GrokAdapter, Accounts = AccountManager, quotaFetch = null, nativeImage = null }) {
+  constructor({ root, movedFrom = null, home, Adapter = GrokAdapter, Accounts = AccountManager, quotaFetch = null, nativeImage = null }) {
     super();
     this.root = root;
     this.nativeImage = nativeImage;
@@ -186,6 +191,12 @@ class AppController extends EventEmitter {
         if (!Array.isArray(data.sessions) || !data.settings || typeof data.settings !== 'object' || Array.isArray(data.settings)) throw new Error('Invalid saved data');
         if (!data.sessions.every(s => s && typeof s.id === 'string' && typeof s.title === 'string' && typeof s.cwd === 'string' && Array.isArray(s.messages) && s.messages.every(m => m && ['user', 'assistant'].includes(m.role) && typeof m.text === 'string'))) throw new Error('Invalid session data');
         this.settings = { ...this.settings, ...data.settings };
+        // After the Mac data folder moved to the new app name, new conversations
+        // start under its new path. Saved conversations keep theirs: the old
+        // path is a link to the new folder, and the CLI knows them by it.
+        if (movedFrom && typeof this.settings.workspace === 'string' && isInside(movedFrom, this.settings.workspace)) {
+          this.settings.workspace = path.join(root, path.relative(movedFrom, this.settings.workspace));
+        }
         this.settings.language = normalizeLanguage(this.settings.language);
         this.settings.theme = normalizeTheme(this.settings.theme);
         for (const key of ['rainEnabled', 'musicEnabled', 'subagentsEnabled', 'quotaEnabled']) {

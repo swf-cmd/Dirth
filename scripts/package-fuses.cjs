@@ -16,7 +16,7 @@ const releaseFuses = Object.freeze({
 });
 
 function fuseTarget(build, platform) {
-  return path.join(build, platform === 'darwin' ? 'Grokbuild Tokyo.app' : 'Grokbuild Tokyo.exe');
+  return path.join(build, platform === 'darwin' ? 'Akari.app' : 'Akari.exe');
 }
 
 async function verifyReleaseFuses(binary) {

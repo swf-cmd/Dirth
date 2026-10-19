@@ -49,7 +49,7 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content package.json | ConvertFrom-Json).version
-          $archive = "dist/Grokbuild-Tokyo-$version-win-x64.zip"
+          $archive = "dist/Akari-$version-win-x64.zip"
           $expected = (Get-Content "$archive.sha256").Split(' ')[0]
           if ((Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant() -ne $expected) { throw 'Windows ZIP checksum mismatch' }
           Move-Item App work/windows-build-before-extraction
