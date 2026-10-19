@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const catalogs = require('../src/locales.js');
+const { createI18n } = require('../src/i18n.js');
 const { themes, ids, defaultTheme, normalizeTheme, textFields, previewSprite } = require('../src/themes.js');
 const { build, palettes, transformHex } = require('../scripts/build-theme-css.cjs');
 const { packageFiles } = require('../scripts/package-policy.cjs');
@@ -87,6 +88,24 @@ test('every city text is translated in every catalog without parameters', () => 
   }
   for (const key of ['正在播放 · {station} · 离线循环', '正在准备{station}…', '点击窗口或按任意键，开启{station}。']) {
     for (const code of codes) assert.match(catalogs[code][key], /\{station\}/, `${code}: ${key}`);
+  }
+});
+
+test('Tokyo music status reads exactly as it did before the city templates', () => {
+  // The messages Tokyo showed when the station name was written into each one.
+  const before = {
+    'zh-CN': ['正在播放 · 东京午夜电台 · 离线循环', '正在准备东京午夜电台…', '点击窗口或按任意键，开启东京午夜电台。'],
+    ja: ['再生中 · 東京ミッドナイトラジオ · オフラインループ', '東京ミッドナイトラジオを準備中…', 'ウィンドウをクリックするかキーを押して、東京ミッドナイトラジオを再生。'],
+    en: ['Playing · Tokyo Midnight Radio · Offline loop', 'Preparing Tokyo Midnight Radio…', 'Click the window or press any key to start Tokyo Midnight Radio.'],
+    ko: ['재생 중 · 도쿄 자정 라디오 · 오프라인 반복', '도쿄 자정 라디오 준비 중…', '창을 클릭하거나 아무 키나 눌러 도쿄 자정 라디오를 켜세요.'],
+    es: ['Reproduciendo · Radio de medianoche de Tokio · Bucle sin conexión', 'Preparando Radio de medianoche de Tokio…', 'Haz clic en la ventana o pulsa una tecla para iniciar Radio de medianoche de Tokio.'],
+    de: ['Wiedergabe · Tokyo Midnight Radio · Offline-Schleife', 'Tokyo Midnight Radio wird vorbereitet…', 'Klicke ins Fenster oder drücke eine Taste, um Tokyo Midnight Radio zu starten.'],
+    fr: ['Lecture · Radio de minuit de Tokyo · Boucle hors ligne', 'Préparation de Radio de minuit de Tokyo…', 'Cliquez dans la fenêtre ou appuyez sur une touche pour lancer Radio de minuit de Tokyo.'],
+  };
+  for (const [code, expected] of Object.entries(before)) {
+    const t = createI18n(() => code);
+    const station = t(themes.tokyo.station);
+    assert.deepEqual(['正在播放 · {station} · 离线循环', '正在准备{station}…', '点击窗口或按任意键，开启{station}。'].map(key => t(key, { station })), expected, code);
   }
 });
 
