@@ -68,7 +68,13 @@ else {
     handle('readImage', args => controller.imageURL(args));
     // The renderer may only ask for a refresh; it cannot choose an account or URL.
     handle('refreshQuota', () => controller.refreshQuota({ force: true }));
-    handle('saveSettings', async patch => { const result = await controller.saveSettings(patch); installMenu(); return result; });
+    handle('saveSettings', async patch => {
+      const result = await controller.saveSettings(patch);
+      installMenu();
+      // Resizing shows the native background before the page repaints; follow the saved city.
+      if (win && !win.isDestroyed()) win.setBackgroundColor(themes[normalizeTheme(controller.settings.theme)].windowBackground);
+      return result;
+    });
     // Dialogs opened from settings follow its language preview without saving it.
     const dialogTranslator = language => typeof language === 'string' && Object.hasOwn(languages, language) ? createI18n(language) : t;
     handle('chooseFolder', async language => { const translate = dialogTranslator(language); const r = await dialog.showOpenDialog(win, { title: translate('选择 Grok 工作目录'), defaultPath: controller.settings.workspace, properties: ['openDirectory', 'createDirectory'] }); return r.canceled ? null : r.filePaths[0]; });

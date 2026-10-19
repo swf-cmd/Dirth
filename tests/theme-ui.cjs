@@ -42,6 +42,7 @@ const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkai
     page.on('pageerror', error => errors.push(error.message));
     const ready = () => page.waitForFunction(() => !document.querySelector('#settings-button').disabled && !document.querySelector('#connection-button').disabled);
     const starts = () => desktop.evaluate(() => globalThis.__tokyoUITest.calls.filter(item => item.method === 'start').length);
+    const windowBackground = () => desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor().toLowerCase());
     const openSettings = async () => { await page.locator('#settings-button').click(); await page.locator('#settings-dialog').waitFor({ state: 'visible' }); };
     const closeSettings = async () => { await page.locator('[data-close-dialog="settings-dialog"]').click(); await page.locator('#settings-dialog').waitFor({ state: 'hidden' }); };
     const pick = async id => {
@@ -97,8 +98,7 @@ const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkai
       await ready();
       await expectCity('kyoto', 'en');
       await playing('en', 'kyoto');
-      const background = await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBackgroundColor().toLowerCase());
-      assert.equal(background, themes.kyoto.windowBackground);
+      assert.equal(await windowBackground(), themes.kyoto.windowBackground);
       await page.screenshot({ path: path.join(testRoot, 'welcome-kyoto.png') });
     });
 
@@ -158,6 +158,7 @@ const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkai
       assert.equal(readState().settings.theme, 'hokkaido');
       assert.equal(await starts(), before);
       await expectCity('hokkaido', 'en');
+      assert.equal(await windowBackground(), themes.hokkaido.windowBackground, 'the native window follows the saved city');
       await page.screenshot({ path: path.join(testRoot, 'welcome-hokkaido.png') });
       await desktop.close();
       desktop = await _electron.launch({ args: ['--mute-audio', path.join(__dirname, 'fixtures', 'ui-app.cjs')], env });
@@ -187,6 +188,7 @@ const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkai
       }));
       assert.deepEqual(tokyo, { star: rgb('#d4eb89'), pin: rgb('#dc927c'), radius: '7px', sidebar: 'linear-gradient(160deg, rgb(18, 25, 28), rgb(15, 21, 23) 65%)', panel: rgb('#0b1116') });
       assert.equal(readState().settings.theme, 'tokyo');
+      assert.equal(await windowBackground(), themes.tokyo.windowBackground);
     });
     assert.deepEqual(errors, []);
   } catch (error) {
