@@ -1,4 +1,4 @@
-/* Akari — local desktop renderer. All engine access stays in preload. */
+/* Dirth — local desktop renderer. All engine access stays in preload. */
 'use strict';
 
 (() => {

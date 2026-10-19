@@ -1,10 +1,10 @@
 # Screenshot notes · 截图说明
 
-These screenshots show the real Akari Electron interface on Windows at 1440 × 940 pixels. Mac uses the same interface content with native window controls and Command-key shortcuts. They were captured with Playwright using the repository's isolated `tests/fixtures/ui-app.cjs` test entry point. The main process, IPC bridge, renderer, and bundled Tokyo artwork are the production application; the CLI adapter is an offline test fixture.
+These screenshots show the real Dirth Electron interface on Windows at 1440 × 940 pixels. Mac uses the same interface content with native window controls and Command-key shortcuts. They were captured with Playwright using the repository's isolated `tests/fixtures/ui-app.cjs` test entry point. The main process, IPC bridge, renderer, and bundled Tokyo artwork are the production application; the CLI adapter is an offline test fixture.
 
 The focus-timer conversation is authored demo content, not a recorded model response. The visible `UI-TEST` engine label and model selection are fixture data and do not promise access to any particular model. The sidebar quota card shows a sample weekly allowance served by the fixture; no quota request reaches xAI. No personal conversations, login credentials, or paid model requests were used. `R:\Workspace` is a temporary alias to the isolated screenshot workspace.
 
-这些图片是 Windows 上 Akari 真实 Electron 界面的 1440 × 940 像素截图；Mac 共用相同界面内容，使用原生窗口按钮和 Command 快捷键。截图通过 Playwright 和仓库中的隔离测试入口 `tests/fixtures/ui-app.cjs` 拍摄。主进程、IPC、界面及东京背景均来自实际应用，CLI 适配器使用离线模拟引擎。
+这些图片是 Windows 上 Dirth 真实 Electron 界面的 1440 × 940 像素截图；Mac 共用相同界面内容，使用原生窗口按钮和 Command 快捷键。截图通过 Playwright 和仓库中的隔离测试入口 `tests/fixtures/ui-app.cjs` 拍摄。主进程、IPC、界面及东京背景均来自实际应用，CLI 适配器使用离线模拟引擎。
 
 专注计时器对话是为展示编写的示例内容，并非真实模型回复。界面中的 `UI-TEST` 引擎标记与模型选项属于测试数据，不代表特定模型的可用性。侧边栏额度卡片显示的是测试环境提供的示例周额度，不会向 xAI 查询额度。截图未使用个人聊天、登录凭据或付费模型请求。`R:\Workspace` 是隔离截图工作目录的临时路径别名。
 
@@ -34,7 +34,7 @@ Windows 上先运行 `npm ci`，再运行 `node scripts/capture-readme.cjs` 生�
 
 ## Social preview / 社交预览图
 
-`social-preview.png` is the 1280 × 640 card that sites such as X show when the repository link is shared. `social-preview.html` places the unmodified `app-en.png` capture over the app's own Shibuya background and icon; no interface element is drawn by hand. Its text uses Liberation Sans, Liberation Mono, Poppins and Noto Serif CJK JP (SIL Open Font License), falling back to Arial, Consolas, Segoe UI and Yu Mincho; no font files are included in the repository.
+`social-preview.png` is the 1280 × 640 card that sites such as X show when the repository link is shared. `social-preview.html` places the unmodified `app-en.png` capture over the app's own Shibuya background and icon; no interface element is drawn by hand. Its text uses Liberation Sans, Liberation Mono and Poppins (SIL Open Font License), falling back to Arial, Consolas and Segoe UI; no font files are included in the repository.
 
 To update it after changing the text or the screenshot, install dependencies with `npm ci`, run `npx playwright install chromium` once, then:
 
@@ -44,6 +44,6 @@ npx playwright screenshot --viewport-size="1280, 640" docs/images/social-preview
 
 Keep the image under 1 MB. GitHub does not read it from the repository: upload it under **Settings → General → Social preview**.
 
-`social-preview.png` 是在 X 等网站分享仓库链接时显示的 1280 × 640 卡片。`social-preview.html` 将未经修改的 `app-en.png` 截图叠放在应用自带的涩谷背景与图标之上，没有手绘任何界面元素。文字使用 Liberation Sans、Liberation Mono、Poppins 与 Noto Serif CJK JP（SIL Open Font License），缺少时回退到 Arial、Consolas、Segoe UI 与 Yu Mincho；仓库不包含字体文件。
+`social-preview.png` 是在 X 等网站分享仓库链接时显示的 1280 × 640 卡片。`social-preview.html` 将未经修改的 `app-en.png` 截图叠放在应用自带的涩谷背景与图标之上，没有手绘任何界面元素。文字使用 Liberation Sans、Liberation Mono 与 Poppins（SIL Open Font License），缺少时回退到 Arial、Consolas 与 Segoe UI；仓库不包含字体文件。
 
 修改文字或截图后，先运行 `npm ci`，首次还需运行 `npx playwright install chromium`，再执行上面的 `npx playwright screenshot` 命令重新生成。图片需小于 1 MB。GitHub 不会自动读取仓库中的这张图，需要在仓库的 **Settings → General → Social preview** 中上传。

@@ -2,7 +2,7 @@
 const path = require('node:path');
 
 function packagedBundle(root) {
-  return path.join(root, 'App', 'Akari.app');
+  return path.join(root, 'App', 'Dirth.app');
 }
 
 function packagedArchive(root, platform = process.platform) {
@@ -13,8 +13,8 @@ function packagedArchive(root, platform = process.platform) {
 
 function packagedExecutable(root, platform = process.platform) {
   return platform === 'darwin'
-    ? path.join(packagedBundle(root), 'Contents', 'MacOS', 'Akari')
-    : path.join(root, 'App', 'Akari.exe');
+    ? path.join(packagedBundle(root), 'Contents', 'MacOS', 'Dirth')
+    : path.join(root, 'App', 'Dirth.exe');
 }
 
 module.exports = { packagedBundle, packagedArchive, packagedExecutable };

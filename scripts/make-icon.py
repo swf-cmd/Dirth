@@ -1,157 +1,96 @@
-"""Draw the Akari icon: a lit kato-mado (火灯窓) window on a rainy night.
+"""Draw the Dirth icon: a dash and three corners stepping up on lime green.
 
 Writes, under src/renderer/assets:
   icon.png        512 px tile: window icon on Windows, README
   brand-mark.png  64 px tile drawn for the 25 px title-bar mark
-  icon.ico        Windows sizes 16-256, each drawn for its size
-  icon.icns       Mac sizes 32-1024 on Apple's icon grid (824 px body in a
+  icon.ico        Windows sizes 16-256
+  icon.icns       Mac sizes 16-1024 on Apple's icon grid (824 px body in a
                   1024 px canvas, with its drop shadow)
 
-Small sizes are drawn, not shrunk: rain and the shoji lattice go first, then
-the art is cropped closer so the window keeps its outline at 16 px.
+The mark is flat geometry, so each size is drawn at several times its size
+and reduced, which keeps every edge smooth. Below 32 px the mark is drawn a
+little larger in its tile so the gaps between the steps stay open.
 
-Requires Python 3 with Pillow and CairoSVG:
-  python3 -m pip install pillow cairosvg
+Requires Python 3 with Pillow:
+  python3 -m pip install pillow
   python3 scripts/make-icon.py
 """
 import io
 import math
 from pathlib import Path
 
-import cairosvg
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 DEST = Path(__file__).resolve().parents[1] / 'src' / 'renderer' / 'assets'
 
-NIGHT_TOP, NIGHT_BOTTOM = '#18263a', '#05080d'
-LAMP = '#ffc978'
-GLASS = ('#fff8e6', '#ffe9b8', '#f7c977', '#e0975a')  # lamp side to the arch tip
-WOOD = '#3a2414'
-SILL, SILL_EDGE = '#26323a', '#3a4a54'
-RAIN = '#9fb6c8'
+LIME = (0xd4, 0xeb, 0x89)  # the Tokyo edition's --lime
+INK = (0x22, 0x27, 0x23)
+
+# The mark on a 1024 tile. Every step is a corner of the same size, moved
+# STEP up and to the right of the one before; the dash is a corner without
+# its downstroke. The whole mark is centred on the tile.
+STROKE, SIZE, STEP = 96, 320, 148
+EDGE, OUTER, INNER = 16, 28, 14  # corner radii: ends, the bend's outside and inside
 
 
-def window_outline():
-    """Kato-mado outline, symmetric about x = 512 on a 1024 canvas.
-
-    Slightly tapered jambs, the outward flick where the arch springs, a bell
-    that rises from the flick and a concave neck into the point.
-    """
-    cx, bottom, hb, hj, jt = 512, 860, 214, 198, 566
-    ear_x, ear_y = 56, 24
-    curl_x, curl_y = 200, 506
-    shoulder = (446, 296)
-    tip, bulge, neck = 180, 2.8, 0.5
-    ex, ey = cx - hj - ear_x, jt - ear_y
-    ux, uy = cx - curl_x, curl_y
-    sx, sy = shoulder
-    left = [  # each entry: control 1, control 2, end point (left side, upwards)
-        ((cx - hj - 14, jt - 1), (ex + 8, jt - 6), (ex, ey)),
-        ((ex + 18, ey), (ux - 6, uy + 30), (ux, uy)),
-        ((ux + 6 * bulge, uy - 30 * bulge), (sx - 60, sy + 48), (sx, sy)),
-        ((sx + 60 * neck, sy - 48 * neck), (cx - 4, tip + 44), (cx, tip)),
-    ]
-    p = lambda pt: f'{pt[0]:.1f},{pt[1]:.1f}'
-    mirror = lambda pt: (2 * cx - pt[0], pt[1])
-    d = f'M{p((cx - hb, bottom))} L{p((cx - hj, jt))} '
-    starts = [(cx - hj, jt)] + [seg[2] for seg in left[:-1]]
-    d += ' '.join(f'C{p(c1)} {p(c2)} {p(end)}' for c1, c2, end in left)
-    for (c1, c2, _), start in zip(reversed(left), reversed(starts)):
-        d += f' C{p(mirror(c2))} {p(mirror(c1))} {p(mirror(start))}'
-    return d + f' L{p(mirror((cx - hb, bottom)))} Z'
+def mark_shapes():
+    """Each shape as a list of (x, y, corner radius) on the 1024 tile, clockwise."""
+    left = (1024 - (3 * STEP + SIZE)) / 2  # dash to the top corner's right edge
+    top = (1024 - (2 * STEP + SIZE)) / 2   # top corner down to the first corner's foot
+    shapes = []
+    for i in range(4):
+        x, y = left + i * STEP, top + (3 - i) * STEP
+        right, bottom = x + SIZE, y + SIZE
+        if i == 0:
+            shapes.append([(x, y, EDGE), (right, y, EDGE), (right, y + STROKE, EDGE), (x, y + STROKE, EDGE)])
+        else:
+            shapes.append([(x, y, EDGE), (right, y, OUTER), (right, bottom, EDGE), (right - STROKE, bottom, EDGE),
+                           (right - STROKE, y + STROKE, INNER), (x, y + STROKE, EDGE)])
+    return shapes
 
 
-WINDOW = window_outline()
-RAIN_STREAKS = [(196, 132), (132, 404), (214, 640), (300, 70), (842, 120),
-                (900, 380), (828, 600), (930, 820), (110, 840), (742, 40)]
+def rounded(points, steps=24):
+    """Polygon points with each right-angled corner replaced by an arc of its radius."""
+    out = []
+    for i, (px, py, r) in enumerate(points):
+        ax, ay, _ = points[i - 1]
+        bx, by, _ = points[(i + 1) % len(points)]
+        ux, uy = (ax - px) / math.hypot(ax - px, ay - py), (ay - py) / math.hypot(ax - px, ay - py)
+        vx, vy = (bx - px) / math.hypot(bx - px, by - py), (by - py) / math.hypot(bx - px, by - py)
+        cx, cy = px + r * (ux + vx), py + r * (uy + vy)
+        for k in range(steps + 1):
+            t = math.pi / 2 * k / steps
+            out.append((cx - r * (vx * math.cos(t) + ux * math.sin(t)), cy - r * (vy * math.cos(t) + uy * math.sin(t))))
+    return out
 
 
-def art(detail):
-    """SVG for one level of detail.
-
-    2: everything (about 96 px and up); 1: no rain or lattice, one mullion,
-    cropped closer (32-95 px); 0: the lit outline only (under 32 px).
-    """
-    view = {2: '0 0 1024 1024', 1: '72 96 880 880', 0: '112 136 800 800'}[detail]
-    s = [f'''<svg xmlns="http://www.w3.org/2000/svg" viewBox="{view}">
-<defs>
-<linearGradient id="night" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="{NIGHT_TOP}"/><stop offset="1" stop-color="{NIGHT_BOTTOM}"/></linearGradient>
-<radialGradient id="halo" cx="512" cy="590" r="480" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="{LAMP}" stop-opacity=".34"/><stop offset=".45" stop-color="{LAMP}" stop-opacity=".11"/><stop offset="1" stop-color="{LAMP}" stop-opacity="0"/></radialGradient>
-<radialGradient id="pool" cx="512" cy="900" r="300" gradientUnits="userSpaceOnUse" gradientTransform="translate(0 900) scale(1 .22) translate(0 -900)"><stop offset="0" stop-color="{LAMP}" stop-opacity=".26"/><stop offset="1" stop-color="{LAMP}" stop-opacity="0"/></radialGradient>
-<radialGradient id="glass" cx="512" cy="880" r="700" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="{GLASS[0]}"/><stop offset=".38" stop-color="{GLASS[1]}"/><stop offset=".76" stop-color="{GLASS[2]}"/><stop offset="1" stop-color="{GLASS[3]}"/></radialGradient>
-<clipPath id="window"><path d="{WINDOW}"/></clipPath>
-</defs>
-<rect width="1024" height="1024" fill="url(#night)"/>''']
-    if detail == 2:
-        streaks = ''.join(f'<line x1="{x}" y1="{y}" x2="{x - 44}" y2="{y + 108}"/>' for x, y in RAIN_STREAKS)
-        s.append(f'<g stroke="{RAIN}" stroke-opacity=".26" stroke-width="9" stroke-linecap="round">{streaks}</g>')
-    s.append('<rect width="1024" height="1024" fill="url(#halo)"/>')
-    s.append('<rect x="160" y="860" width="704" height="100" fill="url(#pool)"/>')
-    s.append(f'<path d="{WINDOW}" fill="url(#glass)"/>')
-    inside = []
-    if detail >= 1:
-        inside.append(f'<line x1="512" y1="860" x2="512" y2="160" stroke="{WOOD}" stroke-opacity=".5" stroke-width="{13 if detail == 2 else 22}"/>')
-    if detail == 2:
-        rails = ''.join(f'<line x1="240" y1="{y}" x2="784" y2="{y}"/>' for y in (566, 664, 762))
-        stiles = ''.join(f'<line x1="{x}" y1="860" x2="{x}" y2="160"/>' for x in (414, 610))
-        inside.append(f'<g stroke="{WOOD}" stroke-opacity=".24" stroke-width="7">{rails}{stiles}</g>')
-        # A soft inner edge gives the frame some depth.
-        inside.append(f'<path d="{WINDOW}" fill="none" stroke="#2a1608" stroke-opacity=".22" stroke-width="30"/>')
-    if inside:
-        s.append('<g clip-path="url(#window)">' + ''.join(inside) + '</g>')
-    s.append(f'<rect x="270" y="858" width="484" height="28" rx="8" fill="{SILL}"/>'
-             f'<rect x="270" y="858" width="484" height="5" rx="2.5" fill="{SILL_EDGE}"/>')
-    s.append('</svg>')
-    return '\n'.join(s)
-
-
-def detail_for(pixels):
-    return 2 if pixels >= 96 else 1 if pixels >= 32 else 0
-
-
-def squircle(n=5.0, steps=900):
-    """Superellipse close to the continuous-corner shape of Mac and iOS icons."""
-    pts = []
-    for i in range(steps):
-        t = 2 * math.pi * i / steps
-        c, s = math.cos(t), math.sin(t)
-        x = 512 + 512 * math.copysign(abs(c) ** (2 / n), c)
-        y = 512 + 512 * math.copysign(abs(s) ** (2 / n), s)
-        pts.append(f'{x:.2f},{y:.2f}')
-    return f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><path d="M{" L".join(pts)} Z" fill="#fff"/></svg>'
-
-
-SQUIRCLE = squircle()
-
-
-def render(svg, pixels):
-    png = cairosvg.svg2png(bytestring=svg.encode(), output_width=pixels, output_height=pixels)
-    return Image.open(io.BytesIO(png)).convert('RGBA')
+SHAPES = [rounded(shape) for shape in mark_shapes()]
+# The tile: a unit square with corners rounded to 21% of its width.
+TILE = rounded([(0, 0, 0.21), (1, 0, 0.21), (1, 1, 0.21), (0, 1, 0.21)], steps=120)
 
 
 def tile(pixels, margin, shadow=False):
-    """The art clipped to the squircle, `margin` (a fraction) in from each edge.
-
-    Small sizes are drawn at 4x and reduced, which keeps the edges smooth.
-    """
-    scale = 4 if pixels < 256 else 1
+    """The tile, `margin` (a fraction) in from each edge, drawn large and reduced to `pixels`."""
+    scale = max(4, 1024 // pixels)
     canvas_px = pixels * scale
-    body = round(canvas_px * (1 - 2 * margin))
-    offset = (canvas_px - body) // 2
-    body_detail = detail_for(round(pixels * (1 - 2 * margin)))
-    mask = render(SQUIRCLE, body).getchannel('A')
+    body = canvas_px * (1 - 2 * margin)
+    offset = canvas_px * margin
+    zoom = 1.12 if body / scale < 32 else 1  # small sizes: a larger mark keeps its gaps open
+    outline = [(offset + x * body, offset + y * body) for x, y in TILE]
+    place = lambda pt: (offset + body * (0.5 + (pt[0] / 1024 - 0.5) * zoom), offset + body * (0.5 + (pt[1] / 1024 - 0.5) * zoom))
     out = Image.new('RGBA', (canvas_px, canvas_px), (0, 0, 0, 0))
     if shadow:
         alpha = Image.new('L', (canvas_px, canvas_px), 0)
-        alpha.paste(mask, (offset, offset + round(canvas_px * 0.012)))
+        drop = canvas_px * 0.012
+        ImageDraw.Draw(alpha).polygon([(x, y + drop) for x, y in outline], fill=255)
         alpha = alpha.filter(ImageFilter.GaussianBlur(canvas_px * 0.014)).point(lambda v: v // 2)
-        shade = Image.new('RGBA', (canvas_px, canvas_px), (0, 0, 0, 0))
-        shade.putalpha(alpha)
-        out.alpha_composite(shade)
-    layer = Image.new('RGBA', (canvas_px, canvas_px), (0, 0, 0, 0))
-    layer.paste(render(art(body_detail), body), (offset, offset), mask)
-    out.alpha_composite(layer)
-    return out if scale == 1 else out.resize((pixels, pixels), Image.LANCZOS)
+        out.putalpha(alpha)
+    draw = ImageDraw.Draw(out)
+    draw.polygon(outline, fill=LIME + (255,))
+    for shape in SHAPES:
+        draw.polygon([place(pt) for pt in shape], fill=INK + (255,))
+    # Averaged with premultiplied alpha, so the tile's edge does not darken.
+    return out.convert('RGBa').reduce(scale).convert('RGBA')
 
 
 def icns(images):

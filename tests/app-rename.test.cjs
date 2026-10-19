@@ -23,7 +23,7 @@ async function upgraded(t, workspace, sessionCwd) {
   const run = fs.mkdtempSync(path.join(base, 'run-'));
   t.after(() => fs.rmSync(run, { recursive: true, force: true }));
   const legacy = path.join(run, 'Grokbuild Tokyo');
-  const root = path.join(run, 'Akari');
+  const root = path.join(run, 'Dirth');
   const before = new AppController({ root: legacy, home: path.join(run, 'home') });
   before.settings.workspace = workspace(legacy, run);
   fs.mkdirSync(before.settings.workspace, { recursive: true });
@@ -59,7 +59,7 @@ test('Without a move, a workspace named like the old folder is left alone', asyn
   const run = fs.mkdtempSync(path.join(base, 'run-'));
   t.after(() => fs.rmSync(run, { recursive: true, force: true }));
   const elsewhere = path.join(run, 'Grokbuild Tokyo', 'Workspace');
-  const root = path.join(run, 'Akari');
+  const root = path.join(run, 'Dirth');
   const first = new AppController({ root, home: path.join(run, 'home') });
   first.settings.workspace = elsewhere;
   await first.save();

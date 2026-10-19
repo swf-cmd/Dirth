@@ -1,6 +1,6 @@
 {
-  "name": "akari",
-  "productName": "Akari",
+  "name": "dirth",
+  "productName": "Dirth",
   "version": "1.2.5",
   "description": "An unofficial desktop app for the locally installed Grok Build CLI, set in four Japanese cities",
   "main": "src/main.cjs",
@@ -9,11 +9,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/swf-cmd/akari.git"
+    "url": "git+https://github.com/swf-cmd/dirth.git"
   },
-  "homepage": "https://github.com/swf-cmd/akari#readme",
+  "homepage": "https://github.com/swf-cmd/dirth#readme",
   "bugs": {
-    "url": "https://github.com/swf-cmd/akari/issues"
+    "url": "https://github.com/swf-cmd/dirth/issues"
   },
   "engines": {
     "node": ">=22.13.0"

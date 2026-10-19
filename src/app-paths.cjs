@@ -2,7 +2,7 @@
 const nodeFs = require('node:fs');
 const path = require('node:path');
 
-const MAC_FOLDER = 'Akari';
+const MAC_FOLDER = 'Dirth';
 // Versions up to 1.2.5 shipped as Grokbuild Tokyo and kept Mac data here.
 const LEGACY_MAC_FOLDERS = ['Grokbuild Tokyo'];
 

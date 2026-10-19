@@ -15,8 +15,8 @@ const { root, movedFrom } = adoptLegacyRoot(
   { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
 fs.mkdirSync(path.join(root, 'data', 'browser'), { recursive: true });
 app.setPath('userData', path.join(root, 'data', 'browser'));
-app.setName('Akari');
-if (process.platform === 'win32') app.setAppUserModelId('com.swf-cmd.akari');
+app.setName('Dirth');
+if (process.platform === 'win32') app.setAppUserModelId('com.swf-cmd.dirth');
 let win, controller, quitPending = false, quitAllowed = false;
 const t = createI18n(() => controller?.settings.language);
 const entry = path.join(__dirname, 'renderer', 'index.html');
@@ -55,7 +55,7 @@ else {
     // Only presentation preferences travel with the renderer startup. This lets
     // the first frame use the saved language and city without synchronous IPC or disk I/O.
     const initialPreferences = Object.fromEntries(['language', 'theme', 'rainEnabled', 'musicEnabled', 'musicVolume'].map(key => [key, controller.settings[key]]));
-    win = new BrowserWindow({ width: 1440, height: 940, minWidth: 980, minHeight: 680, frame: isMac, ...(isMac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 14 } } : {}), show: false, backgroundColor: themes[normalizeTheme(controller.settings.theme)].windowBackground, title: 'Akari', icon: path.join(__dirname, 'renderer', 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), additionalArguments: [`--tokyo-preferences=${encodeURIComponent(JSON.stringify(initialPreferences))}`], autoplayPolicy: 'no-user-gesture-required', contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false } });
+    win = new BrowserWindow({ width: 1440, height: 940, minWidth: 980, minHeight: 680, frame: isMac, ...(isMac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 14 } } : {}), show: false, backgroundColor: themes[normalizeTheme(controller.settings.theme)].windowBackground, title: 'Dirth', icon: path.join(__dirname, 'renderer', 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), additionalArguments: [`--tokyo-preferences=${encodeURIComponent(JSON.stringify(initialPreferences))}`], autoplayPolicy: 'no-user-gesture-required', contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false } });
     installMenu();
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', (event, url) => { if (url !== entryURL) event.preventDefault(); });
@@ -113,7 +113,7 @@ else {
     win.once('ready-to-show', () => win.show());
     win.on('close', event => { if (!quitAllowed) { event.preventDefault(); if (isMac && !quitPending) win.hide(); else app.quit(); } });
     win.loadFile(entry);
-  }).catch(error => { dialog.showErrorBox(t('Akari 启动失败'), error.message); app.exit(1); });
+  }).catch(error => { dialog.showErrorBox(t('Dirth 启动失败'), error.message); app.exit(1); });
   app.on('window-all-closed', () => { if (!isMac) app.quit(); });
   app.on('before-quit', event => {
     if (quitAllowed || !controller) return;
@@ -122,6 +122,6 @@ else {
     quitPending = true;
     controller.close()
       .then(() => { quitAllowed = true; app.quit(); })
-      .catch(error => { quitPending = false; dialog.showErrorBox(t('关闭 Akari 时出错'), error.message); });
+      .catch(error => { quitPending = false; dialog.showErrorBox(t('关闭 Dirth 时出错'), error.message); });
   });
 }

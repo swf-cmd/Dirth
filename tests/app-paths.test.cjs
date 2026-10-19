@@ -9,14 +9,14 @@ const { appRoot, adoptLegacyRoot } = require('../src/app-paths.cjs');
 test('Mac profiles survive app moves and development builds', () => {
   const appData = path.resolve('fixture/Library/Application Support');
   for (const isPackaged of [false, true]) for (const location of ['Applications', 'Volumes/Read Only', 'AppTranslocation/random']) {
-    const root = appRoot({ platform: 'darwin', appData, isPackaged, executablePath: path.resolve(location, 'Akari.app/Contents/MacOS/Akari'), sourceRoot: path.resolve('checkout') });
-    assert.equal(root, path.join(appData, 'Akari'));
+    const root = appRoot({ platform: 'darwin', appData, isPackaged, executablePath: path.resolve(location, 'Dirth.app/Contents/MacOS/Dirth'), sourceRoot: path.resolve('checkout') });
+    assert.equal(root, path.join(appData, 'Dirth'));
   }
 });
 
 test('Windows keeps existing portable roots and QA overrides isolate both platforms', () => {
   const sourceRoot = path.resolve('checkout');
-  const executablePath = path.join(sourceRoot, 'App', 'Akari.exe');
+  const executablePath = path.join(sourceRoot, 'App', 'Dirth.exe');
   for (const isPackaged of [false, true]) assert.equal(appRoot({ platform: 'win32', isPackaged, executablePath, sourceRoot }), sourceRoot);
   for (const platform of ['darwin', 'win32']) {
     const testRoot = path.resolve('isolated QA');
@@ -26,8 +26,8 @@ test('Windows keeps existing portable roots and QA overrides isolate both platfo
 });
 
 function withAppData(run) {
-  const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'akari-app-data-'));
-  try { return run(appData, path.join(appData, 'Akari'), path.join(appData, 'Grokbuild Tokyo')); }
+  const appData = fs.mkdtempSync(path.join(os.tmpdir(), 'dirth-app-data-'));
+  try { return run(appData, path.join(appData, 'Dirth'), path.join(appData, 'Grokbuild Tokyo')); }
   finally { fs.rmSync(appData, { recursive: true, force: true }); }
 }
 
@@ -40,18 +40,18 @@ function writeLegacyProfile(legacy) {
 // Creating directory links needs extra rights on Windows; the Mac behaviour is what matters.
 const linkTest = process.platform === 'win32' ? test.skip : test;
 
-linkTest('Mac data saved as Grokbuild Tokyo moves to Akari and the old path still resolves', () => withAppData((appData, root, legacy) => {
+linkTest('Mac data saved as Grokbuild Tokyo moves to Dirth and the old path still resolves', () => withAppData((appData, root, legacy) => {
   writeLegacyProfile(legacy);
   assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: legacy });
   assert.equal(fs.readFileSync(path.join(root, 'data', 'conversations.json'), 'utf8'), '{"saved":true}');
   assert.ok(fs.lstatSync(legacy).isSymbolicLink());
   assert.equal(fs.realpathSync(path.join(legacy, 'Workspace', 'project')), fs.realpathSync(path.join(root, 'Workspace', 'project')));
-  // The next launch finds Akari in place and leaves the link alone.
+  // The next launch finds Dirth in place and leaves the link alone.
   assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: null });
   assert.ok(fs.lstatSync(legacy).isSymbolicLink());
 }));
 
-test('An existing Akari folder wins and the old folder is left untouched', () => withAppData((appData, root, legacy) => {
+test('An existing Dirth folder wins and the old folder is left untouched', () => withAppData((appData, root, legacy) => {
   writeLegacyProfile(legacy);
   fs.mkdirSync(path.join(root, 'data'), { recursive: true });
   assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: null });
@@ -60,7 +60,7 @@ test('An existing Akari folder wins and the old folder is left untouched', () =>
   assert.ok(!fs.existsSync(path.join(root, 'data', 'conversations.json')));
 }));
 
-test('A first launch with no earlier data starts in the Akari folder', () => withAppData((appData, root, legacy) => {
+test('A first launch with no earlier data starts in the Dirth folder', () => withAppData((appData, root, legacy) => {
   assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: null });
   assert.ok(!fs.existsSync(legacy));
   assert.ok(!fs.existsSync(root));
@@ -85,7 +85,7 @@ test('Windows roots, QA roots and custom roots are never moved', () => withAppDa
   assert.deepEqual(adoptLegacyRoot(root, { platform: 'win32', appData }), { root, movedFrom: null });
   const testRoot = path.join(appData, 'QA');
   assert.deepEqual(adoptLegacyRoot(testRoot, { platform: 'darwin', appData, testRoot }), { root: testRoot, movedFrom: null });
-  const elsewhere = path.join(appData, 'nested', 'Akari');
+  const elsewhere = path.join(appData, 'nested', 'Dirth');
   assert.deepEqual(adoptLegacyRoot(elsewhere, { platform: 'darwin', appData }), { root: elsewhere, movedFrom: null });
   assert.ok(fs.lstatSync(legacy).isDirectory());
 }));
