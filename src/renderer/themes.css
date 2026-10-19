@@ -45,7 +45,8 @@
   --window-right: max(var(--window-inset), calc((100% - 1000px) / 2));
   background: var(--washi), var(--bg);
 }
-@media (max-width: 1120px) { :root[data-theme="kyoto"] .main-panel { --window-inset: 30px; } }
+/* A narrow window gets a smaller opening, leaving the copy room beside it. */
+@media (max-width: 1120px) { :root[data-theme="kyoto"] .main-panel { --window-inset: 30px; --window-size: clamp(200px, min(24vw, 34vh), 420px); } }
 @media (max-width: 960px) { :root[data-theme="kyoto"] .main-panel { --window-inset: 24px; } }
 /* Lamplight falling across the paper from the left. */
 :root[data-theme="kyoto"] .main-panel::after { background: radial-gradient(ellipse 70% 90% at 8% -10%, #fffaee99, transparent 70%), radial-gradient(ellipse 60% 70% at 100% 110%, #2a1d1414, transparent 70%); }
@@ -74,6 +75,13 @@
 :root[data-theme="kyoto"] .title-outline { font-size: clamp(22px, 2.3vw, 36px); letter-spacing: .32em; line-height: 1.5; margin-top: 10px; color: var(--muted); -webkit-text-stroke: 0; }
 :root[data-theme="kyoto"] .hero-star { font-size: clamp(20px, 2vw, 30px); margin-left: .1em; vertical-align: 2px; letter-spacing: 0; }
 :root[data-theme="kyoto"] .hero-copy h1 { font-family: var(--mincho); font-weight: 500; letter-spacing: 3px; }
+/* Set tighter in a narrow window, so the subtitle keeps to one line and the
+ * headline has room beside the seal. */
+@media (max-width: 1120px) {
+  :root[data-theme="kyoto"] .title-outline { letter-spacing: .22em; }
+  :root[data-theme="kyoto"] .hero-copy h1 { letter-spacing: 1.5px; }
+  :root[data-theme="kyoto"] .location-stamp strong { letter-spacing: .8px; }
+}
 :root[data-theme="kyoto"] .edition-line,
 :root[data-theme="kyoto"] .hero-title,
 :root[data-theme="kyoto"] .hero-bottom { max-width: calc(100% - var(--window-size) - 36px); }
