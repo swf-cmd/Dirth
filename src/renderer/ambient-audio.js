@@ -62,12 +62,15 @@
     let theme = DEFAULT_THEME;
     let context = null;
     let output = null;
-    // The playing track: its buffer source, its own fader and its theme.
+    // The playing track: its buffer source, its own fader, its theme and the
+    // decoded track it plays.
     let source = null;
     // Sources fading out after a theme change; they stop themselves.
     const retiring = new Set();
+    // The decoded track for the current theme, and decodes still in flight,
+    // one per city, shared by every start() that asks for it.
     let loaded = null;
-    let loading = null;
+    const loading = new Map();
     let pauseTimer = null;
     let suspension = null;
     let disposed = false;
@@ -80,6 +83,8 @@
     const wanted = () => enabled && volume > 0 && !disposed;
     const getStatus = () => {
       const track = TRACKS[theme];
+      // Describe the chosen city only, not the one still playing while it loads.
+      const current = loaded?.theme === theme ? loaded : null;
       return {
         state,
         theme,
@@ -88,14 +93,14 @@
         musicVolume: volume,
         contextState: context?.state || 'uninitialized',
         currentTime: context?.currentTime || 0,
-        playbackSeconds: source ? (offset + Math.max(0, context.currentTime - startingAt)) % TRACKS[source.theme].duration : offsetTheme === theme ? offset : 0,
-        ready: loaded?.theme === theme,
+        playbackSeconds: source?.theme === theme ? (offset + Math.max(0, context.currentTime - startingAt)) % track.duration : offsetTheme === theme ? offset : 0,
+        ready: Boolean(current),
         activeSources: (source ? 1 : 0) + retiring.size,
         tempoBpm: track.bpm,
         durationSeconds: track.duration,
-        sampleRate: loaded?.buffer.sampleRate || null,
-        peak: loaded?.peak || 0,
-        rms: loaded?.rms || 0,
+        sampleRate: current?.buffer.sampleRate || null,
+        peak: current?.peak || 0,
+        rms: current?.rms || 0,
         error
       };
     };
@@ -165,18 +170,19 @@
     }
     function loadTrack(ctx, requested) {
       if (loaded?.theme === requested) return Promise.resolve(loaded);
-      if (loading?.theme === requested) return loading.promise;
+      // A city still sounding, such as one fading out after a preview, lends
+      // its buffer instead of decoding a second copy.
+      const sounding = [source, ...retiring].find(entry => entry?.theme === requested);
+      if (sounding) return Promise.resolve(loaded = sounding.track);
+      // Previewing A, B and A again shares A's decode instead of starting another.
+      if (loading.has(requested)) return loading.get(requested);
       const promise = loadComposition(ctx, requested).then(result => {
-        if (loading?.promise === promise) loading = null;
         // Keep only the track that is still wanted; a theme change while
         // decoding releases the older buffer instead of holding two.
-        if (!disposed && requested === theme) loaded = result;
-        return result;
-      }).catch(failure => {
-        if (loading?.promise === promise) loading = null;
-        throw failure;
-      });
-      loading = { theme: requested, promise };
+        if (!disposed && requested === theme && loaded?.theme !== requested) loaded = result;
+        return loaded?.theme === requested ? loaded : result;
+      }).finally(() => loading.delete(requested));
+      loading.set(requested, promise);
       return promise;
     }
     function pause() {
@@ -236,7 +242,8 @@
           gain.gain.value = crossfading ? 0 : 1;
           node.connect(gain);
           gain.connect(output);
-          source = { node, gain, theme: requested };
+          source = { node, gain, theme: requested, track };
+          loaded = track;
           // A city resumes where it paused; switching cities starts at the top.
           offset = offsetTheme === requested ? offset : 0;
           offsetTheme = requested;
@@ -248,6 +255,8 @@
         publish('playing');
       } catch (failure) {
         if (disposed || !wanted() || requested !== theme) return;
+        // A previous city stops too, so what plays matches the status.
+        if (source && source.theme !== requested) retireSource();
         const blocked = failure?.name === 'NotAllowedError' || context?.state === 'suspended';
         publish(blocked ? 'blocked' : 'error', blocked ? null : String(failure?.message || failure));
       }
@@ -295,7 +304,7 @@
       }
       if (output) output.disconnect();
       loaded = null;
-      loading = null;
+      loading.clear();
       window.removeEventListener('pagehide', dispose);
       publish('paused');
     }

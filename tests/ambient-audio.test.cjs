@@ -235,3 +235,69 @@ test('a city chosen while music is off loads only when music starts, and unknown
   assert.equal(player.getStatus().ready, true);
 });
 
+
+test('previewing one city, another and the first again shares one decode per city', async t => {
+  const { player, calls, complete } = fixture();
+  t.after(() => player.dispose());
+  player.setPreferences({ musicEnabled: true });
+  await settle();
+  complete();
+  await settle();
+  for (const theme of ['kyoto', 'okinawa', 'kyoto']) {
+    player.setPreferences({ theme });
+    await settle();
+  }
+  assert.equal(calls.decode, 3, 'Kyoto decodes once, not once per visit');
+  complete('kyoto-lanterns.flac');
+  await settle();
+  complete('okinawa-island-time.flac');
+  await settle();
+  assert.equal(calls.start, 2, 'one Kyoto source replaces Tokyo; the abandoned Okinawa never plays');
+  assert.equal(player.getStatus().state, 'playing');
+  assert.equal(player.getStatus().theme, 'kyoto');
+  assert.equal(player.getStatus().ready, true);
+});
+
+test('returning to a city that is still fading out reuses its decoded track', async t => {
+  const { player, calls, complete } = fixture();
+  t.after(() => player.dispose());
+  player.setPreferences({ musicEnabled: true });
+  await settle();
+  complete();
+  await settle();
+  player.setPreferences({ theme: 'hokkaido' });
+  await settle();
+  complete();
+  await settle();
+  assert.equal(player.getStatus().activeSources, 2, 'Tokyo is still fading out');
+  player.setPreferences({ theme: 'tokyo' });
+  await settle();
+  assert.equal(calls.decode, 2, 'closing a preview does not decode the saved city again');
+  assert.equal(calls.start, 3);
+  assert.equal(player.getStatus().state, 'playing');
+  assert.equal(player.getStatus().theme, 'tokyo');
+});
+
+test('a city that fails to load also silences the previous city', async t => {
+  const { player, calls, complete, fail } = fixture();
+  t.after(() => player.dispose());
+  player.setPreferences({ musicEnabled: true });
+  await settle();
+  complete();
+  await settle();
+  player.setPreferences({ theme: 'kyoto' });
+  await settle();
+  assert.equal(calls.stops, 0, 'Tokyo plays on while Kyoto loads');
+  fail();
+  await settle();
+  const status = player.getStatus();
+  assert.equal(status.state, 'error');
+  assert.equal(status.theme, 'kyoto');
+  assert.equal(status.ready, false);
+  assert.equal(status.peak, 0, 'the status describes Kyoto, not the Tokyo track still fading out');
+  assert.equal(calls.stops, 1, 'Tokyo fades out instead of playing under the error');
+  player.setPreferences({ theme: 'tokyo' });
+  await settle();
+  assert.equal(calls.decode, 2, 'Tokyo comes back from its fading buffer');
+  assert.equal(player.getStatus().state, 'playing');
+});
