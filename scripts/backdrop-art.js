@@ -4,7 +4,9 @@
  * no photographs, image models, downloads or fonts. Rendering is repeatable,
  * so the shipped WebP files can be rebuilt with scripts/render-backdrops.cjs.
  * Like the Tokyo artwork, each scene keeps its left third quiet for the
- * welcome text and puts its lights in the upper-right two thirds.
+ * welcome text. Kyoto stays a lantern-lit night, seen through a round window
+ * on a washi wall; Okinawa is painted in early-afternoon sun and Hokkaido at
+ * snow-light dusk, so both fade cleanly into their light interfaces.
  */
 (() => {
   'use strict';
@@ -557,80 +559,71 @@
     const p = painter(ctx);
     const cloudNoise = noise2d(201), seaNoise = noise2d(202), rockNoise = noise2d(203), sandNoise = noise2d(204);
     const horizon = H * 0.445;
-    const sun = { x: W * 0.635, y: horizon + 18 };
+    // The early-afternoon sun stands high to the upper right.
+    const sun = { x: W * 0.84, y: -H * 0.12 };
 
-    // Twilight: deep blue overhead, rose and tangerine along the horizon.
-    ctx.fillStyle = p.gradient([[0, '#08112b'], [0.3, '#12285a'], [0.55, '#28488a'], [0.72, '#4f5294'], [0.83, '#94608e'], [0.92, '#dd7e6e'], [0.975, '#f7a874'], [1, '#ffd29a']], 0, 0, 0, horizon);
+    // Clear trade-wind sky: deep cerulean overhead, washed pale at the horizon.
+    ctx.fillStyle = p.gradient([[0, '#2f86d0'], [0.35, '#55a3e2'], [0.7, '#9fcdf0'], [0.9, '#d6ecf7'], [1, '#eef8fb']], 0, 0, 0, horizon);
     ctx.fillRect(0, 0, W, horizon + 2);
-    p.ellipseGlow(sun.x, horizon, W * 0.4, H * 0.16, '#ff8a5a', 0.32, 'screen');
-    p.ellipseGlow(sun.x, horizon, W * 0.12, H * 0.045, '#ffe0a0', 0.55, 'screen');
-    p.glow(sun.x, horizon + 4, 46, '#fff2d0', 0.75, 'lighter', 0.3);
-    // Streaky trade-wind clouds, lit from beneath by the sun that just set.
-    shade(ctx, 0, 0, W, horizon, (x, y) => {
-      const stretch = fbm(cloudNoise, x / 900, y / 70, 5) + fbm(cloudNoise, x / 260 + 30, y / 40, 3) * 0.35;
-      const density = smooth(0.04, 0.55, stretch) * smooth(H * 0.06, H * 0.2, y) * (1 - smooth(horizon - 50, horizon - 6, y));
+    p.glow(sun.x, sun.y, W * 0.55, '#ffffff', 0.32, 'screen', 0.2);
+    p.glow(sun.x, sun.y, W * 0.2, '#fffbe8', 0.5, 'screen', 0.3);
+    // Fair-weather cumulus in rows above the horizon, white tops, blue-grey bases.
+    shade(ctx, 0, H * 0.04, W, horizon - H * 0.04, (x, y) => {
+      const row = y / horizon;
+      const scale = 0.35 + row * 0.9;
+      const puff = fbm(cloudNoise, x / (520 * scale), y / (150 * scale), 5) + fbm(cloudNoise, x / 140 + 50, y / 70, 3) * 0.28;
+      const band = smooth(0.15, 0.55, row) * (1 - smooth(0.93, 1, row)) + (1 - smooth(0.05, 0.22, row)) * 0.4;
+      const density = smooth(0.12, 0.42, puff + band * 0.32 - 0.22);
       if (density < 0.01) return null;
-      const height = y / horizon;
-      const sunlight = Math.exp(-Math.abs(x - sun.x) / (W * 0.35)) * smooth(0.2, 0.95, height);
-      const base = lerpColor('#1a2a55', '#4a3f78', height);
-      const lit = lerpColor(lerpColor('#c25d84', '#ff9a66', smooth(0.55, 0.95, height)), '#ffd9a0', smooth(0.85, 1, height) * sunlight);
-      const color = lerpColor(base, lit, clamp(sunlight * 1.25 + height * 0.25));
-      return [color[0], color[1], color[2], density * 0.82];
+      // Lighter on top of each billow, cooler and greyer underneath.
+      const above = fbm(cloudNoise, x / (520 * scale), (y - 26) / (150 * scale), 5);
+      const lit = smooth(-0.15, 0.25, puff - above + 0.08);
+      const color = lerpColor(lerpColor('#b6c9df', '#d7e3ef', row), '#ffffff', lit);
+      return [color[0], color[1], color[2], density * (0.55 + row * 0.4)];
     }, 2);
-    for (let index = 0; index < 160; index++) {
-      const x = rng() * W, y = rng() * H * 0.32;
-      ctx.fillStyle = rgba('#eef2ff', (0.2 + rng() * 0.6) * (1 - smooth(H * 0.12, H * 0.32, y)));
-      ctx.beginPath(); ctx.arc(x, y, rng() < 0.06 ? 1.5 : 0.85, 0, Math.PI * 2); ctx.fill();
-    }
-    // The evening star and a slim crescent moon.
-    p.glow(W * 0.5, H * 0.17, 26, '#fff8e8', 0.9, 'lighter', 0.15);
-    ctx.fillStyle = '#fff6e4';
-    ctx.beginPath(); ctx.arc(W * 0.5, H * 0.17, 2.4, 0, Math.PI * 2); ctx.fill();
-    const moon = { x: W * 0.69, y: H * 0.1, r: 28 };
-    p.glow(moon.x, moon.y, 160, '#cfd8ff', 0.14, 'screen');
-    const crescent = createCanvas(moon.r * 2 + 4, moon.r * 2 + 4);
-    const crescentContext = crescent.getContext('2d');
-    crescentContext.fillStyle = '#fbf2dc';
-    crescentContext.beginPath(); crescentContext.arc(moon.r + 2, moon.r + 2, moon.r, 0, Math.PI * 2); crescentContext.fill();
-    crescentContext.globalCompositeOperation = 'destination-out';
-    crescentContext.beginPath(); crescentContext.arc(moon.r + 2 + moon.r * 0.42, moon.r + 2 - moon.r * 0.2, moon.r * 0.93, 0, Math.PI * 2); crescentContext.fill();
-    ctx.drawImage(crescent, moon.x - moon.r - 2, moon.y - moon.r - 2);
 
-    // Distant islands on the horizon.
-    const island = (x0, x1, height, color) => {
+    // Ie-jima and the Motobu headland, hazy blue-green on the horizon.
+    const island = (x0, x1, height, color, peak = 0) => {
       ctx.beginPath(); ctx.moveTo(x0, horizon + 1);
       for (let x = x0; x <= x1; x += 4) {
         const t = (x - x0) / (x1 - x0);
-        ctx.lineTo(x, horizon - Math.sin(Math.PI * t) ** 0.6 * height * (0.8 + 0.2 * fbm(rockNoise, x / 60, 2, 2)));
+        const tower = peak ? Math.exp(-(((t - peak) / 0.05) ** 2)) * height * 1.8 : 0;
+        ctx.lineTo(x, horizon - Math.sin(Math.PI * t) ** 0.6 * height * (0.8 + 0.2 * fbm(rockNoise, x / 60, 2, 2)) - tower);
       }
       ctx.lineTo(x1, horizon + 1); ctx.closePath(); ctx.fillStyle = color; ctx.fill();
     };
-    island(W * 0.28, W * 0.42, 26, '#5a4a74');
-    island(W * 0.43, W * 0.5, 14, '#6f5a7e');
-    island(W * 0.52, W * 0.56, 9, '#8a6a84');
+    island(W * 0.26, W * 0.41, 18, '#8fb2c4', 0.42);
+    island(W * 0.44, W * 0.52, 12, '#9dbccc');
+    island(W * 0.54, W * 0.58, 7, '#aac6d3');
 
-    // Sea: twilight reflected near the horizon, emerald shallows close by.
+    // Sea: navy at the horizon, cobalt, then emerald and turquoise over the reef
+    // flats, so clear near the shore that the sand shows through.
     shade(ctx, 0, horizon, W, H - horizon, (x, y) => {
       const t = (y - horizon) / (H - horizon);
       const depth = 1 / (t + 0.012);
       const swell = fbm(seaNoise, x / (90 + t * 900), depth * 0.9, 4);
       const ripple = fbm(seaNoise, x / (20 + t * 260) + 80, depth * 3.2, 3);
-      const reflect = lerpColor('#ffb27a', '#b8678a', smooth(0, 0.08, t));
-      const deep = lerpColor('#2b3f6e', '#0e4058', smooth(0.03, 0.3, t));
-      const shallow = lerpColor(deep, '#128077', smooth(0.25, 0.85, t) * smooth(W * 0.98, W * 0.25, x - t * W * 0.3));
-      let color = lerpColor(shallow, reflect, Math.exp(-t * 26) * 0.85);
+      const offshore = lerpColor('#1b4f97', '#1f6fb6', smooth(0, 0.22, t));
+      const shelf = smooth(0.18, 0.62, t) * smooth(W * 1.02, W * 0.3, x - t * W * 0.25);
+      let color = lerpColor(offshore, lerpColor('#0f9fa6', '#36cdc6', smooth(0.45, 0.95, t)), shelf);
+      // Light sand under clear water near the beach.
+      const shallow = smooth(0.62, 0.98, t) * smooth(W * 0.45, W * 0.75, x);
+      color = lerpColor(color, '#9fe7da', shallow * 0.75);
       const facet = smooth(0.15, 0.55, swell + ripple * 0.5);
-      color = lerpColor(color, lerpColor('#e88a7a', '#3c5c8e', smooth(0, 0.3, t)), facet * (0.28 - t * 0.12));
-      // Sun glitter path.
-      const width = 40 + t * 520;
-      const path = Math.exp(-(((x - sun.x) / width) ** 2));
-      const sparkle = smooth(0.25, 0.62, ripple + swell * 0.6) * path * (1 - smooth(0.2, 0.85, t) * 0.75);
-      color = lerpColor(color, '#ffd89a', clamp(sparkle * 1.2));
-      // Reef shadows in the shallows.
-      const reef = smooth(0.05, 0.4, fbm(seaNoise, x / 260 + 300, y / 90, 3)) * smooth(0.5, 1, t) * 0.35;
-      color = lerpColor(color, '#062a33', reef);
+      color = lerpColor(color, lerpColor('#e8f7ff', '#7fd8e6', smooth(0, 0.3, t)), facet * (0.22 - t * 0.08));
+      // Reef patches, dark green-brown through the water.
+      const reef = smooth(0.08, 0.42, fbm(seaNoise, x / 260 + 300, y / 90, 3)) * smooth(0.42, 0.9, t) * 0.42;
+      color = lerpColor(color, '#2d6b6a', reef);
+      // Sunlight scattered across the water, strongest toward the sun.
+      const toward = Math.exp(-(((x - sun.x) / (W * 0.42)) ** 2));
+      const sparkle = smooth(0.32, 0.62, ripple + swell * 0.6) * (0.25 + toward * 0.75) * (1 - smooth(0.25, 0.9, t) * 0.7);
+      color = lerpColor(color, '#ffffff', clamp(sparkle * 1.1));
       return [color[0], color[1], color[2], 1];
     }, 2);
+    // Haze where sea meets sky.
+    ctx.fillStyle = p.gradient([[0, '#eef8fb', 0], [0.5, '#eef8fb', 0.55], [1, '#eef8fb', 0]], 0, horizon - 22, 0, horizon + 22);
+    ctx.fillRect(0, horizon - 22, W, 44);
+
     // Cape Manzamo: a grassy limestone plateau ending in its elephant-trunk arch.
     const cliffTop = horizon - H * 0.095, cliffBase = horizon + 26;
     const x0 = W * 0.715, x1 = W * 1.02;
@@ -649,20 +642,24 @@
     };
     outline();
     const rock = ctx.createLinearGradient(0, cliffTop, 0, cliffBase);
-    rock.addColorStop(0, '#2c2434'); rock.addColorStop(0.5, '#1d1a28'); rock.addColorStop(1, '#10121c');
+    rock.addColorStop(0, '#d9d1bc'); rock.addColorStop(0.55, '#b9b19c'); rock.addColorStop(1, '#8c8878');
     ctx.fillStyle = rock; ctx.fill();
     ctx.save();
     outline(); ctx.clip();
     shade(ctx, x0 - 30, cliffTop - 10, x1 - x0 + 30, cliffBase - cliffTop + 20, (x, y) => {
       const strata = fbm(rockNoise, x / 140, y / 9, 4);
       const pits = fbm(rockNoise, x / 18 + 40, y / 14, 3);
-      const rim = Math.exp(-(x - x0 + 30) / 110) * 0.9 + Math.exp(-(y - top(x)) / 16) * 0.5;
+      // The seaward face turns from the sun and falls into soft shadow.
+      const face = Math.exp(-(x - x0 + 30) / 120);
       const band = 0.5 + 0.5 * Math.sin(y / 11 + strata * 4);
-      const color = lerpColor(lerpColor('#151522', '#3a3044', band * 0.8 + pits * 0.3), '#d08672', clamp(rim * 0.55));
-      return [color[0], color[1], color[2], clamp(0.55 + rim * 0.3)];
+      const color = lerpColor(lerpColor('#efe7d2', '#a59d88', band * 0.6 + pits * 0.35), '#7c8486', clamp(face * 0.75));
+      return [color[0], color[1], color[2], 0.85];
     }, 2);
+    // Sea notches worn into the foot of the cliff.
+    ctx.fillStyle = p.gradient([[0, '#5c6466', 0], [1, '#4a5658', 0.55]], 0, cliffBase - 26, 0, cliffBase);
+    ctx.fillRect(x0 - 30, cliffBase - 26, x1 - x0 + 30, 28);
     ctx.restore();
-    // The arch where the trunk meets the sea, with twilight showing through.
+    // The arch where the trunk meets the sea, with the bright sea showing through.
     const archX = W * 0.733, archTop = cliffBase - 62, archWidth = 52;
     ctx.beginPath();
     ctx.moveTo(archX - archWidth / 2, cliffBase + 2);
@@ -670,54 +667,47 @@
     ctx.bezierCurveTo(archX + archWidth * 0.5, archTop + 8, archX + archWidth * 0.55, cliffBase - 20, archX + archWidth * 0.48, cliffBase + 2);
     ctx.closePath();
     const through = ctx.createLinearGradient(0, archTop, 0, cliffBase);
-    through.addColorStop(0, '#c97a74'); through.addColorStop(1, '#4e4a7a');
+    through.addColorStop(0, '#d6ecf7'); through.addColorStop(0.55, '#7fb8dc'); through.addColorStop(1, '#2a72b6');
     ctx.fillStyle = through; ctx.fill();
-    // Grass on the plateau with a warm rim.
-    ctx.fillStyle = '#0c1612';
-    for (let x = x0 + (x1 - x0) * 0.1; x <= x1; x += 7) {
+    // Sun-warmed grass on the plateau.
+    for (let x = x0 + (x1 - x0) * 0.08; x <= x1; x += 6) {
       const y = top(x);
-      ctx.beginPath(); ctx.ellipse(x, y + 3, 10, 5 + Math.abs(fbm(rockNoise, x / 30, 7, 2)) * 14, 0, Math.PI, 0); ctx.fill();
+      const shade2 = fbm(rockNoise, x / 30, 7, 2);
+      ctx.fillStyle = rgba(lerpColor('#3f7d36', '#7fb54e', 0.5 + shade2));
+      ctx.beginPath(); ctx.ellipse(x, y + 3, 10, 5 + Math.abs(shade2) * 14, 0, Math.PI, 0); ctx.fill();
     }
-    ctx.strokeStyle = 'rgba(255,170,130,0.38)'; ctx.lineWidth = 1.6;
+    ctx.strokeStyle = 'rgba(214,240,150,0.6)'; ctx.lineWidth = 1.6;
     ctx.beginPath();
     for (let x = x0; x <= x1; x += 5) x === x0 ? ctx.moveTo(x, top(x) - 4) : ctx.lineTo(x, top(x) - 4 - Math.abs(fbm(rockNoise, x / 30, 7, 2)) * 10);
     ctx.stroke();
-    for (const [x, y] of [[W * 0.858, cliffTop - 2], [W * 0.872, cliffTop - 6], [W * 0.893, cliffTop - 1], [W * 0.95, cliffTop - 4]]) {
-      p.glow(x, y, 24, '#ffc27a', 0.42, 'lighter', 0.12);
-      ctx.fillStyle = '#ffe6b8'; ctx.fillRect(x - 1.5, y - 1.5, 3, 3);
-    }
-    // The cape's dark reflection.
+    // The cape's reflection, a darker turquoise on the swell.
     ctx.save();
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.22;
     ctx.translate(0, cliffBase * 1.32);
     ctx.scale(1, -0.32);
     outline();
-    ctx.fillStyle = '#081120'; ctx.fill();
+    ctx.fillStyle = '#0b4f6e'; ctx.fill();
     ctx.restore();
 
-    // A sabani sailboat heading home along the glitter path.
+    // A sabani with a white sail, out over the reef.
     (function sabani(x, y, scale) {
-      ctx.fillStyle = '#0c0f1a';
+      ctx.fillStyle = '#3a2a22';
       ctx.beginPath();
       ctx.moveTo(x - 46 * scale, y); ctx.quadraticCurveTo(x, y + 9 * scale, x + 52 * scale, y - 4 * scale);
       ctx.lineTo(x + 40 * scale, y + 2 * scale); ctx.quadraticCurveTo(x, y + 12 * scale, x - 40 * scale, y + 4 * scale); ctx.closePath(); ctx.fill();
-      ctx.strokeStyle = '#0c0f1a'; ctx.lineWidth = 2.2 * scale;
+      ctx.strokeStyle = '#3a2a22'; ctx.lineWidth = 2.2 * scale;
       ctx.beginPath(); ctx.moveTo(x - 4 * scale, y + 2 * scale); ctx.lineTo(x - 2 * scale, y - 92 * scale); ctx.stroke();
       ctx.beginPath();
       ctx.moveTo(x - 2 * scale, y - 92 * scale); ctx.quadraticCurveTo(x + 30 * scale, y - 50 * scale, x + 34 * scale, y - 6 * scale);
       ctx.lineTo(x - 2 * scale, y - 4 * scale); ctx.closePath();
-      ctx.fillStyle = '#141626'; ctx.fill();
-      ctx.strokeStyle = 'rgba(255,190,140,0.5)'; ctx.lineWidth = 1.4 * scale;
-      ctx.beginPath(); ctx.moveTo(x - 2 * scale, y - 92 * scale); ctx.quadraticCurveTo(x + 30 * scale, y - 50 * scale, x + 34 * scale, y - 6 * scale); ctx.stroke();
-      p.glow(x + 40 * scale, y - 8 * scale, 22 * scale, '#ffd08a', 0.7, 'lighter', 0.15);
-      ctx.save(); ctx.globalCompositeOperation = 'lighter';
-      const trail = ctx.createLinearGradient(0, y + 4, 0, y + 60 * scale);
-      trail.addColorStop(0, 'rgba(255,200,140,0.25)'); trail.addColorStop(1, 'rgba(255,200,140,0)');
-      ctx.fillStyle = trail; ctx.fillRect(x + 36 * scale, y + 4, 8 * scale, 60 * scale);
-      ctx.restore();
+      const sail = ctx.createLinearGradient(x, y - 92 * scale, x + 34 * scale, y);
+      sail.addColorStop(0, '#ffffff'); sail.addColorStop(1, '#e3e8ea');
+      ctx.fillStyle = sail; ctx.fill();
+      ctx.fillStyle = 'rgba(11,60,85,0.22)';
+      ctx.beginPath(); ctx.ellipse(x + 4 * scale, y + 10 * scale, 50 * scale, 4 * scale, 0, 0, Math.PI * 2); ctx.fill();
     })(W * 0.555, horizon + 70, 0.7);
 
-    // Beach: coral sand in the lower right, cooled by twilight, with lace foam.
+    // Beach: white coral sand in the lower right, lace foam at the waterline.
     const shoreline = x => H * 0.8 + Math.pow(Math.max(0, (W * 0.98 - x) / (W * 0.5)), 1.6) * H * 0.2 + Math.sin(x / 140) * 6 + Math.sin(x / 57) * 3;
     const sandPath = () => {
       ctx.beginPath(); ctx.moveTo(W * 0.4, H + 2);
@@ -730,16 +720,15 @@
       const edge = y - shoreline(x);
       const wet = Math.exp(-edge / 40);
       const n = fbm(sandNoise, x / 50, y / 22, 4);
-      const dry = lerpColor('#6e5e74', '#9a8090', 0.5 + n * 0.5);
-      const color = lerpColor(dry, lerpColor('#c88a86', '#7a6a9a', 0.5 + n), wet * 0.7);
+      const dry = lerpColor('#f1ead8', '#fbf8ef', 0.5 + n * 0.5);
+      const color = lerpColor(dry, lerpColor('#d8cbb0', '#c9d8cf', 0.5 + n), wet * 0.75);
       return [color[0], color[1], color[2], 1];
     }, 2);
     ctx.restore();
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
     for (let band = 0; band < 4; band++) {
-      ctx.strokeStyle = rgba('#ffe8dc', 0.36 - band * 0.08);
-      ctx.lineWidth = 2.4 - band * 0.45;
+      ctx.strokeStyle = rgba('#ffffff', 0.85 - band * 0.18);
+      ctx.lineWidth = 3 - band * 0.55;
       ctx.beginPath();
       for (let x = W * 0.4; x <= W + 6; x += 5) {
         const y = shoreline(x) - band * (12 + band * 4) - Math.max(0, Math.sin(x / 80 + band * 2.3)) * (4 + band * 2) + fbm(sandNoise, x / 40, band * 3, 2) * 4;
@@ -749,15 +738,15 @@
     }
     ctx.restore();
 
-    // Two coconut palms leaning in from the right, silhouetted.
+    // Two coconut palms leaning in from the right, lit by the high sun.
     const palm = (baseX, baseY, topX, topY, scale, seed) => {
       const palmRng = random(seed);
       ctx.lineCap = 'round';
-      ctx.strokeStyle = '#080a10';
       const bend = 90 * scale;
       const trunk = t => [mix(baseX, topX, t) + Math.sin(t * Math.PI) * bend * (1 - t * 0.3), mix(baseY, topY, t)];
       for (let step = 0; step < 40; step++) {
         const t0 = step / 40, t1 = (step + 1) / 40;
+        ctx.strokeStyle = rgba(lerpColor('#6f5a44', '#a18a6c', (step % 3) / 3));
         ctx.lineWidth = mix(30, 13, t0) * scale;
         ctx.beginPath(); ctx.moveTo(...trunk(t0)); ctx.lineTo(...trunk(t1)); ctx.stroke();
       }
@@ -769,6 +758,10 @@
         const cx = topX + Math.cos(angle) * length * 0.5, cy = topY + Math.sin(angle) * length * 0.42 - 70 * scale * (0.4 + lift);
         const ex = topX + Math.cos(angle) * length, ey = topY + Math.sin(angle) * length * 0.3 + length * (0.35 + palmRng() * 0.25);
         const point = t => [(1 - t) * (1 - t) * topX + 2 * (1 - t) * t * cx + t * t * ex, (1 - t) * (1 - t) * topY + 2 * (1 - t) * t * cy + t * t * ey];
+        // Upper fronds catch the sun; lower ones hang in their own shade.
+        const light = clamp(0.25 + lift * 0.9 + palmRng() * 0.2);
+        const leaf = lerpColor('#1f5b32', '#77b04a', light);
+        ctx.strokeStyle = rgba(lerpColor(leaf, '#4a5a2a', 0.3));
         ctx.lineWidth = 3.4 * scale;
         ctx.beginPath(); ctx.moveTo(topX, topY); ctx.quadraticCurveTo(cx, cy, ex, ey); ctx.stroke();
         for (let leaflet = 2; leaflet < 34; leaflet++) {
@@ -781,6 +774,7 @@
             const leafAngle = heading + sideSign * (0.62 + palmRng() * 0.3);
             const tipX = lx + Math.cos(leafAngle) * reach * 0.85;
             const tipY = ly + Math.sin(leafAngle) * reach * 0.6 + reach * 0.32;
+            ctx.strokeStyle = rgba(lerpColor(leaf, sideSign < 0 ? '#a6d26a' : '#1a4a2a', 0.18 + palmRng() * 0.15));
             ctx.lineWidth = (3.2 - t * 1.6) * scale;
             ctx.beginPath(); ctx.moveTo(lx, ly);
             ctx.quadraticCurveTo(lx + Math.cos(leafAngle) * reach * 0.5, ly + Math.sin(leafAngle) * reach * 0.4, tipX, tipY);
@@ -788,17 +782,14 @@
           }
         }
       }
-      ctx.fillStyle = '#07090d';
       for (let nut = 0; nut < 5; nut++) {
+        ctx.fillStyle = nut % 2 ? '#5c6a2c' : '#7a7a32';
         ctx.beginPath(); ctx.arc(topX + (palmRng() - 0.5) * 34 * scale, topY + 14 * scale + palmRng() * 16 * scale, 10 * scale, 0, Math.PI * 2); ctx.fill();
       }
     };
     palm(W * 1.03, H * 1.03, W * 0.915, H * 0.16, 1, 301);
     palm(W * 1.09, H * 0.95, W * 0.99, H * 0.33, 0.78, 302);
-    // Warm haze where the sun went down.
-    p.ellipseGlow(sun.x, horizon, W * 0.3, H * 0.05, '#ffb27a', 0.22);
-
-    finish(ctx, rng, { grain: 5, vignette: 0.38, gamma: 0.95, gain: 1.02 });
+    finish(ctx, rng, { grain: 3, vignette: 0.04, gamma: 1, gain: 1 });
   };
 
   scenes.hokkaido = function paintHokkaido(ctx) {
@@ -814,19 +805,20 @@
     const water = 5, walk = 3.9;
     const canalLeft = -9, canalRight = 7;
     const haze = d => smooth(30, 240, d);
-    const hazeColor = '#2a3b5e';
+    // Falling snow fills the distance with pale, rosy light.
+    const hazeColor = '#d9dbe8';
 
-    // Snow-laden night sky, warmed a little by the town below.
-    ctx.fillStyle = p.gradient([[0, '#060b18'], [0.3, '#0d1a33'], [0.48, '#1d2e52'], [0.56, '#3a3f62'], [0.62, '#202c48']], 0, 0, 0, H);
+    // Snow-light dusk: periwinkle overhead, a blush of rose and peach low down.
+    ctx.fillStyle = p.gradient([[0, '#93a9d2'], [0.22, '#aebfe0'], [0.4, '#cbd3ea'], [0.5, '#e8dbe4'], [0.56, '#f2e1dc'], [0.64, '#e3e3ee']], 0, 0, 0, H);
     ctx.fillRect(0, 0, W, H);
     shade(ctx, 0, 0, W, H * 0.55, (x, y) => {
       const n = fbm(skyNoise, x / 700, y / 260, 5);
-      const a = smooth(-0.2, 0.6, n) * 0.35 * smooth(0, H * 0.3, y);
-      const color = lerpColor('#24345a', '#6a6488', smooth(H * 0.25, H * 0.52, y));
+      const a = smooth(-0.2, 0.6, n) * 0.4 * smooth(0, H * 0.3, y);
+      const color = lerpColor('#c3cce6', '#f6e3e2', smooth(H * 0.25, H * 0.52, y));
       return [color[0], color[1], color[2], a];
     }, 3);
-    p.ellipseGlow(vp.x, vp.y, W * 0.45, H * 0.14, '#c08a78', 0.22, 'screen');
-    // Tengu-yama behind the town, its ski run lit in a thin line.
+    p.ellipseGlow(vp.x, vp.y, W * 0.45, H * 0.14, '#ffe2d0', 0.35, 'screen');
+    // Tengu-yama behind the town, white under snow, its ski run lit in a thin line.
     const hill = (base, amplitude, center, width, seed, color) => {
       const hillNoise = noise2d(seed);
       ctx.beginPath(); ctx.moveTo(0, H);
@@ -836,28 +828,36 @@
       }
       ctx.lineTo(W, H); ctx.closePath(); ctx.fillStyle = color; ctx.fill();
     };
-    hill(vp.y + 6, H * 0.12, W * 0.42, W * 0.26, 411, '#2a3556');
-    hill(vp.y + 10, H * 0.07, W * 0.8, W * 0.22, 412, '#232d4a');
+    hill(vp.y + 6, H * 0.12, W * 0.42, W * 0.26, 411, '#c4cbe0');
+    // Bare forest on the slope, a cool grey stipple through the snow.
+    shade(ctx, W * 0.1, vp.y - H * 0.13, W * 0.65, H * 0.14, (x, y) => {
+      const crest = vp.y + 6 - H * 0.12 * Math.exp(-(((x - W * 0.42) / (W * 0.26)) ** 2)) - fbm(noise2d(411), x / 300, 1, 3) * 18;
+      if (y < crest + 4) return null;
+      const n = fbm(stoneNoise, x / 9, y / 22, 3);
+      return [120, 128, 152, smooth(0.05, 0.4, n) * 0.35 * smooth(crest, crest + 30, y)];
+    }, 2);
+    hill(vp.y + 10, H * 0.07, W * 0.8, W * 0.22, 412, '#b6bed6');
     for (let index = 0; index < 26; index++) {
       const t = index / 25;
       const x = W * 0.36 + t * W * 0.1, y = vp.y + 6 - H * 0.12 * Math.exp(-(((x - W * 0.42) / (W * 0.26)) ** 2)) + t * 40 + 8;
-      p.glow(x, y, 8, '#ffe2b0', 0.5, 'lighter', 0.2);
+      p.glow(x, y, 7, '#ffd29a', 0.45, 'source-over', 0.2);
     }
-    // Town lights at the canal's far end.
+    // Town lights coming on at the canal's far end.
     for (let index = 0; index < 90; index++) {
       const x = vp.x + (rng() - 0.5) * W * 0.36, y = vp.y + (rng() - 0.3) * 26;
-      p.glow(x, y, 5 + rng() * 9, rng() < 0.7 ? '#ffcf8a' : '#cfe0ff', 0.4 + rng() * 0.4, 'lighter', 0.2);
+      p.glow(x, y, 4 + rng() * 7, rng() < 0.75 ? '#ffbf73' : '#fff2da', 0.35 + rng() * 0.35, 'source-over', 0.2);
     }
-    p.ellipseGlow(vp.x, vp.y + 6, W * 0.18, H * 0.04, '#ffcf9a', 0.18);
+    p.ellipseGlow(vp.x, vp.y + 6, W * 0.18, H * 0.04, '#ffd6b0', 0.3, 'screen');
 
-    // Canal water: dark, still, with wind ripples.
+    // Canal water: still and dark against the snow, holding the dusk sky.
     shade(ctx, 0, vp.y, W, H - vp.y, (x, y) => {
       const d = water * focal / Math.max(1, y - vp.y);
       const X = (x - vp.x) * d / focal - bend(d);
       if (X < canalLeft - 0.2 || X > canalRight + 0.2 || d > 400) return null;
       const ripple = fbm(waterNoise, X * 0.8, d * 1.4, 4);
-      const sky = lerpColor('#16223f', '#2e3c62', smooth(0.1, 0.9, ripple + 0.5) * 0.6);
-      const color = lerpColor(sky, hazeColor, haze(d));
+      const near = 1 - haze(d);
+      const sky = lerpColor(lerpColor('#41557d', '#8293b8', smooth(0.1, 0.9, ripple + 0.5) * 0.7), '#c9b9c8', smooth(0.75, 1, ripple + 0.5) * 0.4);
+      const color = lerpColor(sky, hazeColor, haze(d) * 0.9 + (1 - near) * 0.05);
       return [color[0], color[1], color[2], 1];
     }, 2);
 
@@ -876,11 +876,11 @@
       const fade = haze(house.d0);
       const corners = [P(facadeX, walk, house.d0), P(facadeX, walk, house.d1), P(facadeX, top, house.d1), P(facadeX, top, house.d0)];
       const wall = ctx.createLinearGradient(corners[0][0], 0, corners[1][0], 0);
-      wall.addColorStop(0, rgba(lerpColor(lerpColor('#4a4c5a', '#5a5048', house.tone), hazeColor, fade)));
-      wall.addColorStop(1, rgba(lerpColor('#2a2c38', hazeColor, fade)));
+      wall.addColorStop(0, rgba(lerpColor(lerpColor('#8e8a8c', '#a08f7e', house.tone), hazeColor, fade)));
+      wall.addColorStop(1, rgba(lerpColor('#6d6d78', hazeColor, fade)));
       p.polygon(corners, wall);
       // Stone courses.
-      ctx.strokeStyle = rgba('#14151d', 0.5 * (1 - fade));
+      ctx.strokeStyle = rgba('#4d4c56', 0.35 * (1 - fade));
       ctx.lineWidth = Math.max(0.4, 0.9 * focal / house.d0 / 200);
       for (let course = 0.6; course < house.height; course += 0.6) {
         ctx.beginPath(); ctx.moveTo(...P(facadeX, walk - course, house.d0)); ctx.lineTo(...P(facadeX, walk - course, house.d1)); ctx.stroke();
@@ -893,15 +893,19 @@
           if (floor > house.height - 1.6) continue;
           const lit = ((bay * 7 + floor * 3 + Math.floor(house.lit * 10)) % 5) < 2;
           const quad = [P(facadeX, walk - floor, center - 0.6), P(facadeX, walk - floor, center + 0.6), P(facadeX, walk - floor - 1.9, center + 0.6), P(facadeX, walk - floor - 1.9, center - 0.6)];
-          const color = lit ? lerpColor('#ffc277', hazeColor, fade * 0.6) : lerpColor('#0f1018', hazeColor, fade);
-          p.polygon(quad, rgba(color, lit ? 0.95 : 0.9));
+          const color = lit ? lerpColor('#ffc277', hazeColor, fade * 0.6) : lerpColor('#3f4352', hazeColor, fade);
+          p.polygon(quad, rgba(color, 0.95));
           const [ax, ay] = P(facadeX, walk - floor - 1.9, center);
           const r = 0.6 * focal / center;
-          ctx.fillStyle = rgba(color, lit ? 0.95 : 0.9);
+          ctx.fillStyle = rgba(color, 0.95);
           ctx.beginPath(); ctx.ellipse(ax, ay, Math.max(0.5, Math.abs(quad[1][0] - quad[0][0]) / 2), r * 0.6, 0, Math.PI, 0); ctx.fill();
+          // Snow piled on each sill.
+          ctx.fillStyle = rgba(lerpColor('#f7f9ff', hazeColor, fade * 0.5), 0.95);
+          const [sx, sy] = P(facadeX, walk - floor + 0.02, center);
+          ctx.beginPath(); ctx.ellipse(sx, sy, Math.max(0.6, Math.abs(quad[1][0] - quad[0][0]) * 0.62), Math.max(0.5, r * 0.18), 0, Math.PI, 0); ctx.fill();
           if (lit) {
             const [gx, gy] = P(facadeX, walk - floor - 0.9, center);
-            p.glow(gx, gy, r * 3, '#ffb060', 0.25 * (1 - fade * 0.5));
+            p.glow(gx, gy, r * 3, '#ffb060', 0.22 * (1 - fade * 0.5));
             reflections.push({ X: facadeX, Y: walk - floor - 0.9, d: center, color: '#ffb066', strength: 0.5 });
           }
         }
@@ -915,39 +919,40 @@
           const Y = (y - vp.y) * dd / focal;
           if (Y < top || Y > walk) return null;
           const n = fbm(stoneNoise, dd * 0.4, Y * 0.6, 3);
-          return [16, 26, 22, smooth(0.0, 0.3, n + (Y - top) / house.height * 0.4 - 0.25) * 0.7 * (1 - fade)];
+          return [72, 70, 78, smooth(0.0, 0.3, n + (Y - top) / house.height * 0.4 - 0.25) * 0.5 * (1 - fade)];
         }, 2);
       }
-      // Snow on the eaves and the roof slope.
+      // Deep snow on the eaves and the roof slope.
       const ridge = top - 3.2;
-      p.polygon([P(facadeX, top, house.d0), P(facadeX, top, house.d1), P(facadeX + 6, ridge, house.d1), P(facadeX + 6, ridge, house.d0)], rgba(lerpColor('#8fa3c8', hazeColor, fade * 0.7)));
-      p.polygon([P(facadeX - 0.4, top + 0.05, house.d0), P(facadeX - 0.4, top + 0.05, house.d1), P(facadeX - 0.4, top - 0.45, house.d1), P(facadeX - 0.4, top - 0.45, house.d0)], rgba(lerpColor('#dfe9fb', hazeColor, fade * 0.6)));
+      p.polygon([P(facadeX, top, house.d0), P(facadeX, top, house.d1), P(facadeX + 6, ridge, house.d1), P(facadeX + 6, ridge, house.d0)], rgba(lerpColor('#e9eef8', hazeColor, fade * 0.7)));
+      p.polygon([P(facadeX - 0.4, top + 0.05, house.d0), P(facadeX - 0.4, top + 0.05, house.d1), P(facadeX - 0.4, top - 0.55, house.d1), P(facadeX - 0.4, top - 0.55, house.d0)], rgba(lerpColor('#ffffff', hazeColor, fade * 0.6)));
+      p.polygon([P(facadeX - 0.4, top + 0.05, house.d0), P(facadeX - 0.4, top + 0.05, house.d1), P(facadeX - 0.4, top + 0.25, house.d1), P(facadeX - 0.4, top + 0.25, house.d0)], rgba(lerpColor('#aab6d0', hazeColor, fade * 0.7), 0.8));
       // Snowbank on the walkway.
-      p.polygon([P(facadeX, walk, house.d0), P(facadeX, walk, house.d1), P(facadeX - 1.4, walk + 0.02, house.d1), P(facadeX - 1.4, walk + 0.02, house.d0)], rgba(lerpColor('#9db0d2', hazeColor, fade * 0.7)));
+      p.polygon([P(facadeX, walk, house.d0), P(facadeX, walk, house.d1), P(facadeX - 1.4, walk + 0.02, house.d1), P(facadeX - 1.4, walk + 0.02, house.d0)], rgba(lerpColor('#e2e8f4', hazeColor, fade * 0.7)));
     }
 
-    // Walkways: snow along both banks, with the canal's stone edge.
+    // Walkways: fresh snow along both banks, with the canal's stone edge.
     for (const [x0, x1] of [[canalRight, facadeX - 1.4], [-14, canalLeft]]) {
       shade(ctx, 0, vp.y, W, H - vp.y, (x, y) => {
         const dd = walk * focal / Math.max(1, y - vp.y);
         const X = (x - vp.x) * dd / focal - bend(dd);
         if (X < x0 || X > x1 || dd < 2.5 || dd > 400) return null;
         const n = fbm(snowNoise, X * 0.5, dd * 0.5, 4);
-        const footprints = smooth(0.35, 0.55, fbm(snowNoise, X * 3 + 9, dd * 2.2, 2)) * 0.12;
-        const color = lerpColor(lerpColor('#8193b8', '#c3d1ea', 0.5 + n * 0.6 - footprints), hazeColor, haze(dd) * 0.8);
+        const footprints = smooth(0.35, 0.55, fbm(snowNoise, X * 3 + 9, dd * 2.2, 2)) * 0.22;
+        const color = lerpColor(lerpColor('#c9d2e6', '#fbfcff', 0.55 + n * 0.6 - footprints), hazeColor, haze(dd) * 0.8);
         return [color[0], color[1], color[2], 1];
       }, 1);
     }
     const along = [];
     for (let dd = 2.5; dd < 400; dd *= 1.04) along.push(dd);
     for (const X of [canalRight, canalLeft]) {
-      p.polygon([...along.map(dd => P(X, walk, dd)), ...along.slice().reverse().map(dd => P(X, water, dd))], '#141a2a');
-      ctx.strokeStyle = 'rgba(150,170,210,0.35)';
-      ctx.lineWidth = 2;
+      p.polygon([...along.map(dd => P(X, walk, dd)), ...along.slice().reverse().map(dd => P(X, water, dd))], '#5a6178');
+      ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = 2.4;
       ctx.beginPath(); along.forEach((dd, index) => index ? ctx.lineTo(...P(X, walk, dd)) : ctx.moveTo(...P(X, walk, dd))); ctx.stroke();
     }
 
-    // Gas lamps along both walkways.
+    // Gas lamps along both walkways, just lit.
     const lamps = [];
     for (let dd = 5; dd < 220; dd += 13) {
       lamps.push({ X: canalRight + 0.7, d: dd + 2 });
@@ -959,36 +964,36 @@
       const fade = haze(lamp.d);
       const [bx, by] = P(lamp.X, walk, lamp.d);
       const [hx, hy] = P(lamp.X, walk - 3.6, lamp.d);
-      ctx.strokeStyle = rgba(lerpColor('#0a0c14', hazeColor, fade * 0.8));
+      ctx.strokeStyle = rgba(lerpColor('#2c3140', hazeColor, fade * 0.8));
       ctx.lineWidth = Math.max(0.8, 0.16 * scale);
       ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(hx, hy); ctx.stroke();
       const lampWidth = 0.32 * scale, lampHeight = 0.5 * scale;
-      p.glow(hx, hy - lampHeight * 0.4, 3.2 * scale, '#ffb35c', 0.32 * (1 - fade * 0.5));
-      p.glow(hx, hy - lampHeight * 0.4, 1.1 * scale, '#ffd79a', 0.5 * (1 - fade * 0.4));
+      p.glow(hx, hy - lampHeight * 0.4, 3 * scale, '#ffb35c', 0.3 * (1 - fade * 0.5), 'source-over');
+      p.glow(hx, hy - lampHeight * 0.4, 1.1 * scale, '#ffd79a', 0.55 * (1 - fade * 0.4), 'source-over');
       ctx.fillStyle = '#fff0cc';
       ctx.fillRect(hx - lampWidth / 2, hy - lampHeight, lampWidth, lampHeight);
-      ctx.fillStyle = '#0a0c14';
+      ctx.fillStyle = rgba(lerpColor('#2c3140', hazeColor, fade * 0.6));
       ctx.beginPath(); ctx.moveTo(hx - lampWidth * 0.8, hy - lampHeight); ctx.lineTo(hx, hy - lampHeight * 1.5); ctx.lineTo(hx + lampWidth * 0.8, hy - lampHeight); ctx.closePath(); ctx.fill();
-      ctx.fillStyle = 'rgba(235,242,255,0.9)';
-      ctx.beginPath(); ctx.ellipse(hx, hy - lampHeight * 1.4, lampWidth * 0.55, lampHeight * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.95)';
+      ctx.beginPath(); ctx.ellipse(hx, hy - lampHeight * 1.4, lampWidth * 0.6, lampHeight * 0.18, 0, 0, Math.PI * 2); ctx.fill();
       const [px, py] = P(lamp.X, walk, lamp.d);
-      p.ellipseGlow(px, py, 2.4 * scale, 0.5 * scale, '#ffb766', 0.22 * (1 - fade));
+      p.ellipseGlow(px, py, 2.4 * scale, 0.5 * scale, '#ffc27a', 0.28 * (1 - fade), 'source-over');
       reflections.push({ X: lamp.X, Y: walk - 3.6, d: lamp.d, color: '#ffbc6a', strength: 1 });
     }
 
-    // Floating candle globes on the canal, as during the snow-light festival.
+    // Candle globes floating on the canal, as during the snow-light festival.
     for (let index = 0; index < 46; index++) {
       const dd = 7 + Math.pow(rng(), 1.6) * 90;
       const X = canalLeft + 1 + rng() * (canalRight - canalLeft - 2);
       const [x, y] = P(X, water - 0.15, dd);
       const scale = focal / dd;
-      p.glow(x, y, 0.9 * scale, '#ffb35c', 0.5 * (1 - haze(dd)), 'lighter', 0.2);
-      ctx.fillStyle = rgba('#fff0c8', 0.9 * (1 - haze(dd) * 0.6));
+      p.glow(x, y, 0.9 * scale, '#ffb35c', 0.55 * (1 - haze(dd)), 'source-over', 0.2);
+      ctx.fillStyle = rgba('#fff3d6', 0.95 * (1 - haze(dd) * 0.6));
       ctx.beginPath(); ctx.ellipse(x, y, Math.max(0.8, 0.13 * scale), Math.max(0.6, 0.1 * scale), 0, 0, Math.PI * 2); ctx.fill();
       reflections.push({ X, Y: water - 0.4, d: dd, color: '#ffb35c', strength: 0.55, short: true });
     }
 
-    // Reflections: long, softly broken streaks of warm light on the dark water.
+    // Reflections: softly broken streaks of warm light on the water.
     const shimmer = createCanvas();
     const shimmerContext = shimmer.getContext('2d');
     shimmerContext.globalCompositeOperation = 'lighter';
@@ -1014,7 +1019,7 @@
       }
     }
     ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalCompositeOperation = 'screen';
     ctx.filter = 'blur(1.4px)';
     ctx.drawImage(shimmer, 0, 0);
     ctx.restore();
@@ -1026,11 +1031,11 @@
         const curve = (treeRng() - 0.5) * 0.5;
         const mx = x0 + Math.cos(angle + curve) * length * 0.5, my = y0 + Math.sin(angle + curve) * length * 0.5;
         const x1 = x0 + Math.cos(angle) * length, y1 = y0 + Math.sin(angle) * length;
-        ctx.strokeStyle = '#080b13'; ctx.lineWidth = width; ctx.lineCap = 'round';
+        ctx.strokeStyle = rgba(lerpColor('#3d4252', '#8c92a8', clamp(1 - width / 12) * 0.6)); ctx.lineWidth = width; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(x0, y0); ctx.quadraticCurveTo(mx, my, x1, y1); ctx.stroke();
         const upward = Math.abs(Math.cos(angle));
         if (width > 1.2 && upward > 0.25) {
-          ctx.strokeStyle = rgba('#d8e2f6', 0.35 + upward * 0.4); ctx.lineWidth = Math.max(0.8, width * 0.32);
+          ctx.strokeStyle = rgba('#ffffff', 0.55 + upward * 0.4); ctx.lineWidth = Math.max(0.8, width * 0.36);
           ctx.beginPath(); ctx.moveTo(x0, y0 - width * 0.42); ctx.quadraticCurveTo(mx, my - width * 0.42, x1, y1 - width * 0.42); ctx.stroke();
         }
         if (depth <= 0) return;
@@ -1045,19 +1050,23 @@
     tree(W * 0.22, H * 0.68, 430, 422);
     tree(W * 0.33, H * 0.61, 250, 424);
 
-    // Falling snow, finer and denser into the distance.
-    for (let index = 0; index < 2600; index++) {
+    // Falling snow, finer and denser into the distance, each flake faintly
+    // shadowed so it reads against the bright sky.
+    for (let index = 0; index < 2200; index++) {
       const depth = rng();
       const x = rng() * W, y = rng() * H;
-      const size = 0.7 + depth * depth * 5.5;
-      const alpha = 0.25 + (1 - depth) * 0.35;
-      if (size > 3) p.glow(x, y, size * 1.6, '#e8f0ff', alpha * 0.55, 'screen', 0.4);
-      else { ctx.fillStyle = rgba('#e6eeff', alpha); ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill(); }
+      const size = 0.7 + depth * depth * 5;
+      const alpha = 0.35 + (1 - depth) * 0.35;
+      if (size > 2.6) {
+        ctx.fillStyle = rgba('#7d8cad', alpha * 0.22);
+        ctx.beginPath(); ctx.arc(x + size * 0.15, y + size * 0.25, size * 1.15, 0, Math.PI * 2); ctx.fill();
+        p.glow(x, y, size * 1.5, '#ffffff', alpha * 0.9, 'source-over', 0.45);
+      } else { ctx.fillStyle = rgba('#ffffff', alpha); ctx.beginPath(); ctx.arc(x, y, size, 0, Math.PI * 2); ctx.fill(); }
     }
     // Snow haze down the canal.
-    p.ellipseGlow(vp.x, vp.y, W * 0.3, H * 0.12, '#8090b8', 0.12, 'screen');
+    p.ellipseGlow(vp.x, vp.y, W * 0.3, H * 0.12, '#f4eef2', 0.28, 'screen');
 
-    finish(ctx, rng, { grain: 5, vignette: 0.42, gamma: 0.92, gain: 1.04 });
+    finish(ctx, rng, { grain: 3, vignette: 0.05, gamma: 1, gain: 1 });
   };
 
   async function paintBackdrop(theme) {
@@ -1069,7 +1078,10 @@
   }
 
   // Four 16:9 previews stacked vertically, in theme order, for the picker.
-  async function paintThemePreviews(sources) {
+  // Each tile frames its artwork the way the welcome screen does: full-bleed
+  // for the cities seen from the street, and through the round window on a
+  // washi wall for Kyoto.
+  async function paintThemePreviews(sources, frames = []) {
     const width = 288, height = 162;
     const canvas = createCanvas(width, height * sources.length);
     const ctx = canvas.getContext('2d');
@@ -1078,14 +1090,43 @@
       const image = new Image();
       image.src = source;
       await image.decode();
-      // Match the welcome screen's framing (cover, 75% / 30%).
-      const scale = Math.max(width / image.width, height / image.height) * 1.18;
-      const drawWidth = image.width * scale, drawHeight = image.height * scale;
+      const y0 = index * height;
       ctx.save();
       ctx.beginPath();
-      ctx.rect(0, index * height, width, height);
+      ctx.rect(0, y0, width, height);
       ctx.clip();
-      ctx.drawImage(image, (width - drawWidth) * 0.75, index * height + (height - drawHeight) * 0.3, drawWidth, drawHeight);
+      if (frames[index] === 'window') {
+        // Washi wall, lamplit from the upper left.
+        const rng = random(0x77617368 + index);
+        ctx.fillStyle = '#efede3';
+        ctx.fillRect(0, y0, width, height);
+        const lamp = ctx.createRadialGradient(width * 0.05, y0 - height * 0.1, 0, width * 0.05, y0 - height * 0.1, width * 0.8);
+        lamp.addColorStop(0, 'rgba(255,250,236,0.9)'); lamp.addColorStop(1, 'rgba(255,250,236,0)');
+        ctx.fillStyle = lamp; ctx.fillRect(0, y0, width, height);
+        for (let fiber = 0; fiber < 90; fiber++) {
+          ctx.strokeStyle = rgba('#7a6a50', 0.05 + rng() * 0.06); ctx.lineWidth = 0.6;
+          const x = rng() * width, y = y0 + rng() * height, length = 6 + rng() * 22, angle = (rng() - 0.5) * 0.6;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(angle) * length, y + Math.sin(angle) * length); ctx.stroke();
+        }
+        // Matches the welcome screen: 84% 22% / auto 136% inside the circle.
+        const radius = height * 0.36, cx = width * 0.68, cy = y0 + height * 0.48;
+        ctx.save();
+        ctx.beginPath(); ctx.arc(cx, cy, radius + 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#e2ddcf'; ctx.fill();
+        ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(47,34,24,0.22)'; ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx, cy, radius, 0, Math.PI * 2); ctx.clip();
+        const drawHeight = radius * 2 * 1.36, drawWidth = image.width * drawHeight / image.height;
+        ctx.drawImage(image, cx - radius + (radius * 2 - drawWidth) * 0.84, cy - radius + (radius * 2 - drawHeight) * 0.22, drawWidth, drawHeight);
+        const depth = ctx.createLinearGradient(0, cy - radius, 0, cy - radius + radius * 0.4);
+        depth.addColorStop(0, 'rgba(16,9,6,0.55)'); depth.addColorStop(1, 'rgba(16,9,6,0)');
+        ctx.fillStyle = depth; ctx.fillRect(cx - radius, cy - radius, radius * 2, radius * 0.4);
+        ctx.restore();
+      } else {
+        // Match the welcome screen's framing (cover, 75% / 30%).
+        const scale = Math.max(width / image.width, height / image.height) * 1.18;
+        const drawWidth = image.width * scale, drawHeight = image.height * scale;
+        ctx.drawImage(image, (width - drawWidth) * 0.75, y0 + (height - drawHeight) * 0.3, drawWidth, drawHeight);
+      }
       ctx.restore();
     }
     return canvas;

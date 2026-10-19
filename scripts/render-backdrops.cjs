@@ -57,7 +57,8 @@ if (process.versions.electron) {
         return;
       }
       const sources = located.map(file => `data:image/${file.endsWith('.png') ? 'png' : 'webp'};base64,${fs.readFileSync(file).toString('base64')}`);
-      const sprite = await page.evaluate(sources => window.paintThemePreviews(sources).then(canvas => canvas.toDataURL('image/webp', 0.86).split(',')[1]), sources);
+      const frames = ids.map(id => (id === 'kyoto' ? 'window' : 'cover'));
+      const sprite = await page.evaluate(({ sources, frames }) => window.paintThemePreviews(sources, frames).then(canvas => canvas.toDataURL('image/webp', 0.86).split(',')[1]), { sources, frames });
       const spriteFile = path.join(outputDir, previewFile);
       fs.writeFileSync(spriteFile, Buffer.from(sprite, 'base64'));
       report.push({ file: path.relative(root, spriteFile), bytes: fs.statSync(spriteFile).size });

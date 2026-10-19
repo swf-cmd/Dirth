@@ -262,7 +262,7 @@
   // City copy is translated like the rest of the chrome: the theme decides
   // which catalog key each element shows, and i18n.apply follows the language.
   const themeText = {
-    'brand-edition': 'edition', 'breadcrumb-subtitle': 'subtitle', 'hero-subtitle': 'subtitle', 'edition-number': 'volume',
+    'brand-edition': 'edition', 'breadcrumb-subtitle': 'subtitle', 'hero-subtitle': 'subtitle', 'edition-number': 'volume', 'edition-tagline': 'tagline',
     'hero-headline': 'headline', 'location-name': 'location', 'rain-label': 'weather', 'rain-help': 'weatherHelp',
     'music-label': 'station', 'music-help': 'musicHelp',
   };

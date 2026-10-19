@@ -113,14 +113,14 @@ If the reasoning selector says **Please update Grok CLI**, the engine reports re
 
 **Allow subagents** passes `GROK_SUBAGENTS=1/0` to the CLI and restarts the account's engine after saving. Permissions, sandboxing, and MCP follow the official configuration precedence; the client does not rewrite the official `config.toml`. Reconnect after changing the official configuration.
 
-**City theme** switches the whole edition: Tokyo (the original), Kyoto, Okinawa or Hokkaido. Each city changes the interface colors, the backdrop, the welcome copy and location stamp, the weather outside the window and the soundtrack:
+**City theme** switches the whole edition: Tokyo (the original), Kyoto, Okinawa or Hokkaido. Each city changes the interface colors and materials, the type, the backdrop, the welcome copy and location stamp, the weather outside the window and the soundtrack. Tokyo is the night edition; the other three are daylight editions with light interfaces:
 
-| City | Backdrop | Outside the window | Soundtrack |
-| --- | --- | --- | --- |
-| Tokyo | Shibuya on a rainy night | Rain | **Tokyo Midnight Radio** · *Tokyo Afterimage · 東京残像*, retro vaporwave, 80 BPM |
-| Kyoto | Lantern-lit lane below the Yasaka pagoda | Maple leaves | **Kyoto Lantern Radio** · *Kyoto Lanterns · 京都灯籠*, koto, bamboo flute and temple bell, 60 BPM |
-| Okinawa | Twilight over the sea at Cape Manzamo | Fireflies | **Okinawa Sea Breeze Radio** · *Okinawa Island Time · 沖縄島時間*, Ryukyu-scale island groove, 90 BPM |
-| Hokkaido | Otaru canal in falling snow | Snow | **Hokkaido Snow Night Radio** · *Hokkaido Snowlight · 北海道雪あかり*, music box and piano waltz, 75 BPM |
+| City | Interface | Backdrop | Outside the window | Soundtrack |
+| --- | --- | --- | --- | --- |
+| Tokyo | Rain-dark glass, lime neon, condensed type | Shibuya on a rainy night | Rain | **Tokyo Midnight Radio** · *Tokyo Afterimage · 東京残像*, retro vaporwave, 80 BPM |
+| Kyoto | Washi paper and sumi ink, Kyoto purple and vermilion seal, Mincho type | Lantern-lit lane below the Yasaka pagoda, seen through a round window | Maple leaves | **Kyoto Lantern Radio** · *Kyoto Lanterns · 京都灯籠*, koto, bamboo flute and temple bell, 60 BPM |
+| Okinawa | Coral-sand white, deep-sea ink, turquoise and hibiscus, rounded type, minsā weave | Emerald sea at Cape Manzamo, early afternoon | Sea glitter | **Okinawa Sea Breeze Radio** · *Okinawa Island Time · 沖縄島時間*, Ryukyu-scale island groove, 90 BPM |
+| Hokkaido | Snow white and frosted glass, steel blue and candle amber, light type | Otaru canal at snow-light dusk | Snow | **Hokkaido Snow Night Radio** · *Hokkaido Snowlight · 北海道雪あかり*, music box and piano waltz, 75 BPM |
 
 Every soundtrack is an original 96-second loop that works offline, and changing city crossfades to the new one. Music is enabled by default at 90% volume. If playback has not started after launch, click the window or press a key. City, weather, music, and volume changes preview immediately; saving remembers them, while closing settings restores the previous values. These preferences can be saved during generation without restarting the engine. Weather animation stops when your system enables reduced motion.
 

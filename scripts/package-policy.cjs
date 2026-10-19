@@ -18,7 +18,7 @@ const packageFiles = [
   'src/renderer/assets/icon.png', 'src/renderer/assets/tokyo-afterimage.wav',
   'src/renderer/assets/tokyo-rain.png',
   'src/renderer/assets/kyoto-lanterns.webp', 'src/renderer/assets/kyoto-lanterns.flac',
-  'src/renderer/assets/okinawa-twilight.webp', 'src/renderer/assets/okinawa-island-time.flac',
+  'src/renderer/assets/okinawa-emerald.webp', 'src/renderer/assets/okinawa-island-time.flac',
   'src/renderer/assets/hokkaido-snowlight.webp', 'src/renderer/assets/hokkaido-snowlight.flac',
   'src/renderer/assets/theme-previews.webp',
 ];

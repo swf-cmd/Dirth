@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 const catalogs = require('../src/locales.js');
 const { themes, ids, defaultTheme, normalizeTheme, textFields, previewSprite } = require('../src/themes.js');
-const { build } = require('../scripts/build-theme-css.cjs');
+const { build, palettes, transformHex } = require('../scripts/build-theme-css.cjs');
 const { packageFiles } = require('../scripts/package-policy.cjs');
 
 const root = path.resolve(__dirname, '..');
@@ -59,7 +59,7 @@ test('four city themes share one shape, with Tokyo as the safe default', () => {
     assert.match(theme.windowBackground, /^#[0-9a-f]{6}$/);
     assert.equal([...theme.glyph].length, 1);
   }
-  for (const field of ['hero', 'glyph', 'edition', 'subtitle', 'volume', 'headline', 'location', 'coordinates', 'placeholder', 'station', 'backdrop']) {
+  for (const field of ['hero', 'glyph', 'edition', 'subtitle', 'volume', 'tagline', 'headline', 'location', 'coordinates', 'placeholder', 'station', 'backdrop', 'windowBackground']) {
     assert.equal(new Set(ids.map(id => themes[id][field])).size, ids.length, `every city has its own ${field}`);
   }
 });
@@ -68,7 +68,7 @@ test('the original Tokyo copy is unchanged and is what the static page shows', (
   const html = fs.readFileSync(path.join(renderer, 'index.html'), 'utf8');
   const tokyo = themes.tokyo;
   assert.match(html, /<span id="hero-city">TOKYO<\/span>/);
-  for (const field of ['edition', 'subtitle', 'volume', 'location']) assert.ok(html.includes(`data-i18n="${tokyo[field]}"`), field);
+  for (const field of ['edition', 'subtitle', 'volume', 'tagline', 'location']) assert.ok(html.includes(`data-i18n="${tokyo[field]}"`), field);
   assert.ok(html.includes(tokyo.coordinates));
   assert.ok(html.includes(`class="hero-star" id="hero-star">${tokyo.glyph}<`));
 });
@@ -135,4 +135,33 @@ test('generated theme colors match styles.css and every referenced asset exists'
     }
   }
   for (const file of ['src/themes.js', 'src/renderer/theme-colors.css', 'src/renderer/themes.css']) assert.ok(packageFiles.includes(file), file);
+});
+
+// WCAG 2 contrast ratio of two #rrggbb colors.
+function contrast(a, b) {
+  const luminance = hex => {
+    const [r, g, b] = [1, 3, 5].map(index => parseInt(hex.slice(index, index + 2), 16) / 255).map(c => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (light + 0.05) / (dark + 0.05);
+}
+
+test('the daylight cities keep text, links and buttons readable', () => {
+  // Tokyo's own pairs, as written in styles.css, mapped into each city.
+  const tokyo = { background: '#0b1014', text: '#e8eae5', muted: '#838d90', accent: '#d4eb89', onAccent: '#242d24', error: '#dc927c' };
+  for (const id of ids.filter(id => id !== 'tokyo')) {
+    const palette = palettes[id];
+    assert.equal(palette.scheme, 'light', `${id} is a daylight edition`);
+    const color = (hex, property) => transformHex(hex, palette, property).slice(0, 7);
+    const background = color(tokyo.background);
+    assert.ok(contrast(background, '#000000') > contrast(background, '#ffffff'), `${id}: light background`);
+    for (const [name, foreground, minimum] of [['text', color(tokyo.text), 7], ['muted text', color(tokyo.muted), 4.5], ['links', color(tokyo.accent), 4.5], ['errors', color(tokyo.error), 4.5]]) {
+      assert.ok(contrast(foreground, background) >= minimum, `${id}: ${name} ${foreground} on ${background} is ${contrast(foreground, background).toFixed(2)}`);
+    }
+    const button = contrast(color(tokyo.onAccent, 'color'), color(tokyo.accent));
+    assert.ok(button >= 4.5, `${id}: button label contrast ${button.toFixed(2)}`);
+    // Shadows stay dark in daylight instead of mirroring into glows.
+    assert.ok(contrast(color('#000000', 'box-shadow'), '#ffffff') > 7, `${id}: shadows stay dark`);
+  }
 });

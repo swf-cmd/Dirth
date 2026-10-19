@@ -37,7 +37,7 @@ This project is not affiliated with or endorsed by SpaceXAI or xAI. Authenticati
 | Experience | What you can do |
 | --- | --- |
 | **A place to focus** | Rainy Shibuya scenery, optional animated rain and an original offline synth soundtrack. |
-| **Four city editions** | Switch between Tokyo, Kyoto, Okinawa and Hokkaido: each brings its own colors, backdrop, weather outside the window (rain, maple leaves, fireflies, snow) and original soundtrack. |
+| **Four city editions** | Switch between Tokyo, Kyoto, Okinawa and Hokkaido: Tokyo stays the rain-dark night edition, while Kyoto (washi and ink), Okinawa (sunlit sea) and Hokkaido (snow and frosted glass) are light daylight editions. Each brings its own colors, type, backdrop, weather outside the window (rain, maple leaves, sea glitter, snow) and original soundtrack. |
 | **Several tasks at once** | Run up to four conversations in parallel, each with its own progress, permission prompts, stop button and draft. |
 | **Conversations that stay with you** | Stream Markdown and code, search and rename chats, restore sessions and export Markdown. |
 | **See the agent at work** | Follow tool progress and execution plans, answer each permission request and stop generation at any time. |

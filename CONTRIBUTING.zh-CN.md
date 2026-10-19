@@ -33,7 +33,7 @@ Mac 的源码运行和打包程序共用 `~/Library/Application Support/Grokbuil
 
 - 遵循相邻代码的风格，避免在同一个 pull request 中混入无关格式调整。
 - 修改行为时，补充或更新有意义的回归测试。涉及界面变化时附上截图，仅使用演示数据。
-- `styles.css` 定义东京版样式。修改其中的颜色后，运行 `node scripts/build-theme-css.cjs` 让 `theme-colors.css` 中京都、冲绳、北海道的配色同步；该文件过期时 `npm test` 会失败。城市背景、窗外景致和形状风格位于 `themes.css`。
+- `styles.css` 定义东京版样式。修改其中的颜色后，运行 `node scripts/build-theme-css.cjs` 让 `theme-colors.css` 中京都、冲绳、北海道的配色同步；该文件过期时 `npm test` 会失败。这三座城市是浅色版：脚本按东京的明度镜像生成配色以保持对比度，并有测试检查正文、链接和按钮的可读性。城市背景、材质、字体、窗外景致和形状风格位于 `themes.css`。
 - 中英文文档应保持一致。修改界面文案时覆盖全部七种界面语言，并通过国际化检查。Windows 与 Mac 功能行为应保持一致，窗口按钮、菜单、路径和快捷键修饰键按平台适配。
 - 保留账户隔离、有限 IPC、回复内容净化、权限处理和本地/远程资源访问限制。账户隔离不是操作系统沙箱；工具执行仍由官方 CLI 控制。
 - 不要提交 `data/`、`Workspace/`、`App/`、`dist/`、`work/`、`node_modules/`、环境变量文件、登录输出或私人截图。除检查 `.gitignore` 外，也应核对暂存的 diff。

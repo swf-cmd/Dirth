@@ -26,7 +26,7 @@ const readState = () => require('./fixtures/read-history.cjs')(stateFile);
 const t = (locale, source, params) => createI18n(() => locale)(source, params);
 const rgb = hex => `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
 // The primary accent each city's generated palette gives --lime.
-const accents = { tokyo: '#d4eb89', kyoto: '#fdc36a', okinawa: '#5fecd7', hokkaido: '#abdcfd' };
+const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkaido: '#336197' };
 
 (async () => {
   const env = { ...process.env, TOKYO_TEST_ROOT: testRoot };
@@ -54,12 +54,14 @@ const accents = { tokyo: '#d4eb89', kyoto: '#fdc36a', okinawa: '#5fecd7', hokkai
       const text = id => document.getElementById(id).textContent;
       const style = getComputedStyle(document.querySelector('.new-session'));
       return {
-        theme: document.documentElement.dataset.theme, city: text('hero-city'), edition: text('brand-edition'), subtitle: text('hero-subtitle'),
+        theme: document.documentElement.dataset.theme, city: text('hero-city'), edition: text('brand-edition'), subtitle: text('hero-subtitle'), tagline: text('edition-tagline'),
         breadcrumb: text('breadcrumb-subtitle'), volume: text('edition-number'), headline: text('hero-headline'), location: text('location-name'),
         coordinates: text('location-coordinates'), star: text('hero-star'), orbit: text('model-orbit'), weather: text('rain-label'), station: text('music-label'),
         placeholder: document.querySelector('#prompt').placeholder, footer: text('session-path'), accent: style.backgroundColor,
         backdrop: getComputedStyle(document.querySelector('.ambient-image')).backgroundImage,
         weatherLayer: getComputedStyle(document.querySelector('.rain-layer'), '::before').backgroundImage,
+        scheme: getComputedStyle(document.documentElement).colorScheme,
+        window: getComputedStyle(document.querySelector('.ambient-image')).borderTopLeftRadius,
         avatars: [...document.querySelectorAll('.message.assistant .message-avatar')].map(element => element.textContent),
       };
     });
@@ -69,7 +71,7 @@ const accents = { tokyo: '#d4eb89', kyoto: '#fdc36a', okinawa: '#5fecd7', hokkai
       await page.waitForFunction(color => getComputedStyle(document.querySelector('.new-session')).backgroundColor === color, rgb(accents[id]));
       const view = await chrome();
       const expected = {
-        theme: id, city: theme.hero, edition: t(locale, theme.edition), subtitle: t(locale, theme.subtitle), breadcrumb: t(locale, theme.subtitle),
+        theme: id, city: theme.hero, edition: t(locale, theme.edition), subtitle: t(locale, theme.subtitle), tagline: t(locale, theme.tagline), breadcrumb: t(locale, theme.subtitle),
         volume: t(locale, theme.volume), headline: t(locale, theme.headline), location: t(locale, theme.location), coordinates: theme.coordinates,
         star: theme.glyph, orbit: theme.glyph, weather: t(locale, theme.weather), station: t(locale, theme.station), placeholder: t(locale, theme.placeholder),
         footer: workspace, accent: rgb(accents[id]),
@@ -77,9 +79,14 @@ const accents = { tokyo: '#d4eb89', kyoto: '#fdc36a', okinawa: '#5fecd7', hokkai
       for (const [key, value] of Object.entries(expected)) assert.equal(view[key], value, `${id}/${locale}: ${key}`);
       assert.ok(view.backdrop.includes(theme.backdrop), `${id}: backdrop ${view.backdrop.slice(-80)}`);
       assert.ok(view.avatars.every(glyph => glyph === theme.glyph), `${id}: assistant avatars ${view.avatars}`);
-      if (id === 'tokyo') assert.match(view.weatherLayer, /^radial-gradient/);
-      else if (id === 'kyoto') assert.match(view.weatherLayer, /^url\("data:image\/svg\+xml/);
-      else assert.match(view.weatherLayer, /^radial-gradient\(circle/);
+      // Tokyo stays a night edition; the other cities are daylight editions,
+      // each with its own weather: maple leaves, sea glitter or rimmed snow.
+      // (Tokyo's dark scheme comes from the page's color-scheme meta tag.)
+      assert.equal(view.scheme, id === 'tokyo' ? 'normal' : 'light', `${id}: color scheme`);
+      if (id === 'tokyo' || id === 'hokkaido') assert.match(view.weatherLayer, /^radial-gradient/);
+      else assert.match(view.weatherLayer, /^url\("data:image\/svg\+xml/);
+      // Kyoto's lantern lane is seen through a round window; elsewhere it is full-bleed.
+      assert.equal(view.window, id === 'kyoto' ? '50%' : '0px', `${id}: backdrop framing`);
     };
 
     await stage('the saved city paints the welcome screen and plays its soundtrack without a click', async () => {
