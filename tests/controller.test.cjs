@@ -1109,6 +1109,38 @@ test('invalid atmosphere patches reject atomically and leave saved settings and 
   assert.equal(controller.connected, true);
 });
 
+test('city themes persist across restarts without reconnecting the engine', async t => {
+  const { controller, adapter, root } = await started(t);
+  assert.equal(controller.settings.theme, 'tokyo');
+  for (const theme of ['kyoto', 'okinawa', 'hokkaido', 'tokyo']) {
+    await controller.saveSettings({ theme });
+    assert.equal(readHistory(controller).settings.theme, theme);
+    const reloaded = new AppController({ root, home: path.join(root, 'home'), Adapter: controller.Adapter });
+    try { assert.equal(reloaded.settings.theme, theme); assert.equal(reloaded.loadError, null); }
+    finally { await reloaded.close(); }
+  }
+  assert.equal(adapter.closeCount, 0);
+  assert.equal(controller.connected, true);
+});
+
+test('unknown city themes reject atomically and saved ones fall back to Tokyo', async t => {
+  const { controller, adapter } = await started(t);
+  const before = structuredClone(controller.settings);
+  const saved = fs.readFileSync(controller.file, 'utf8');
+  for (const theme of [null, false, 7, {}, ['kyoto'], '', 'Kyoto', 'osaka', 'toString', '__proto__']) {
+    await assert.rejects(controller.saveSettings({ rainEnabled: false, theme }), /城市主题/);
+  }
+  assert.deepEqual(controller.settings, before);
+  assert.equal(fs.readFileSync(controller.file, 'utf8'), saved);
+  assert.equal(adapter.closeCount, 0);
+  for (const theme of [undefined, null, 3, 'osaka', '__proto__']) {
+    const { controller: restored } = fixture(t, { settings: { theme }, sessions: [{ id: 'kept', title: 'Kept', cwd: 'unused', messages: [{ role: 'user', text: 'Keep this' }] }] });
+    assert.equal(restored.settings.theme, 'tokyo');
+    assert.equal(restored.loadError, null);
+    assert.equal(restored.sessions[0].messages[0].text, 'Keep this');
+  }
+});
+
 test('music and rain preferences persist across reloads including mute and maximum volume', async t => {
   const { controller, adapter, root } = await started(t);
   assert.equal(controller.settings.musicEnabled, true);

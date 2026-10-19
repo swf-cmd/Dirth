@@ -1,6 +1,7 @@
 'use strict';
 const { _electron } = require('playwright');
 const assert = require('node:assert/strict');
+const { isDeepStrictEqual } = require('node:util');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
@@ -71,23 +72,41 @@ fs.writeFileSync(path.join(testRoot, 'data/conversations.json'), JSON.stringify(
     });
     if (process.platform === 'darwin') await desktop.evaluate(({ app }) => { app.quit(); });
     else await page.evaluate(() => window.tokyo.windowControl('close'));
-    assert.equal(await desktop.evaluate(() => globalThis.__tokyoUITest.shutdownCalls), 1);
+    // Shutdown cancels sign-in and saves history before it closes the engine,
+    // so each step is awaited rather than read straight after the request.
+    const settled = async (read, expected, message) => {
+      const deadline = Date.now() + 10000;
+      let value = await read();
+      while (!isDeepStrictEqual(value, expected) && Date.now() < deadline) {
+        await new Promise(resolve => setTimeout(resolve, 25));
+        value = await read();
+      }
+      assert.deepEqual(value, expected, message);
+    };
+    await settled(() => desktop.evaluate(() => globalThis.__tokyoUITest.shutdownCalls), 1);
     const stillClosing = await desktop.evaluate(({ app, BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0].close(); app.quit();
       return { windows: BrowserWindow.getAllWindows().length, closeCalls: globalThis.__tokyoUITest.shutdownCalls };
     });
     assert.deepEqual(stillClosing, { windows: 1, closeCalls: 1 }, 'repeated quit requests must wait for the existing shutdown');
     await desktop.evaluate(() => { globalThis.__tokyoUITest.rejectClose(new Error('UI fixture: process did not stop')); });
-    const closeErrors = await desktop.evaluate(() => new Promise(resolve => setImmediate(() => resolve(globalThis.__tokyoUITest.shutdownErrors))));
-    assert.equal(closeErrors.length, 1);
-    assert.equal(closeErrors[0].message, 'UI fixture: process did not stop');
+    await settled(() => desktop.evaluate(() => globalThis.__tokyoUITest.shutdownErrors.map(error => error.message)), ['UI fixture: process did not stop']);
     assert.equal(page.isClosed(), false, 'failed shutdown must preserve a window for retry');
     if (process.platform === 'darwin') await desktop.evaluate(({ app }) => { app.quit(); });
     else await page.evaluate(() => window.tokyo.windowControl('close'));
-    assert.equal(await desktop.evaluate(() => globalThis.__tokyoUITest.shutdownCalls), 2, 'a failed shutdown permits retry');
+    await settled(() => desktop.evaluate(() => globalThis.__tokyoUITest.shutdownCalls), 2, 'a failed shutdown permits retry');
     const closed = page.waitForEvent('close');
     await desktop.evaluate(() => { setImmediate(() => globalThis.__tokyoUITest.releaseClose()); });
     await closed;
     console.log('PASS shutdown coalesces repeated close requests and preserves a retry after failure');
-  } finally { await desktop.close(); }
+  } finally {
+    // After a failed step the stubbed engine shutdown may still be pending;
+    // let it finish so the app can quit and the failure is reported.
+    await desktop.evaluate(() => {
+      const test = globalThis.__tokyoUITest;
+      if (test.adapter) test.adapter.close = async () => {};
+      test.releaseClose?.();
+    }).catch(() => {});
+    await desktop.close();
+  }
 })().catch(error => { console.error(error); process.exitCode = 1; });

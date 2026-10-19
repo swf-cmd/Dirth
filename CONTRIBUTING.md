@@ -33,6 +33,7 @@ Mac source and packaged runs share `~/Library/Application Support/Grokbuild Toky
 
 - Follow the surrounding code style and keep unrelated formatting changes out of the pull request.
 - Add or update meaningful regression coverage when changing behavior. Include screenshots for visible UI changes, using demo data only.
+- `styles.css` defines the Tokyo edition. After changing a color there, run `node scripts/build-theme-css.cjs` so the Kyoto, Okinawa and Hokkaido palettes in `theme-colors.css` follow; `npm test` fails while it is stale. Those cities are light editions: the script mirrors Tokyo's lightness so contrast carries over, and a test checks text, links and buttons stay readable. City artwork, materials, type, weather and shapes live in `themes.css`.
 - Keep English and Chinese documentation aligned. Changes to interface text should cover all seven UI languages and pass the internationalization checks. Keep Windows and Mac feature behavior aligned; platform-specific window controls, menus, paths, and modifier keys are intentional.
 - Preserve account isolation, limited IPC, reply sanitization, permission handling, and local/remote resource restrictions. Account separation is not an operating-system sandbox; tool execution is controlled by the official CLI.
 - Do not commit `data/`, `Workspace/`, `App/`, `dist/`, `work/`, `node_modules/`, environment files, login output, or personal screenshots. Check the staged diff as well as `.gitignore`.

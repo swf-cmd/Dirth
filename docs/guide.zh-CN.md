@@ -113,7 +113,16 @@ Markdown 图片、图片链接、HTML 图片及 ACP 回复或生成工具返回�
 
 “允许使用子代理”通过 `GROK_SUBAGENTS=1/0` 传给 CLI，保存后重启独立引擎。权限、沙箱和 MCP 沿用官方配置优先级；客户端不改写官方 `config.toml`。修改官方配置后重新连接。
 
-“东京午夜电台”播放随软件附带的原创合成器器乐《Tokyo Afterimage · 東京残像》，80 BPM、96 秒循环，无需联网。默认开启、音量 90%；若启动时尚未播放，点击窗口或按键即可开始。雨景、音乐和音量即时预览，保存后记住，关闭设置则还原。氛围设置可在生成回复期间保存，不重启引擎。系统启用“减少动态效果”时停止雨滴动画。
+“城市主题”可切换整套版本：东京（原版）、京都、冲绳或北海道。每座城市都会改变界面配色与材质、字体、背景、欢迎语与地点标记、窗外景致和配乐。东京是夜间版，另外三座城市是浅色的日间版：
+
+| 城市 | 界面 | 背景 | 窗外景致 | 配乐 |
+| --- | --- | --- | --- | --- |
+| 东京 | 雨夜深色、青柠霓虹、窄体粗标题 | 涩谷雨夜 | 雨 | “东京午夜电台”·《Tokyo Afterimage · 東京残像》，复古蒸汽波，80 BPM |
+| 京都 | 和纸与墨色、京紫与朱印、明朝体 | 透过圆窗看八坂塔下的灯笼小巷 | 红叶 | “京都灯笼电台”·《Kyoto Lanterns · 京都灯籠》，筝、尺八风笛声与寺钟，60 BPM |
+| 冲绳 | 珊瑚白与深海蓝、碧绿与扶桑花红、圆润字体、ミンサー织纹 | 午后万座毛的翡翠海 | 海面波光 | “冲绳海风电台”·《Okinawa Island Time · 沖縄島時間》，琉球音阶海岛律动，90 BPM |
+| 北海道 | 雪白与磨砂玻璃、钢蓝与烛光琥珀、细体字 | 雪あかり时分的小樽运河 | 飘雪 | “北海道雪夜电台”·《Hokkaido Snowlight · 北海道雪あかり》，八音盒与钢琴圆舞曲，75 BPM |
+
+每首配乐都是 96 秒原创循环，无需联网；切换城市时会淡入淡出到新曲目。音乐默认开启、音量 90%；若启动时尚未播放，点击窗口或按键即可开始。城市、窗外景致、音乐和音量即时预览，保存后记住，关闭设置则还原。这些设置可在生成回复期间保存，不重启引擎。系统启用“减少动态效果”时停止窗外动画。
 
 ## 本地数据与仓库内容
 
@@ -170,7 +179,7 @@ node tests/ui-attachments.cjs --packaged
 
 该版本通过 ACP 宣告 `image: false`、`audio: false`；图片和文件通过基线 `resource_link` 与准确的本地路径交给 CLI 工具处理，不把未读取的文件宣称为已经内嵌。回复仍支持图片预览及附件保存。客户端没有为所有 `x.ai/*` 扩展或 TUI 专用命令提供独立界面（例如 Git/worktree 管理、会话分叉/回退、交互终端与斜杠菜单），不能等同于官方 TUI 的全部功能。遇到不兼容的协议或不支持历史恢复的引擎，现在会明确提示。
 
-背景为生成的涩谷雨夜图，提示词见 [IMAGE-PROMPT.md](../src/renderer/assets/IMAGE-PROMPT.md)。图标由 `scripts/make-icon.py` 绘制（需 Python 与 Pillow）；背景音乐可用 `node scripts/render-ambience.cjs` 从 `scripts/ambient-score.js` 重新生成。
+东京背景为生成的涩谷雨夜图，提示词见 [IMAGE-PROMPT.md](../src/renderer/assets/IMAGE-PROMPT.md)；京都、冲绳、北海道背景及主题预览图由 `scripts/backdrop-art.js` 绘制，运行 `node scripts/render-backdrops.cjs` 重新生成（加 `--preview` 则输出到 `work/backdrops` 供审阅）。图标由 `scripts/make-icon.py` 绘制（需 Python 与 Pillow）。东京配乐可用 `node scripts/render-ambience.cjs` 从 `scripts/ambient-score.js` 重新生成，城市配乐用 `node scripts/render-ambience.cjs --theme kyoto`（或 `okinawa`、`hokkaido`、`all`）从 `scripts/theme-scores.js` 生成，并用 `ffmpeg` 无损编码为 FLAC。城市配色由 `node scripts/build-theme-css.cjs` 从 `styles.css` 生成到 `theme-colors.css`，文件过期时 `npm test` 会失败。
 
 ## 协议与官方参考
 

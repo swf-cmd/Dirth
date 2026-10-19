@@ -5,6 +5,7 @@ try {
   const argument = process.argv.find(value => value.startsWith('--tokyo-preferences='));
   const saved = JSON.parse(decodeURIComponent(argument?.slice('--tokyo-preferences='.length) || '{}'));
   if (typeof saved.language === 'string') initialPreferences.language = saved.language;
+  if (typeof saved.theme === 'string') initialPreferences.theme = saved.theme;
   for (const key of ['rainEnabled', 'musicEnabled']) if (typeof saved[key] === 'boolean') initialPreferences[key] = saved[key];
   if (Number.isInteger(saved.musicVolume) && saved.musicVolume >= 0 && saved.musicVolume <= 100) initialPreferences.musicVolume = saved.musicVolume;
 } catch { /* Fall back to defaults; initialState supplies authoritative settings. */ }

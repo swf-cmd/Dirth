@@ -13,6 +13,7 @@ const uiTests = [
   'tests/ui-attachments.cjs', 'tests/i18n-ui.cjs', 'tests/startup-ui.cjs',
   'tests/model-refresh-ui.cjs', 'tests/onboarding-ui.cjs',
   'tests/ambient-audio-render.cjs', 'tests/time-ui.cjs', 'tests/renderer-performance.cjs', 'tests/lazy-images.cjs',
+  'tests/theme-ui.cjs',
 ];
 
 function packageBin(name, command) {

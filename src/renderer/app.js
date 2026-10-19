@@ -9,9 +9,17 @@
   if (isMac) for (const hint of document.querySelectorAll('kbd')) hint.textContent = hint.textContent.replace('Ctrl', '⌘');
   const i18n = window.TokyoI18n;
   const t = i18n.t;
+  const cities = window.TokyoThemes;
+  const themeOf = id => cities.themes[cities.normalizeTheme(id)];
+  // Open in the saved city's colors: apply it with transitions suspended and
+  // settle the styles, so nothing eases out of Tokyo's palette on launch.
+  document.documentElement.classList.add('theme-instant');
+  document.documentElement.dataset.theme = cities.normalizeTheme(api?.initialPreferences?.theme);
+  void document.body.offsetHeight;
+  requestAnimationFrame(() => requestAnimationFrame(() => document.documentElement.classList.remove('theme-instant')));
   const diagnostic = i18n.localizeDiagnostic;
   const state = {
-    settings: { executable: '', workspace: '', rainEnabled: true, subagentsEnabled: true, quotaEnabled: true, musicEnabled: true, musicVolume: 90, language: 'en', ...api?.initialPreferences },
+    settings: { executable: '', workspace: '', rainEnabled: true, subagentsEnabled: true, quotaEnabled: true, musicEnabled: true, musicVolume: 90, theme: cities.defaultTheme, language: 'en', ...api?.initialPreferences },
     info: { models: [], modes: [], version: '' },
     sessions: [], activeId: null, connected: false, connectionStatus: 'connecting', initializing: true, startingEngine: true,
     sending: false, configuring: false, selecting: false, savingSettings: false, renaming: false, deleting: false,
@@ -219,25 +227,31 @@
     $('workspace-name').textContent = pathName(cwd);
     $('workspace-subtitle').textContent = cwd || t('让想法有个落脚点');
     $('workspace-button').title = cwd ? t('{path}\n点击更换默认工作目录', { path: cwd }) : t('选择默认工作目录');
-    $('session-path').textContent = cwd || t('TOKYO / NIGHT SHIFT');
+    $('session-path').textContent = cwd || t(activeTheme().footer);
     $('session-path').title = cwd || '';
     applyAmbience();
   }
 
+  const selectedTheme = () => document.querySelector('input[name="theme"]:checked')?.value || state.settings.theme;
   function ambiencePreferences() {
     return $('settings-dialog').open ? {
+      theme: cities.normalizeTheme(selectedTheme()),
       rainEnabled: $('rain-input').checked,
       musicEnabled: $('music-input').checked,
       musicVolume: Number($('music-volume').value),
     } : state.settings;
   }
 
+  // The city on screen: the previewed choice while preferences are open.
+  const activeTheme = () => themeOf(ambiencePreferences().theme);
+
   function renderMusicStatus(status) {
     const preferences = ambiencePreferences();
+    const station = t(activeTheme().station);
     const labels = {
-      playing: t('正在播放 · 东京午夜电台 · 离线循环'),
-      starting: t('正在准备东京午夜电台…'),
-      blocked: t('点击窗口或按任意键，开启东京午夜电台。'),
+      playing: t('正在播放 · {station} · 离线循环', { station }),
+      starting: t('正在准备{station}…', { station }),
+      blocked: t('点击窗口或按任意键，开启{station}。', { station }),
       error: t('音乐暂时无法播放，请关闭音乐后重新开启。'),
       paused: preferences.musicEnabled && preferences.musicVolume === 0 ? t('音量为 0 · 已静音') : t('音乐已关闭'),
     };
@@ -245,8 +259,34 @@
     $('music-status').dataset.state = status.state;
   }
 
+  // City copy is translated like the rest of the chrome: the theme decides
+  // which catalog key each element shows, and i18n.apply follows the language.
+  const themeText = {
+    'brand-edition': 'edition', 'breadcrumb-subtitle': 'subtitle', 'hero-subtitle': 'subtitle', 'edition-number': 'volume', 'edition-tagline': 'tagline',
+    'hero-headline': 'headline', 'location-name': 'location', 'rain-label': 'weather', 'rain-help': 'weatherHelp',
+    'music-label': 'station', 'music-help': 'musicHelp',
+  };
+  function applyTheme(id) {
+    const theme = themeOf(id);
+    const changed = document.documentElement.dataset.theme !== theme.id || $('hero-city').textContent !== theme.hero;
+    document.documentElement.dataset.theme = theme.id;
+    for (const [elementId, field] of Object.entries(themeText)) {
+      const element = $(elementId);
+      if (element.dataset.i18n === theme[field] && !changed) continue;
+      element.dataset.i18n = theme[field];
+      element.textContent = t(theme[field]);
+    }
+    if (!changed) return;
+    $('hero-city').textContent = theme.hero;
+    $('location-coordinates').textContent = theme.coordinates;
+    for (const element of [$('hero-star'), $('model-orbit'), ...document.querySelectorAll('.message.assistant .message-avatar')]) element.textContent = theme.glyph;
+    if (!(activeSession()?.cwd || state.settings.workspace)) $('session-path').textContent = t(theme.footer);
+    renderComposerState();
+  }
+
   function applyAmbience() {
     const preferences = ambiencePreferences();
+    applyTheme(preferences.theme);
     $('rain-layer').hidden = preferences.rainEnabled === false;
     $('music-volume-value').textContent = `${preferences.musicVolume}%`;
     $('music-volume').setAttribute('aria-valuetext', `${preferences.musicVolume}%`);
@@ -596,7 +636,7 @@
       article.className = `message ${message.role === 'user' ? 'user' : 'assistant'}`;
       article.dataset.messageId = message.id;
       const heading = document.createElement('div'); heading.className = 'message-heading';
-      const avatar = document.createElement('span'); avatar.className = 'message-avatar'; avatar.textContent = message.role === 'user' ? t('你') : '✳'; avatar.setAttribute('aria-hidden', 'true');
+      const avatar = document.createElement('span'); avatar.className = 'message-avatar'; avatar.textContent = message.role === 'user' ? t('你') : activeTheme().glyph; avatar.setAttribute('aria-hidden', 'true');
       const name = document.createElement('strong'); name.textContent = message.role === 'user' ? t('YOU') : 'GROKBUILD';
       const time = document.createElement('time');
       if (message.createdAt) { const date = new Date(message.createdAt); if (!Number.isNaN(date.getTime())) { time.dateTime = date.toISOString(); time.textContent = date.toLocaleTimeString(i18n.getLanguage(), { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }); } }
@@ -699,7 +739,7 @@
     for (const element of document.querySelectorAll('[data-prompt]')) element.disabled = state.sending;
     for (const id of ['connection-button', 'settings-reconnect']) $(id).disabled = uiLocked({ engine: true }) || state.busy.size > 0 || state.connectionStatus === 'connecting';
     $('prompt').disabled = state.sending;
-    $('prompt').placeholder = state.login ? t('请先完成或取消账户登录，可以先写好草稿…') : needsSignIn() ? t('请先登录 Grok，也可以先写好草稿…') : state.configuring ? t('正在等待引擎确认配置，可以先写好下一条消息…') : state.selecting ? t('正在恢复这段对话…') : !state.connected ? t('当前离线；连接引擎后可继续对话…') : busy ? t('可以先写好下一条消息，等待当前任务完成…') : full ? t('已达到同时运行的任务上限，可以先写好下一条消息…') : t('在雨声中，开始你的下一个想法…');
+    $('prompt').placeholder = state.login ? t('请先完成或取消账户登录，可以先写好草稿…') : needsSignIn() ? t('请先登录 Grok，也可以先写好草稿…') : state.configuring ? t('正在等待引擎确认配置，可以先写好下一条消息…') : state.selecting ? t('正在恢复这段对话…') : !state.connected ? t('当前离线；连接引擎后可继续对话…') : busy ? t('可以先写好下一条消息，等待当前任务完成…') : full ? t('已达到同时运行的任务上限，可以先写好下一条消息…') : t(activeTheme().placeholder);
     $('activity-strip').hidden = !busy;
     if (busy) updateActivity();
     renderSignInNotice();
@@ -1328,6 +1368,7 @@
     $('rain-input').checked = state.settings.rainEnabled !== false;
     $('music-input').checked = state.settings.musicEnabled !== false;
     $('music-volume').value = state.settings.musicVolume;
+    for (const radio of document.querySelectorAll('input[name="theme"]')) radio.checked = radio.value === cities.normalizeTheme(state.settings.theme);
     $('subagents-input').checked = state.settings.subagentsEnabled !== false;
     $('quota-input').checked = state.settings.quotaEnabled !== false;
     $('language-select').value = i18n.normalizeLanguage(state.settings.language);
@@ -1338,7 +1379,7 @@
   }
 
   function settingsPatch() {
-    return { language: $('language-select').value, executable: $('executable-input').value.trim(), workspace: $('workspace-input').value.trim(), rainEnabled: $('rain-input').checked, subagentsEnabled: $('subagents-input').checked, quotaEnabled: $('quota-input').checked, musicEnabled: $('music-input').checked, musicVolume: Number($('music-volume').value) };
+    return { language: $('language-select').value, executable: $('executable-input').value.trim(), workspace: $('workspace-input').value.trim(), rainEnabled: $('rain-input').checked, subagentsEnabled: $('subagents-input').checked, quotaEnabled: $('quota-input').checked, musicEnabled: $('music-input').checked, musicVolume: Number($('music-volume').value), theme: cities.normalizeTheme(selectedTheme()) };
   }
 
   function updateSettingsReconnect() {
@@ -1506,7 +1547,7 @@
     $('connection-button').addEventListener('click', () => guarded(() => needsSignIn() ? showAccounts() : reconnect()));
     $('settings-reconnect').addEventListener('click', () => { void savePreferences(true); });
     $('settings-form').addEventListener('input', updateSettingsReconnect);
-    for (const id of ['rain-input', 'music-input', 'music-volume']) $(id).addEventListener('input', applyAmbience);
+    for (const element of [$('rain-input'), $('music-input'), $('music-volume'), ...document.querySelectorAll('input[name="theme"]')]) element.addEventListener('input', applyAmbience);
     $('language-select').addEventListener('change', () => { applyLanguage($('language-select').value); updateSettingsReconnect(); });
     $('settings-dialog').addEventListener('close', () => { applyLanguage(state.settings.language); applyAmbience(); });
     const unlockMusic = () => { void ambience?.unlock(); };

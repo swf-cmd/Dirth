@@ -242,3 +242,22 @@ dialog{color:var(--text);background:#121b1e;border:1px solid #a8b29a28;border-ra
 .quota-card.refreshing .quota-value { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes quota-scan { 0% { transform: translateX(-100%); } 100% { transform: translateX(340%); } }
 @media (max-height: 720px) { .quota-card { padding: 8px 10px 9px; gap: 6px; margin-bottom: 8px; } }
+
+/* City theme picker: four framed previews, chosen like a radio group. */
+.theme-field { min-width: 0; margin: 0 0 21px; padding: 20px 0 0; border: 0; border-bottom: 1px solid var(--line); }
+.theme-field legend { padding: 0; float: left; width: 100%; }
+.theme-options { clear: both; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; }
+.theme-option { position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0; cursor: pointer; }
+.theme-option input { position: absolute; top: 0; left: 0; width: 1px; height: 1px; margin: 0; opacity: 0; pointer-events: none; }
+.theme-preview { position: relative; display: block; aspect-ratio: 16 / 9; border: 1px solid #b3c69e24; border-radius: 6px; background: #0d1518 url("assets/theme-previews.webp") no-repeat 0 0 / 100% 400%; transition: border-color .15s, box-shadow .15s, transform .15s; }
+.theme-preview::after { content: "✓"; position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--lime); color: #242d24; font-size: 11px; font-weight: 600; line-height: 1; opacity: 0; transform: scale(.7); transition: opacity .15s, transform .15s; }
+.theme-option:hover .theme-preview { border-color: #d4eb8950; transform: translateY(-1px); }
+.theme-option input:checked + .theme-preview { border-color: var(--lime); box-shadow: 0 0 0 1px var(--lime), 0 6px 18px #0004; }
+.theme-option input:checked + .theme-preview::after { opacity: 1; transform: scale(1); }
+.theme-option input:focus-visible + .theme-preview { outline: 2px solid var(--lime); outline-offset: 3px; }
+.theme-option input:disabled ~ * { opacity: .5; cursor: default; }
+.theme-name { display: flex; align-items: center; gap: 7px; min-width: 0; font-size: 11px; color: #9aa9a0; }
+.theme-name::before { content: ""; width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--swatch, var(--lime)); box-shadow: 0 0 6px var(--swatch, var(--lime)); }
+.theme-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.theme-option input:checked ~ .theme-name { color: #dce9bd; }
+.theme-field .field-help { margin: 10px 0 18px; }

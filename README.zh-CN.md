@@ -37,6 +37,7 @@
 | 功能 | 你可以做什么 |
 | --- | --- |
 | **有氛围的工作空间** | 涩谷雨夜背景、可关闭的动态雨滴，以及原创离线合成器音乐。 |
+| **四座城市主题** | 东京、京都、冲绳、北海道随时切换：东京保持雨夜深色，京都（和纸与墨）、冲绳（阳光海面）、北海道（雪与磨砂玻璃）为浅色日间版；每座城市都有自己的配色、字体、背景、窗外景致（雨、红叶、海面波光、飘雪）和原创配乐。 |
 | **多任务同时进行** | 最多四段对话并行生成，各自保留进度、授权请求、停止按钮和草稿。 |
 | **持续积累的对话** | 流式 Markdown 与代码块、搜索与重命名、历史恢复和 Markdown 导出。 |
 | **看得见的执行过程** | 查看工具进度和执行计划，逐项响应权限请求，随时停止生成。 |
@@ -264,6 +265,6 @@ npm run test:all
 
 [MIT 许可证](LICENSE) © 2026 swf-cmd and contributors。第三方组件保留原有许可证；内置库、Electron 和素材来源见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
-涩谷雨夜背景由 AI 生成，[提示词随仓库提供](src/renderer/assets/IMAGE-PROMPT.md)。图标由 [`scripts/make-icon.py`](scripts/make-icon.py) 绘制；**Tokyo Afterimage · 東京残像**为原创合成器器乐，可从 [`scripts/ambient-score.js`](scripts/ambient-score.js) 重新生成。
+涩谷雨夜背景由 AI 生成，[提示词随仓库提供](src/renderer/assets/IMAGE-PROMPT.md)；京都、冲绳、北海道背景由 [`scripts/backdrop-art.js`](scripts/backdrop-art.js) 用代码绘制。图标由 [`scripts/make-icon.py`](scripts/make-icon.py) 绘制；**Tokyo Afterimage · 東京残像**与三座城市的配乐均为原创合成器器乐，可从 [`scripts/ambient-score.js`](scripts/ambient-score.js) 和 [`scripts/theme-scores.js`](scripts/theme-scores.js) 重新生成。
 
 使用 [Electron](https://www.electronjs.org/)、[Marked](https://github.com/markedjs/marked) 与 [DOMPurify](https://github.com/cure53/DOMPurify) 构建，通过 [ACP](https://agentclientprotocol.com/) 连接 [Grok Build](https://github.com/xai-org/grok-build)。

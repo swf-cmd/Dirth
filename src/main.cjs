@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const { pathToFileURL } = require('node:url');
 const { createI18n, languages } = require('./i18n.js');
+const { themes, normalizeTheme } = require('./themes.js');
 const { AppController } = require('./app-controller.cjs');
 const { safeName } = require('./attachments.cjs');
 const { appRoot } = require('./app-paths.cjs');
@@ -50,9 +51,9 @@ else {
     controller = new AppController({ root, home: os.homedir(), nativeImage, quotaFetch: (url, init) => quotaSession.fetch(url, init) });
     protocol.handle('tokyo-image', request => controller.serveImage(request.url));
     // Only presentation preferences travel with the renderer startup. This lets
-    // the first frame use the saved language without synchronous IPC or disk I/O.
-    const initialPreferences = Object.fromEntries(['language', 'rainEnabled', 'musicEnabled', 'musicVolume'].map(key => [key, controller.settings[key]]));
-    win = new BrowserWindow({ width: 1440, height: 940, minWidth: 980, minHeight: 680, frame: isMac, ...(isMac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 14 } } : {}), show: false, backgroundColor: '#0b0e11', title: 'Grokbuild Tokyo', icon: path.join(__dirname, 'renderer', 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), additionalArguments: [`--tokyo-preferences=${encodeURIComponent(JSON.stringify(initialPreferences))}`], autoplayPolicy: 'no-user-gesture-required', contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false } });
+    // the first frame use the saved language and city without synchronous IPC or disk I/O.
+    const initialPreferences = Object.fromEntries(['language', 'theme', 'rainEnabled', 'musicEnabled', 'musicVolume'].map(key => [key, controller.settings[key]]));
+    win = new BrowserWindow({ width: 1440, height: 940, minWidth: 980, minHeight: 680, frame: isMac, ...(isMac ? { titleBarStyle: 'hiddenInset', trafficLightPosition: { x: 16, y: 14 } } : {}), show: false, backgroundColor: themes[normalizeTheme(controller.settings.theme)].windowBackground, title: 'Grokbuild Tokyo', icon: path.join(__dirname, 'renderer', 'assets', 'icon.png'), webPreferences: { preload: path.join(__dirname, 'preload.cjs'), additionalArguments: [`--tokyo-preferences=${encodeURIComponent(JSON.stringify(initialPreferences))}`], autoplayPolicy: 'no-user-gesture-required', contextIsolation: true, nodeIntegration: false, sandbox: true, webSecurity: true, spellcheck: false } });
     installMenu();
     win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     win.webContents.on('will-navigate', (event, url) => { if (url !== entryURL) event.preventDefault(); });
@@ -67,7 +68,13 @@ else {
     handle('readImage', args => controller.imageURL(args));
     // The renderer may only ask for a refresh; it cannot choose an account or URL.
     handle('refreshQuota', () => controller.refreshQuota({ force: true }));
-    handle('saveSettings', async patch => { const result = await controller.saveSettings(patch); installMenu(); return result; });
+    handle('saveSettings', async patch => {
+      const result = await controller.saveSettings(patch);
+      installMenu();
+      // Resizing shows the native background before the page repaints; follow the saved city.
+      if (win && !win.isDestroyed()) win.setBackgroundColor(themes[normalizeTheme(controller.settings.theme)].windowBackground);
+      return result;
+    });
     // Dialogs opened from settings follow its language preview without saving it.
     const dialogTranslator = language => typeof language === 'string' && Object.hasOwn(languages, language) ? createI18n(language) : t;
     handle('chooseFolder', async language => { const translate = dialogTranslator(language); const r = await dialog.showOpenDialog(win, { title: translate('选择 Grok 工作目录'), defaultPath: controller.settings.workspace, properties: ['openDirectory', 'createDirectory'] }); return r.canceled ? null : r.filePaths[0]; });
