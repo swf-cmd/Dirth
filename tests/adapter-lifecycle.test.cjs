@@ -209,3 +209,19 @@ process.stdin.on('end', () => {});
   while (await alive() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
   assert.equal(await alive(), false, 'the tool must not outlive the CLI');
 });
+
+test('an exited CLI is released at once, even while its pipes are still draining', async t => {
+  const { adapter, children, events } = synthetic(t);
+  await adapter.start();
+  const child = children[0];
+  child.exit(0);
+  // macOS reports the pipes closed a little later than the exit.
+  assert.equal(adapter.process, null, 'nothing is left to stop on shutdown');
+  await assert.rejects(adapter._request('session/new', {}, 0), { code: 'NOT_CONNECTED' }, 'nothing more is written to it');
+  await adapter.close();
+  assert.equal(events.some(event => event.status === 'disconnected'), false, 'the connection ends when its output does');
+  child.stdout.end();
+  child.emit('close', 0, null);
+  assert.ok(events.some(event => event.status === 'disconnected'));
+  assert.equal(adapter.ready, false);
+});

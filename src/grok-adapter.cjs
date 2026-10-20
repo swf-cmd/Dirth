@@ -170,10 +170,14 @@ class GrokAdapter extends EventEmitter {
     const framer = new LineFramer();
     let stderr = '';
     let disconnected = false;
+    // After it exits, the CLI is no longer this adapter's process, but what it
+    // wrote before exiting is still read and answers what it was asked.
+    let draining = false;
+    const owns = () => this.process === child || (draining && this.process === null);
     const disconnect = (error, exited = false) => {
-      const ownsChild = this.process === child;
+      const ownsChild = owns();
       // A pipe error is not proof that the process (or its tools) has exited.
-      if (ownsChild && exited) this.process = null;
+      if (this.process === child && exited) this.process = null;
       if (disconnected) return;
       disconnected = true;
       if (ownsChild) {
@@ -219,11 +223,12 @@ class GrokAdapter extends EventEmitter {
       if (drained) return;
       drained = true;
       clearTimeout(exit?.timer);
-      if (this.process === child && !disconnected) receive(decoder.end() + '\n');
+      if (owns() && !disconnected) receive(decoder.end() + '\n');
       const { code, signal } = exit || {};
       disconnect(failure(
         this.closed ? this.t('Grok 连接已关闭。') : this.t('Grok 进程已退出 ({code}).{detail}', { code: signal || code, detail: stderr ? ` ${this.safeMessage(stderr.trim())}` : '' }),
         'PROCESS_EXIT'), true);
+      draining = false;
     };
     child.on('exit', (code, signal) => {
       // A CLI may exit before its tools; the isolated POSIX process group lets
@@ -231,6 +236,7 @@ class GrokAdapter extends EventEmitter {
       this._killProcessGroup(child);
       // Nothing more can be written to it; what it already sent is still read.
       this.disconnectedProcesses.add(child);
+      if (this.process === child) { this.process = null; draining = !disconnected; }
       exit = { code, signal, timer: setTimeout(exited, EXIT_DRAIN_TIMEOUT) };
       exit.timer.unref?.();
     });
@@ -240,7 +246,7 @@ class GrokAdapter extends EventEmitter {
     for (const stream of [child.stdout, child.stderr]) stream.on('error', error => disconnect(failure(this.safeMessage(error.message), error.code)));
     child.stderr.on('data', data => { stderr = (stderr + data.toString('utf8')).slice(-8000); });
     child.stdout.on('data', data => {
-      if (this.process !== child || disconnected) return;
+      if (disconnected || !owns()) return;
       receive(decoder.write(data));
     });
     try {
