@@ -16,7 +16,7 @@
   const MAX_OUTPUT_GAIN = 1.50;
   const CROSSFADE = 0.35;
   const TRACKS = Object.freeze({
-    tokyo: Object.freeze({ file: 'tokyo-afterimage.wav', title: 'Tokyo Afterimage · 東京残像', bpm: 80, duration: 96 }),
+    tokyo: Object.freeze({ file: 'tokyo-afterimage.flac', title: 'Tokyo Afterimage · 東京残像', bpm: 80, duration: 96 }),
     kyoto: Object.freeze({ file: 'kyoto-lanterns.flac', title: 'Kyoto Lanterns · 京都灯籠', bpm: 60, duration: 96 }),
     okinawa: Object.freeze({ file: 'okinawa-island-time.flac', title: 'Okinawa Island Time · 沖縄島時間', bpm: 90, duration: 96 }),
     hokkaido: Object.freeze({ file: 'hokkaido-snowlight.flac', title: 'Hokkaido Snowlight · 北海道雪あかり', bpm: 75, duration: 96 }),

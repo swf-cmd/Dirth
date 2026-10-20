@@ -155,7 +155,7 @@ test('changing cities while playing crossfades to the new track from its start',
   complete();
   await settle();
   assert.equal(player.getStatus().state, 'playing');
-  assert.match(calls.urls[0], /assets\/tokyo-afterimage\.wav$/);
+  assert.match(calls.urls[0], /assets\/tokyo-afterimage\.flac$/);
   player.setPreferences({ theme: 'kyoto' });
   await settle();
   assert.equal(player.getStatus().state, 'starting', 'the current track keeps playing while the next one loads');
@@ -208,7 +208,7 @@ test('returning to the playing city before the next loads keeps it playing', asy
   player.setPreferences({ theme: 'hokkaido' });
   await settle();
   assert.equal(player.getStatus().state, 'playing');
-  complete('tokyo-afterimage.wav');
+  complete('tokyo-afterimage.flac');
   await settle();
   assert.equal(calls.start, 1, 'the original source was never interrupted');
   assert.equal(calls.stops, 0);
