@@ -94,6 +94,8 @@ class GrokAdapter extends EventEmitter {
     this.configuring = new Set();
     this.process = null;
     this.processGroups = new WeakSet();
+    // A disconnected CLI can outlive its pipes for a moment; nothing more is written to it.
+    this.disconnectedProcesses = new WeakSet();
     this.pending = new Map();
     this.permissions = new Map();
     this.sessions = new Map();
@@ -163,6 +165,7 @@ class GrokAdapter extends EventEmitter {
       if (disconnected) return;
       disconnected = true;
       if (ownsChild) {
+        this.disconnectedProcesses.add(child);
         this.ready = false;
         this.info.connected = false;
         for (const session of this.sessions.values()) { session.loaded = false; session.modelSelectionVerified = false; }
@@ -243,7 +246,7 @@ class GrokAdapter extends EventEmitter {
 
   _write(message) {
     const child = this.process;
-    if (!child || child.stdin.destroyed || child.stdin.writableEnded) throw failure(this.t('Grok 尚未连接，请重新连接。'), 'NOT_CONNECTED');
+    if (!child || this.disconnectedProcesses.has(child) || child.stdin.destroyed || child.stdin.writableEnded) throw failure(this.t('Grok 尚未连接，请重新连接。'), 'NOT_CONNECTED');
     child.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
