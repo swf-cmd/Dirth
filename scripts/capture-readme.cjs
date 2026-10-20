@@ -188,7 +188,7 @@ async function captureView(desktop, page, locale, view) {
   assert.ok(rainOffStability.maximumChannelDelta <= 1, `The rain-off comparison must have no changing UI pixels: ${JSON.stringify(rainOffStability)}`);
   const pixelDiff = await compareScreenshots(desktop, rainOn, rainOff, evidence.panel);
   assert.ok(pixelDiff.changedPixels > 100, `Rain must change rendered pixels: ${JSON.stringify(pixelDiff)}`);
-  assert.equal(pixelDiff.outsidePanelPixels, 0, 'Only the rain layer may change in the QA comparison');
+  assert.equal(pixelDiff.outsidePanelPixels, 0, `Only the rain layer may change in the QA comparison: ${JSON.stringify(pixelDiff)}`);
   fs.copyFileSync(rainOn, path.join(images, `${basename}.png`));
   return { locale, view, file: `${basename}.png`, ...evidence, pixelDiff, rainOffStability };
 }
@@ -233,7 +233,7 @@ async function captureMotion(desktop, page, locale, panel) {
   assert.ok(rainOffStability.maximumChannelDelta <= 1, `Non-rain UI must remain identical throughout motion capture: ${JSON.stringify(rainOffStability)}`);
   const motionDiff = await compareScreenshots(desktop, framePath(0), framePath(motionFrames - 1), panel);
   assert.ok(motionDiff.changedPixels > 100, `Rain frames must differ: ${JSON.stringify(motionDiff)}`);
-  assert.equal(motionDiff.outsidePanelPixels, 0, 'Motion must remain within the rain panel');
+  assert.equal(motionDiff.outsidePanelPixels, 0, `Motion must remain within the rain panel: ${JSON.stringify(motionDiff)}`);
   fs.copyFileSync(framePath(0), path.join(qa, `${basename}-motion-first.png`));
   fs.copyFileSync(framePath(motionFrames - 1), path.join(qa, `${basename}-motion-last.png`));
   const inputPattern = path.join(frameDirectory, 'frame-%03d.png');

@@ -21,7 +21,7 @@
 :root[data-theme="kyoto"] .window-controls button{color:#767265}
 :root[data-theme="kyoto"] .window-controls button:hover{background:#120f0909;color:var(--text)}
 :root[data-theme="kyoto"] .window-controls .window-close:hover{background:#d47271;color:#120f09}
-:root[data-theme="kyoto"] .sidebar{background:linear-gradient(160deg,#e5e3d9,#eae8df 65%);border-right:1px solid var(--line)}
+:root[data-theme="kyoto"] .sidebar{background:linear-gradient(160deg,#e5e3d9,#eae8df 65%) #eae8df;border-right:1px solid var(--line)}
 :root[data-theme="kyoto"] .new-session{background:var(--lime);color:#fefdfa}
 :root[data-theme="kyoto"] .new-session:hover{background:#58284e;color:#fefdfa}
 :root[data-theme="kyoto"] kbd{color:var(--faint)}
@@ -273,7 +273,7 @@
 :root[data-theme="okinawa"] .window-controls button{color:#588185}
 :root[data-theme="okinawa"] .window-controls button:hover{background:#00192509;color:var(--text)}
 :root[data-theme="okinawa"] .window-controls .window-close:hover{background:#df7481;color:#001925}
-:root[data-theme="okinawa"] .sidebar{background:linear-gradient(160deg,#ddeaec,#e4eff0 65%);border-right:1px solid var(--line)}
+:root[data-theme="okinawa"] .sidebar{background:linear-gradient(160deg,#ddeaec,#e4eff0 65%) #e4eff0;border-right:1px solid var(--line)}
 :root[data-theme="okinawa"] .new-session{background:var(--lime);color:#ffffff}
 :root[data-theme="okinawa"] .new-session:hover{background:#065e5d;color:#ffffff}
 :root[data-theme="okinawa"] kbd{color:var(--faint)}
@@ -525,7 +525,7 @@
 :root[data-theme="hokkaido"] .window-controls button{color:#69788a}
 :root[data-theme="hokkaido"] .window-controls button:hover{background:#0b152509;color:var(--text)}
 :root[data-theme="hokkaido"] .window-controls .window-close:hover{background:#d3797f;color:#0b1525}
-:root[data-theme="hokkaido"] .sidebar{background:linear-gradient(160deg,#dee5ed,#e4eaf1 65%);border-right:1px solid var(--line)}
+:root[data-theme="hokkaido"] .sidebar{background:linear-gradient(160deg,#dee5ed,#e4eaf1 65%) #e4eaf1;border-right:1px solid var(--line)}
 :root[data-theme="hokkaido"] .new-session{background:var(--lime);color:#fdfeff}
 :root[data-theme="hokkaido"] .new-session:hover{background:#2b4a70;color:#fdfeff}
 :root[data-theme="hokkaido"] kbd{color:var(--faint)}
