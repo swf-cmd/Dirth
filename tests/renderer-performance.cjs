@@ -111,6 +111,16 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       const scroller = document.querySelector('#conversation-scroll');
       resolve(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 2);
     }))), 'a streaming reply stays scrolled to its latest line');
+    // The same image shown twice keeps both figures when the reply renders again.
+    for (const text of ['\n\n![](twice.png)\n\n![](twice.png)\n\ntwice-end', ' after-twice']) {
+      await desktop.evaluate((_, text) => {
+        const test = globalThis.__tokyoUITest;
+        const sessionId = test.calls.filter(call => call.method === 'prompt').at(-1).sessionId;
+        test.adapter.emit('event', { type: 'text', sessionId, text });
+      }, text);
+      await page.locator('.message').last().filter({ hasText: text.trim().split('\n').at(-1) }).waitFor();
+    }
+    assert.equal(await page.locator('.message').last().locator('.chat-image').count(), 2, 'a repeated image must not collapse into one');
 
     await desktop.evaluate(() => {
       for (const [sessionId, resolve] of globalThis.__tokyoUITest.adapter.pending) {

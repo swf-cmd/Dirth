@@ -445,7 +445,9 @@
   }
   function createImage(source, session, messageId, previousImages) {
     const key = `${messageId}:${source.src}`;
-    if (previousImages.has(key)) { const figure = previousImages.get(key); figure.localize?.(); return figure; }
+    // The same image can appear twice in one reply; each earlier figure is reused once.
+    const reused = previousImages.get(key)?.shift();
+    if (reused) { reused.localize?.(); return reused; }
     const alt = () => source.altIsDefault === true || (source.altIsDefault == null && source.alt === 'Grok 返回的图片') ? t('Grok 返回的图片') : source.alt || t('图片');
     const figure = document.createElement('figure'); figure.className = 'chat-image'; figure.imageKey = key;
     const button = document.createElement('button'); button.type = 'button'; button.className = 'image-thumbnail'; button.disabled = true;
@@ -649,7 +651,8 @@
       const previous = cached?.article;
       const openDetails = new Set([...previous?.querySelectorAll('details[open]') || []].map(item => item.dataset.toolId || item.dataset.thoughtId || item.dataset.planId || item.dataset.responseId));
       const previousPlans = new Set([...previous?.querySelectorAll('[data-plan-id]') || []].map(item => item.dataset.planId));
-      const previousImages = new Map([...previous?.querySelectorAll('.chat-image') || []].map(figure => [figure.imageKey, figure]));
+      const previousImages = new Map();
+      for (const figure of previous?.querySelectorAll('.chat-image') || []) previousImages.set(figure.imageKey, [...previousImages.get(figure.imageKey) || [], figure]);
       const article = document.createElement('article');
       article.className = `message ${message.role === 'user' ? 'user' : 'assistant'}`;
       article.dataset.messageId = message.id;
@@ -775,10 +778,16 @@
     $('activity-duration').textContent = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
   }
 
+  let shownPermission, shownPermissionLanguage;
   function renderPermissions() {
     const panel = $('permission-panel');
     const permissionSessionId = state.activeId;
     const permission = sessionPermissions(permissionSessionId)[0];
+    // Unrelated renders keep the prompt as it is: rebuilding it would move
+    // keyboard focus off its buttons, re-enable a choice already being sent
+    // and make screen readers announce it again.
+    if (permission === shownPermission && i18n.getLanguage() === shownPermissionLanguage) return;
+    shownPermission = permission; shownPermissionLanguage = i18n.getLanguage();
     panel.replaceChildren(); panel.hidden = !permission;
     if (!permission) return;
     const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.textContent = permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
@@ -1050,7 +1059,8 @@
         state.connectionStatus = status;
         state.connected = status === 'ready';
         if (state.connected) state.lastError = '';
-        if (status === 'disconnected') { state.busy.clear(); state.permissions.clear(); }
+        // Settings shows why the engine went offline, not an older conversation's error.
+        if (status === 'disconnected') { state.busy.clear(); state.permissions.clear(); if (event.message) state.lastError = safeText(event.message); }
         renderConnection(); renderPermissions(); renderSessions(); queueMessages();
       }
       if (sessionId && ['working', 'busy'].includes(status)) {
