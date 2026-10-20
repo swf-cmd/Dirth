@@ -204,11 +204,17 @@ test('a conversation opening with many CLI images searches the session folders o
 test('blob flush retries failed disk writes without retaining a permanent error', async t => {
   const root = await fixture(t);
   const store = new BlobStore(path.join(root, 'blobs'));
-  const writeFile = fs.writeFile;
+  const open = fs.open;
   let full = true;
-  t.mock.method(fs, 'writeFile', async (...args) => {
-    if (full && String(args[0]).endsWith('.tmp')) throw Object.assign(new Error('fixture disk full'), { code: 'ENOSPC' });
-    return writeFile(...args);
+  let synced = 0;
+  t.mock.method(fs, 'open', async (...args) => {
+    const handle = await open(...args);
+    if (!String(args[0]).endsWith('.tmp')) return handle;
+    return {
+      writeFile: async (...data) => { if (full) throw Object.assign(new Error('fixture disk full'), { code: 'ENOSPC' }); return handle.writeFile(...data); },
+      sync: async () => { synced++; return handle.sync(); },
+      close: () => handle.close(),
+    };
   });
   const ref = store.store(png);
   await assert.rejects(store.flush(), /disk full/);
@@ -216,7 +222,9 @@ test('blob flush retries failed disk writes without retaining a permanent error'
   full = false;
   await store.flush();
   assert.equal(store.pending.size, 0);
+  assert.equal(synced, 1, 'the bytes are flushed to disk before the file takes its name');
   assert.deepEqual(await fs.readFile(store.resolve(ref)), png);
+  assert.deepEqual((await fs.readdir(path.join(root, 'blobs'))).filter(name => name.endsWith('.tmp')), [], 'the failed temporary file is removed');
 });
 
 test('oversized or invalid embedded resources do not survive in serialized state', async t => {

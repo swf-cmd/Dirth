@@ -64,7 +64,11 @@ class BlobStore {
         // link) is replaced from the bytes in memory. Refusing instead would
         // keep this write pending, and every later save waits for it.
         if (!stat?.isFile() || stat.size !== bytes.length) {
-          await fs.writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
+          // The bytes reach the disk before the name does, so a power loss
+          // cannot leave a file that claims this content but is empty.
+          const handle = await fs.open(temporary, 'wx', 0o600);
+          try { await handle.writeFile(bytes); await handle.sync(); }
+          finally { await handle.close(); }
           await fs.rename(temporary, target);
         }
         this.known.add(hash);
