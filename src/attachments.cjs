@@ -105,6 +105,11 @@ async function cleanupAttachments(directory, referencedAttachments = []) {
     if (typeof src !== 'string' || !path.isAbsolute(src)) continue;
     const relative = path.relative(root, path.resolve(src));
     if (within(root, path.resolve(src))) retained.add(relative.split(path.sep)[0]);
+    // Staging names each folder after its attachment. A path saved under an
+    // earlier location of this data folder (the Mac folder before the rename
+    // to Dirth, now a link, or a portable Windows folder that has since moved)
+    // still keeps its files.
+    retained.add(path.basename(path.dirname(src)));
   }
   const removed = [];
   for (const entry of await fs.readdir(root, { withFileTypes: true })) {

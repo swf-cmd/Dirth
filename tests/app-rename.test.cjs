@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { AppController } = require('../src/app-controller.cjs');
+const { adoptLegacyRoot } = require('../src/app-paths.cjs');
 
 async function settle(app) {
   app.journal.cancel();
@@ -67,4 +68,30 @@ test('Without a move, a workspace named like the old folder is left alone', asyn
   const again = new AppController({ root, home: path.join(run, 'home') });
   t.after(() => settle(again));
   assert.equal(again.settings.workspace, elsewhere);
+});
+
+test('Files attached before the move are kept, and still open, after the first Dirth launch', async t => {
+  if (process.platform === 'win32') return t.skip('Creating directory links needs extra rights on Windows');
+  const base = path.resolve(__dirname, '../work/app-rename-tests');
+  fs.mkdirSync(base, { recursive: true });
+  const run = fs.mkdtempSync(path.join(base, 'run-'));
+  t.after(() => fs.rmSync(run, { recursive: true, force: true }));
+  const legacy = path.join(run, 'Grokbuild Tokyo');
+  const before = new AppController({ root: legacy, home: path.join(run, 'home') });
+  const [attachment] = await before.importAttachments({ files: [{ name: 'notes.txt', data: Buffer.from('kept').toString('base64') }] });
+  before.pendingAttachments.delete(attachment.id);
+  before.sessions.push({ id: 'saved', title: 'saved', titleIsDefault: false, accountId: 'local', cwd: path.join(legacy, 'Workspace'),
+    messages: [{ id: 'sent', role: 'user', text: 'see attached', attachments: [attachment] }] });
+  await before.save({ content: ['saved'] });
+  await settle(before);
+  const { root, movedFrom } = adoptLegacyRoot(path.join(run, 'Dirth'), { platform: 'darwin', appData: run });
+  assert.equal(movedFrom, legacy);
+  const after = new AppController({ root, movedFrom, home: path.join(run, 'home') });
+  t.after(() => settle(after));
+  await after.cleanupQueue;
+  await after.cleanAttachments();
+  const saved = after.sessions.find(session => session.id === 'saved').messages[0].attachments[0];
+  assert.equal(saved.src, attachment.src);
+  assert.equal(fs.readFileSync(path.join(root, path.relative(legacy, attachment.src)), 'utf8'), 'kept');
+  assert.equal(Buffer.from((await after.attachmentBytes({ sessionId: 'saved', messageId: 'sent', attachmentId: attachment.id }))).toString(), 'kept');
 });

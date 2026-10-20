@@ -117,6 +117,20 @@ test('large attachment previews use resized nativeImage bytes and orphan cleanup
   assert.ok((await fs.lstat(path.join(root, linked))).isSymbolicLink());
 });
 
+test('orphan cleanup keeps files saved under an earlier location of the data folder', async t => {
+  const root = await fixture(t);
+  const [moved, orphan] = await stageAttachments([
+    { name: 'moved.txt', data: Buffer.from('moved').toString('base64') },
+    { name: 'orphan.txt', data: Buffer.from('orphan').toString('base64') },
+  ], root);
+  // The history still names the folder where the portable app (or the Mac
+  // folder before its rename) used to be; that path no longer exists.
+  const before = path.join(path.dirname(root), 'moved-away', 'data', 'attachments', 'local');
+  const saved = { ...moved, src: path.join(before, moved.id, 'moved.txt') };
+  assert.deepEqual(await cleanupAttachments(root, [saved]), [orphan.id]);
+  assert.equal((await fs.readFile(moved.src)).toString(), 'moved');
+});
+
 test('image protocol responses stream bounded validated files without base64 conversion', async t => {
   const root = await fixture(t);
   const cwd = path.join(root, 'cwd');

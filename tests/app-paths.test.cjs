@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const { appRoot, adoptLegacyRoot } = require('../src/app-paths.cjs');
 
 test('Mac profiles survive app moves and development builds', () => {
@@ -73,11 +74,44 @@ test('When the old folder cannot be moved the app keeps using it instead of star
   assert.ok(fs.lstatSync(legacy).isDirectory());
 }));
 
-test('A failed link after the move keeps the moved data', () => withAppData((appData, root, legacy) => {
+test('When the link cannot be made the folder goes back, so saved paths keep resolving', () => withAppData((appData, root, legacy) => {
   writeLegacyProfile(legacy);
   const noLinks = { ...fs, symlinkSync: () => { throw Object.assign(new Error('not permitted'), { code: 'EPERM' }); } };
-  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData, fs: noLinks }), { root, movedFrom: legacy });
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData, fs: noLinks }), { root: legacy, movedFrom: null });
+  assert.ok(fs.lstatSync(legacy).isDirectory());
+  assert.ok(fs.existsSync(path.join(legacy, 'data', 'conversations.json')));
+  assert.ok(!fs.existsSync(root));
+}));
+
+test('If neither the link nor the way back works, the moved data is used', () => withAppData((appData, root, legacy) => {
+  writeLegacyProfile(legacy);
+  let renames = 0;
+  const stuck = { ...fs,
+    symlinkSync: () => { throw Object.assign(new Error('not permitted'), { code: 'EPERM' }); },
+    renameSync: (from, to) => { if (++renames > 1) throw Object.assign(new Error('busy'), { code: 'EBUSY' }); fs.renameSync(from, to); } };
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData, fs: stuck }), { root, movedFrom: legacy });
   assert.ok(fs.existsSync(path.join(root, 'data', 'conversations.json')));
+}));
+
+test('A launch that loses the move to another first launch uses the moved folder', () => withAppData((appData, root, legacy) => {
+  writeLegacyProfile(legacy);
+  const raced = { ...fs, renameSync: (from, to) => { fs.renameSync(from, to); fs.symlinkSync(to, from, 'dir'); throw Object.assign(new Error('gone'), { code: 'ENOENT' }); } };
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData, fs: raced }), { root, movedFrom: null });
+}));
+
+linkTest('While an older build still runs, its folder stays where it is', () => withAppData((appData, root, legacy) => {
+  writeLegacyProfile(legacy);
+  // Chromium's profile lock: a link naming the host and the owner's pid.
+  const lock = path.join(legacy, 'data', 'browser', 'SingletonLock');
+  fs.symlinkSync(`${os.hostname()}-${process.pid}`, lock);
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root: legacy, movedFrom: null });
+  assert.ok(fs.lstatSync(legacy).isDirectory());
+  assert.ok(!fs.existsSync(root));
+  // A lock left behind by a process that has exited does not stop the move.
+  const exited = spawnSync(process.execPath, ['-e', '']).pid;
+  fs.unlinkSync(lock);
+  fs.symlinkSync(`${os.hostname()}-${exited}`, lock);
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: legacy });
 }));
 
 test('Windows roots, QA roots and custom roots are never moved', () => withAppData((appData, root, legacy) => {
