@@ -98,7 +98,12 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       await page.locator('#prompt').fill('next message');
       await page.locator('#prompt').press('Enter');
       await page.waitForFunction(() => document.querySelector('#prompt').value === '');
-      assert.equal(await desktop.evaluate(() => globalThis.__tokyoUITest.calls.filter(call => call.method === 'prompt').length), 2);
+      // The composer clears at once; the prompt reaches the CLI a moment later
+      // (on CI runners, after this check had already read the calls).
+      const prompts = () => desktop.evaluate(() => globalThis.__tokyoUITest.calls.filter(call => call.method === 'prompt').map(call => call.text));
+      let sent = await prompts();
+      for (const deadline = Date.now() + 10000; sent.length < 2 && Date.now() < deadline; sent = await prompts()) await page.waitForTimeout(50);
+      assert.deepEqual(sent, ['WAIT stale status', 'next message']);
       await idle();
     });
 
