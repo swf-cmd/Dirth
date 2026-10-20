@@ -28,6 +28,14 @@ function isInside(parent, child) {
   return !path.isAbsolute(relative) && relative.split(path.sep)[0] !== '..';
 }
 
+// Renames a path saved under an earlier name of the data folder to the same
+// place under its current name. Anything else is returned unchanged.
+function underRoot(value, root, aliases) {
+  if (typeof value !== 'string' || !path.isAbsolute(value)) return value;
+  const alias = aliases.find(folder => isInside(folder, value));
+  return alias ? path.join(root, path.relative(alias, value)) : value;
+}
+
 function isPathType(value, type) {
   if (typeof value !== 'string' || !path.isAbsolute(value)) return false;
   try { return fs.statSync(value)[type](); } catch { return false; }
@@ -133,7 +141,7 @@ function recoverReply(message, sessionId, logged) {
 }
 
 class AppController extends EventEmitter {
-  constructor({ root, movedFrom = null, home, Adapter = GrokAdapter, Accounts = AccountManager, quotaFetch = null, nativeImage = null }) {
+  constructor({ root, movedFrom = null, aliases = [], home, Adapter = GrokAdapter, Accounts = AccountManager, quotaFetch = null, nativeImage = null }) {
     super();
     this.root = root;
     this.nativeImage = nativeImage;
@@ -185,6 +193,7 @@ class AppController extends EventEmitter {
     const hasSavedHistory = fs.existsSync(this.file);
     let hasAccountCommitMarker = false;
     let validatedV3 = false;
+    let repointed = false;
     if (hasSavedHistory) {
       try {
         const data = this.store.read();
@@ -194,9 +203,8 @@ class AppController extends EventEmitter {
         // After the Mac data folder moved to the new app name, new conversations
         // start under its new path. Saved conversations keep theirs: the old
         // path is a link to the new folder, and the CLI knows them by it.
-        if (movedFrom && typeof this.settings.workspace === 'string' && isInside(movedFrom, this.settings.workspace)) {
-          this.settings.workspace = path.join(root, path.relative(movedFrom, this.settings.workspace));
-        }
+        const earlierNames = [...new Set([movedFrom, ...aliases].filter(folder => typeof folder === 'string' && path.isAbsolute(folder) && folder !== root))];
+        this.settings.workspace = underRoot(this.settings.workspace, root, earlierNames);
         this.settings.language = normalizeLanguage(this.settings.language);
         this.settings.theme = normalizeTheme(this.settings.theme);
         for (const key of ['rainEnabled', 'musicEnabled', 'subagentsEnabled', 'quotaEnabled']) {
@@ -227,6 +235,13 @@ class AppController extends EventEmitter {
           session.modelSelectionVerified = false;
           for (const m of session.messages || []) {
             if (m.status === 'working') { m.status = 'cancelled'; this.dirtySessions.add(session.id); }
+            // Uploaded and returned files saved under an earlier folder name
+            // now name the folder itself. The conversation's own folder stays
+            // as the CLI knows it.
+            for (const item of [...(Array.isArray(m.attachments) ? m.attachments : []), ...(Array.isArray(m.images) ? m.images : [])]) {
+              const src = item && underRoot(item.src, root, earlierNames);
+              if (src !== item?.src) { item.src = src; this.dirtySessions.add(session.id); repointed = true; }
+            }
             // Legacy media discovery happens only when this conversation opens.
           }
         }
@@ -270,6 +285,9 @@ class AppController extends EventEmitter {
       // first migration boot retains it unless a deletion commits meanwhile.
       this.store.backupRetirementAllowed = validatedV3;
       this.cleanupQueue = this.store.cleanupLegacyBackup().catch(error => this.emitEvent({ type: 'error', message: error.message }));
+      // Write re-pointed file paths now: an older build opened before the next
+      // save would not recognize the old ones as this folder's files.
+      if (repointed && !this.accountRecoveryError) void this.save().catch(error => this.emitEvent({ type: 'error', message: error.message }));
       void this.cleanAttachments().catch(error => this.emitEvent({ type: 'error', message: error.message }));
     }
   }

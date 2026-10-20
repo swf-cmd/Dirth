@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const { appRoot, adoptLegacyRoot } = require('../src/app-paths.cjs');
+const { appRoot, adoptLegacyRoot, rootAliases } = require('../src/app-paths.cjs');
 
 test('Mac profiles survive app moves and development builds', () => {
   const appData = path.resolve('fixture/Library/Application Support');
@@ -122,4 +122,48 @@ test('Windows roots, QA roots and custom roots are never moved', () => withAppDa
   const elsewhere = path.join(appData, 'nested', 'Dirth');
   assert.deepEqual(adoptLegacyRoot(elsewhere, { platform: 'darwin', appData }), { root: elsewhere, movedFrom: null });
   assert.ok(fs.lstatSync(legacy).isDirectory());
+}));
+
+linkTest('Data a build named Akari moved is found, along with the link it left at Grokbuild Tokyo', () => withAppData((appData, root, legacy) => {
+  // What a build of the rename branch did while the app was called Akari.
+  const akari = path.join(appData, 'Akari');
+  writeLegacyProfile(legacy);
+  fs.renameSync(legacy, akari);
+  fs.symlinkSync(akari, legacy, 'dir');
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: akari });
+  assert.equal(fs.readFileSync(path.join(root, 'data', 'conversations.json'), 'utf8'), '{"saved":true}');
+  // Both earlier names still lead to the same folder, and both count as its aliases.
+  for (const name of [akari, legacy]) assert.equal(fs.realpathSync(path.join(name, 'Workspace', 'project')), fs.realpathSync(path.join(root, 'Workspace', 'project')));
+  assert.deepEqual(rootAliases(root, { platform: 'darwin', appData }).sort(), [akari, legacy].sort());
+}));
+
+linkTest('An old folder that is a link to another disk moves as a link; a link to nothing is ignored', () => withAppData((appData, root, legacy) => {
+  const elsewhere = path.join(appData, 'External disk', 'Grokbuild Tokyo');
+  writeLegacyProfile(elsewhere);
+  fs.symlinkSync(elsewhere, legacy, 'dir');
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: legacy });
+  assert.ok(fs.lstatSync(root).isSymbolicLink(), 'the data stays on the other disk');
+  assert.equal(fs.realpathSync(root), fs.realpathSync(elsewhere));
+  assert.equal(fs.readFileSync(path.join(legacy, 'data', 'conversations.json'), 'utf8'), '{"saved":true}');
+  assert.deepEqual(rootAliases(root, { platform: 'darwin', appData }), [legacy]);
+
+  fs.rmSync(root);
+  fs.rmSync(legacy);
+  fs.symlinkSync(path.join(appData, 'Deleted'), legacy, 'dir');
+  assert.deepEqual(adoptLegacyRoot(root, { platform: 'darwin', appData }), { root, movedFrom: null });
+  assert.ok(!fs.existsSync(root));
+  assert.ok(fs.lstatSync(legacy).isSymbolicLink());
+}));
+
+linkTest('Only earlier names that lead to the data folder are its aliases', () => withAppData((appData, root, legacy) => {
+  fs.mkdirSync(root);
+  assert.deepEqual(rootAliases(root, { platform: 'darwin', appData }), [], 'no earlier folder');
+  writeLegacyProfile(legacy);
+  assert.deepEqual(rootAliases(root, { platform: 'darwin', appData }), [], 'a separate old folder is not this one');
+  fs.rmSync(legacy, { recursive: true });
+  fs.symlinkSync(root, legacy, 'dir');
+  assert.deepEqual(rootAliases(root, { platform: 'darwin', appData }), [legacy]);
+  assert.deepEqual(rootAliases(legacy, { platform: 'darwin', appData }), [], 'the folder in use is not its own alias');
+  assert.deepEqual(rootAliases(root, { platform: 'win32', appData }), []);
+  assert.deepEqual(rootAliases(root, { platform: 'darwin', appData, testRoot: root }), []);
 }));

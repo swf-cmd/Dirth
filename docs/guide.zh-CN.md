@@ -126,7 +126,7 @@ Markdown 图片、图片链接、HTML 图片及 ACP 回复或生成工具返回�
 
 ## 本地数据与仓库内容
 
-Windows 数据根目录是源码目录，或打包后 `App` 所在的父目录。Mac 的源码运行和打包程序统一使用 **`~/Library/Application Support/Dirth`**，因此下表中的 `data` 对应 Mac 上的 `~/Library/Application Support/Dirth/data`，`Workspace` 则与它并列。v1.2.5 及更早版本使用 `~/Library/Application Support/Grokbuild Tokyo`；Dirth 首次启动时会把该文件夹移到新位置，并在旧路径留下符号链接，按旧路径保存的会话和附件照常可用。如果 Grokbuild Tokyo 仍在运行，打开 Dirth 会切换到正在运行的旧版；请先退出旧版，再打开 Dirth 迁移数据。账户、附件、设置和浏览器缓存保存在 `.app` 之外，更换或移动 Mac 应用不会替换个人数据。本机 CLI 账户还可能使用 `GROK_HOME`（默认 `~/.grok`）。
+Windows 数据根目录是源码目录，或打包后 `App` 所在的父目录。Mac 的源码运行和打包程序统一使用 **`~/Library/Application Support/Dirth`**，因此下表中的 `data` 对应 Mac 上的 `~/Library/Application Support/Dirth/data`，`Workspace` 则与它并列。v1.2.5 及更早版本使用 `~/Library/Application Support/Grokbuild Tokyo`；Dirth 首次启动时会把该文件夹移到新位置（如果你曾把它换成指向其他磁盘的链接，则移动的是这个链接），并在旧路径留下符号链接。已保存的附件会改为指向新文件夹；更早的会话仍通过这个链接在旧路径下运行，请保留它。如果 Grokbuild Tokyo 仍在运行，打开 Dirth 会切换到正在运行的旧版；请先退出旧版，再打开 Dirth 迁移数据。账户、附件、设置和浏览器缓存保存在 `.app` 之外，更换或移动 Mac 应用不会替换个人数据。本机 CLI 账户还可能使用 `GROK_HOME`（默认 `~/.grok`）。
 
 | 路径 | 用途 | 上传 Git |
 | --- | --- | --- |

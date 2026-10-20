@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { AppController } = require('../src/app-controller.cjs');
-const { adoptLegacyRoot } = require('../src/app-paths.cjs');
+const { adoptLegacyRoot, rootAliases } = require('../src/app-paths.cjs');
 
 async function settle(app) {
   app.journal.cancel();
@@ -86,12 +86,29 @@ test('Files attached before the move are kept, and still open, after the first D
   await settle(before);
   const { root, movedFrom } = adoptLegacyRoot(path.join(run, 'Dirth'), { platform: 'darwin', appData: run });
   assert.equal(movedFrom, legacy);
-  const after = new AppController({ root, movedFrom, home: path.join(run, 'home') });
+  const aliases = rootAliases(root, { platform: 'darwin', appData: run });
+  assert.deepEqual(aliases, [legacy]);
+  const after = new AppController({ root, movedFrom, aliases, home: path.join(run, 'home') });
   t.after(() => settle(after));
   await after.cleanupQueue;
   await after.cleanAttachments();
-  const saved = after.sessions.find(session => session.id === 'saved').messages[0].attachments[0];
-  assert.equal(saved.src, attachment.src);
-  assert.equal(fs.readFileSync(path.join(root, path.relative(legacy, attachment.src)), 'utf8'), 'kept');
+  await after.saveQueue;
+  // The file now goes by the folder's own name, on disk as well as in memory.
+  const moved = path.join(root, path.relative(legacy, attachment.src));
+  const message = after.sessions.find(session => session.id === 'saved').messages[0];
+  assert.equal(message.attachments[0].src, moved);
+  assert.equal(message.attachments[0].id, attachment.id);
+  assert.equal(after.sessions.find(session => session.id === 'saved').cwd, path.join(legacy, 'Workspace'), 'the CLI knows the conversation by its old folder');
+  assert.equal(fs.readFileSync(moved, 'utf8'), 'kept');
   assert.equal(Buffer.from((await after.attachmentBytes({ sessionId: 'saved', messageId: 'sent', attachmentId: attachment.id }))).toString(), 'kept');
+  // Grokbuild Tokyo 1.2.5, if it is opened again, keeps only uploads whose saved
+  // path lies inside the real path of its attachment folder.
+  const reread = new AppController({ root, home: path.join(run, 'home') });
+  t.after(() => settle(reread));
+  const savedSrc = reread.sessions.find(session => session.id === 'saved').messages[0].attachments[0].src;
+  const oldBuildRoot = fs.realpathSync(path.join(legacy, 'data', 'attachments', 'local'));
+  assert.ok(!path.relative(oldBuildRoot, savedSrc).startsWith('..'), `${savedSrc} is inside ${oldBuildRoot}`);
+  // Removing the link no longer loses the file.
+  fs.rmSync(legacy);
+  assert.equal(Buffer.from((await reread.attachmentBytes({ sessionId: 'saved', messageId: 'sent', attachmentId: attachment.id }))).toString(), 'kept');
 });

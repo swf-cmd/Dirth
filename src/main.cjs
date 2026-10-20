@@ -7,13 +7,14 @@ const { createI18n, languages } = require('./i18n.js');
 const { themes, normalizeTheme } = require('./themes.js');
 const { AppController } = require('./app-controller.cjs');
 const { safeName } = require('./attachments.cjs');
-const { appRoot, adoptLegacyRoot } = require('./app-paths.cjs');
+const { appRoot, adoptLegacyRoot, rootAliases } = require('./app-paths.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'tokyo-image', privileges: { secure: true, standard: true, stream: true } }]);
 const isMac = process.platform === 'darwin';
 const { root, movedFrom } = adoptLegacyRoot(
   appRoot({ testRoot: process.env.TOKYO_TEST_ROOT, appData: app.getPath('appData'), isPackaged: app.isPackaged, executablePath: process.execPath, sourceRoot: path.resolve(__dirname, '..') }),
   { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
 fs.mkdirSync(path.join(root, 'data', 'browser'), { recursive: true });
+const aliases = rootAliases(root, { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
 app.setPath('userData', path.join(root, 'data', 'browser'));
 app.setName('Dirth');
 if (process.platform === 'win32') app.setAppUserModelId('com.swf-cmd.dirth');
@@ -50,7 +51,7 @@ else {
     const quotaSession = session.fromPartition('tokyo-quota', { cache: false });
     quotaSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     quotaSession.setPermissionCheckHandler(() => false);
-    controller = new AppController({ root, movedFrom, home: os.homedir(), nativeImage, quotaFetch: (url, init) => quotaSession.fetch(url, init) });
+    controller = new AppController({ root, movedFrom, aliases, home: os.homedir(), nativeImage, quotaFetch: (url, init) => quotaSession.fetch(url, init) });
     protocol.handle('tokyo-image', request => controller.serveImage(request.url));
     // Only presentation preferences travel with the renderer startup. This lets
     // the first frame use the saved language and city without synchronous IPC or disk I/O.
