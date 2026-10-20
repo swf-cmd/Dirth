@@ -405,14 +405,18 @@ class AppController extends EventEmitter {
     const session = this.getSession(sessionId);
     const uploaded = session.messages.some(message => (message.attachments || []).some(item => item.src === src && item.mimeType?.startsWith('image/')));
     const roots = uploaded ? [this.attachmentDirectory()] : [];
-    if (BLOB_REFERENCE.test(src)) {
+    const stored = BLOB_REFERENCE.test(src);
+    if (stored) {
       const referenced = session.messages.some(message => (message.images || []).some(image => image.src === src) || (message.attachments || []).some(item => item.src === src && item.mimeType?.startsWith('image/')));
       if (!referenced) throw new Error(this.t('不支持的图片地址'));
       await this.blobs.flush();
       src = this.blobs.resolve(src);
       roots.push(this.blobs.directory);
     }
-    const cache = typeof src === 'string' && /^(?:https?:\/\/|data:)/i.test(src.trim()) ? undefined
+    // Stored and uploaded images are read from their own folders. Only an image
+    // the CLI names by path may live in its session cache, which takes a scan
+    // of the CLI's session folders to find.
+    const cache = stored || uploaded || (typeof src === 'string' && /^(?:https?:\/\/|data:)/i.test(src.trim())) ? undefined
       : await findSessionImageDirectory(this.accountManager.homeFor(accountId), session.cwd, session.id);
     const response = await resolveImageResponse(src, session.cwd, cache, this.t, undefined, roots);
     if (accountId !== this.activeAccountId || !this.sessions.includes(session)) { await response.body?.cancel(); throw new Error(this.t('不支持的图片地址')); }

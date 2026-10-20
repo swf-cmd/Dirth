@@ -7,7 +7,7 @@ const { fileURLToPath } = require('node:url');
 const { imageMime, isReadTool, readLocalBytes } = require('./media.cjs');
 const { downloadPublicResource } = require('./resource-download.cjs');
 const { createI18n } = require('./i18n.js');
-const { lexer, walkTokens } = require('./renderer/vendor/marked.umd.js');
+const { lexer } = require('./renderer/vendor/marked.umd.js');
 const defaultT = createI18n('en');
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
@@ -146,11 +146,26 @@ function attachmentsFromContent(content) {
   return [{ id, name, fileName: fileName || name, mimeType, src, ...(Number.isFinite(size) && size >= 0 ? { size } : {}) }];
 }
 
+// Visit every Markdown token in document order, as marked's walkTokens does.
+// marked collects the callback's return values with repeated concat, which
+// makes a long reply quadratic (a 190 KB reply took 270 ms instead of 20 ms);
+// this scan runs while a reply streams, so it must stay linear.
+function forEachToken(tokens, visit) {
+  for (const token of tokens || []) {
+    visit(token);
+    if (token.type === 'table') {
+      for (const cell of token.header || []) forEachToken(cell.tokens, visit);
+      for (const row of token.rows || []) for (const cell of row) forEachToken(cell.tokens, visit);
+    } else if (token.type === 'list') forEachToken(token.items, visit);
+    else if (token.tokens) forEachToken(token.tokens, visit);
+  }
+}
+
 function attachmentsFromText(text) {
   const result = [];
   // Use the same bundled Markdown parser as the renderer: balanced parentheses,
   // reference links and escaped filenames must resolve to the link users see.
-  walkTokens(lexer(String(text || '')), token => {
+  forEachToken(lexer(String(text || '')), token => {
     if (token.type !== 'link') return;
     const uri = token.href;
     if (!uri || uri.startsWith('#')) return;

@@ -184,6 +184,23 @@ test('session image directory lookup caches successful workspace scans and reval
   assert.equal(scans, 2);
 });
 
+test('a conversation opening with many CLI images searches the session folders once', async t => {
+  const root = await fixture(t);
+  const home = path.join(root, 'home');
+  const cwd = path.join(root, 'workspace');
+  await fs.mkdir(path.join(home, 'sessions', 'unrelated'), { recursive: true });
+  await fs.mkdir(cwd);
+  const readdir = fs.readdir;
+  let scans = 0;
+  t.mock.method(fs, 'readdir', async (...args) => { if (args[0] === path.join(home, 'sessions')) scans++; return readdir(...args); });
+  const found = await Promise.all(Array.from({ length: 30 }, () => findSessionImageDirectory(home, cwd, 'missing-session')));
+  assert.deepEqual(new Set(found), new Set([undefined]));
+  assert.equal(scans, 1);
+  // A miss is not remembered: the CLI may create the folder during a reply.
+  await findSessionImageDirectory(home, cwd, 'missing-session');
+  assert.equal(scans, 2);
+});
+
 test('blob flush retries failed disk writes without retaining a permanent error', async t => {
   const root = await fixture(t);
   const store = new BlobStore(path.join(root, 'blobs'));
