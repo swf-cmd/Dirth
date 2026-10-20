@@ -62,7 +62,8 @@ else {
     win.webContents.on('will-navigate', (event, url) => { if (url !== entryURL) event.preventDefault(); });
     win.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     win.webContents.session.setPermissionCheckHandler(() => false);
-    controller.on('event', payload => { if (win && !win.isDestroyed()) win.webContents.send('tokyo:event', payload); });
+    // A window that is reloading or closing can refuse a message; the controller carries on.
+    controller.on('event', payload => { if (win && !win.isDestroyed()) { try { win.webContents.send('tokyo:event', payload); } catch { /* No frame to receive it. */ } } });
     const handle = (name, fn) => ipcMain.handle(`tokyo:${name}`, (event, ...args) => {
       if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || event.senderFrame?.url !== entryURL) throw new Error('Invalid IPC sender');
       return fn(...args);

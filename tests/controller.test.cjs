@@ -55,7 +55,7 @@ function fixture(t, saved, { useAppLanguage = false, quotaFetch } = {}) {
     }
     getInfo() { return this.info; }
     getSession(id) { const session = this.sessions.get(id); return session && structuredClone(session); }
-    async start() { if (this.startGate) await this.startGate.promise; }
+    async start() { this.starts = (this.starts || 0) + 1; if (this.startGate) await this.startGate.promise; }
     async newSession() {
       if (this.newGate) await this.newGate.promise;
       const session = { sessionId: `session-${++nextSession}`, loaded: true, model: 'grok-test', mode: 'balanced', models: this.info.models, modes: this.info.modes, modelSelectionVerified: true, ...this.newResult };
@@ -727,16 +727,55 @@ test('only offered permission choices are sent to the adapter and requests canno
   assert.deepEqual(adapter.responses, [{ requestId: '42', optionId: 'allow-once' }]);
 });
 
-test('a disconnected process is replaced and the conversation is restored before the next prompt', async t => {
+test('after a disconnect the engine starts again and the conversation is restored before the next prompt', async t => {
   const { controller, session, adapter, instances } = await started(t);
+  const starts = adapter.starts;
   adapter.emit('event', { type: 'status', status: 'disconnected' });
   assert.equal(controller.connected, false);
   await controller.send({ sessionId: session.id, text: 'resume' });
-  assert.equal(instances.length, 2);
-  assert.deepEqual(instances[1].loads, [{ sessionId: session.id, cwd: session.cwd }]);
-  assert.equal(instances[1].prompts[0].text, 'resume');
-  instances[1].prompts[0].gate.resolve({ stopReason: 'end_turn' });
+  // The adapter starts a new CLI itself. It is kept, so a reply it may already
+  // be running for another conversation is not stopped.
+  assert.equal(instances.length, 1);
+  assert.equal(adapter.closeCount, 0);
+  assert.equal(adapter.starts, starts + 1);
+  assert.equal(controller.connected, true);
+  assert.deepEqual(adapter.loads, [{ sessionId: session.id, cwd: session.cwd }]);
+  assert.equal(adapter.prompts[0].text, 'resume');
+  adapter.prompts[0].gate.resolve({ stopReason: 'end_turn' });
   await controller.turnPromise;
+});
+
+test('an engine the adapter restarted for a running reply is kept when another conversation connects', async t => {
+  const { controller, session, adapter, instances } = await started(t);
+  await controller.send({ sessionId: session.id, text: 'long task' });
+  // The CLI crashed and the adapter started a new one for this reply.
+  adapter.emit('event', { type: 'status', status: 'disconnected' });
+  adapter.emit('event', { type: 'status', status: 'ready' });
+  assert.equal(controller.connected, true);
+  await controller.createSession();
+  assert.equal(instances.length, 1);
+  assert.equal(adapter.closeCount, 0, 'the running reply is not stopped');
+  assert.equal(session.messages.at(-1).status, 'working');
+  adapter.prompts[0].gate.resolve({ stopReason: 'end_turn' });
+  await controller.turnPromise;
+  assert.equal(session.messages.at(-1).status, 'complete');
+});
+
+test('Send stays unavailable until a finished reply is saved and its turn released', async t => {
+  const { controller, session, adapter } = await started(t);
+  const events = [];
+  controller.on('event', event => events.push(event));
+  await controller.send({ sessionId: session.id, text: 'first' });
+  // The engine reports the end of the turn before the controller has saved it.
+  adapter.emit('event', { type: 'status', status: 'idle', sessionId: session.id, stopReason: 'end_turn' });
+  assert.equal(events.some(event => event.type === 'status' && event.status === 'idle' && event.sessionId === session.id), false);
+  adapter.prompts[0].gate.resolve({ stopReason: 'max_tokens' });
+  await controller.turnPromise;
+  const idle = events.filter(event => event.type === 'status' && event.status === 'idle' && event.sessionId === session.id);
+  assert.equal(idle.length, 1);
+  assert.equal(idle[0].stopReason, 'max_tokens', 'the renderer still learns why the reply stopped');
+  assert.equal(controller.turns.has(session.id), false);
+  await controller.send({ sessionId: session.id, text: 'second' });
 });
 
 test('restart marks an interrupted reply cancelled and leaves completed history intact', async t => {

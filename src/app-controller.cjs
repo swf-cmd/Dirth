@@ -607,11 +607,18 @@ class AppController extends EventEmitter {
     this.connecting = (async () => {
       if (!isExecutable(this.settings.executable)) throw new Error(this.t('没有找到 Grok。请在设置中选择 Grok CLI。'));
       if (!isPathType(this.settings.workspace, 'isDirectory')) throw new Error(this.t('工作目录不存在，请在设置中重新选择。'));
-      await this.closeAdapter();
-      this.loaded.clear();
-      this.adapter = new this.Adapter({ executable: this.settings.executable, cwd: this.settings.workspace, subagentsEnabled: this.settings.subagentsEnabled, env: this.accountManager.environment(this.activeAccountId), getLanguage: () => this.settings.language });
-      const adapter = this.adapter;
-      adapter.on('event', event => { if (this.adapter === adapter && !this.retiredAdapters.has(adapter)) this.handleEvent(event); });
+      // After a crash the adapter starts its engine again by itself when a reply
+      // needs it, and that reply may be running now. Reuse the adapter, which
+      // keeps that engine; replacing it would stop the reply. A different
+      // account, CLI, folder or Reconnect closes the adapter first.
+      let adapter = this.adapter && !this.retiredAdapters.has(this.adapter) ? this.adapter : null;
+      if (!adapter) {
+        await this.closeAdapter();
+        this.loaded.clear();
+        adapter = this.adapter = new this.Adapter({ executable: this.settings.executable, cwd: this.settings.workspace, subagentsEnabled: this.settings.subagentsEnabled, env: this.accountManager.environment(this.activeAccountId), getLanguage: () => this.settings.language });
+        const owned = adapter;
+        owned.on('event', event => { if (this.adapter === owned && !this.retiredAdapters.has(owned)) this.handleEvent(event); });
+      }
       try { await adapter.start(); }
       catch (error) {
         this.invalidateConnection();
@@ -823,7 +830,8 @@ class AppController extends EventEmitter {
         catch (error) { this.emitEvent({ type: 'error', sessionId, message: this.t('保存失败：{error}', { error: error.message }) }); }
         this.releaseTurn(turn);
         this.emitEvent({ type: 'session-updated', sessionId, session });
-        this.emitEvent({ type: 'status', sessionId, status: message.status === 'cancelled' ? 'cancelled' : 'idle' });
+        this.emitEvent({ type: 'status', sessionId, status: message.status === 'cancelled' ? 'cancelled' : 'idle',
+          ...(message.status === 'error' ? { failed: true } : {}), ...(message.stopReason ? { stopReason: message.stopReason } : {}) });
         this.scheduleModelRefresh();
         // Stopped and failed turns can still consume usage. The CLI records it
         // when the turn ends, so read the quota again shortly afterwards.
@@ -836,6 +844,15 @@ class AppController extends EventEmitter {
   handleEvent(event) {
     if (event.replay || (['text', 'image', 'attachment'].includes(event.type) && event.role === 'user')) return;
     if (event.type === 'status' && event.status === 'disconnected') this.invalidateConnection();
+    // The adapter restarted its engine for a reply after a crash: it is connected again.
+    if (event.type === 'status' && event.status === 'ready' && !this.connected && !this.connecting) {
+      this.connected = true;
+      this.emitEvent({ type: 'info', info: this.normalizeInfo(), connected: true });
+    }
+    // A conversation stays busy until its reply is saved and its turn released;
+    // the controller then reports the end itself. Passing on the engine's own
+    // "idle" earlier would offer Send while a new message is still refused.
+    if (event.type === 'status' && ['idle', 'cancelled'].includes(event.status) && event.sessionId && this.turns.has(event.sessionId)) return;
     if (event.type === 'status' && event.status === 'models_changed') {
       if (Number.isSafeInteger(event.revision) && event.revision > this.modelCatalogRevision) {
         this.modelCatalogRevision = event.revision;
@@ -966,6 +983,8 @@ class AppController extends EventEmitter {
   async reconnect() {
     return this.idleOperation(this.t('重新连接 Grok'), async () => {
       this.invalidateConnection();
+      // Reconnect always means a fresh engine, also when the old one still answers.
+      await this.closeAdapter();
       await this._connect();
       if (this.visibleSessions()[0]) {
         try { await this._ensureLoaded(this.visibleSessions()[0]); }
