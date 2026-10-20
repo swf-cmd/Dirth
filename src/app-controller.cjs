@@ -796,7 +796,7 @@ class AppController extends EventEmitter {
         session.updatedAt = previous.updatedAt;
         this.releaseTurn(turn);
         this.scheduleModelRefresh();
-        throw new Error(this.t('保存失败，消息尚未发送：{error}', { error: error.message }));
+        throw new Error(this.t('保存失败，消息尚未发送：{error}', { error: error.message }), { cause: error });
       }
     });
     if (!message) { this.releaseTurn(turn); this.scheduleModelRefresh(); return { accepted: false, cancelled: true }; }
@@ -1024,9 +1024,9 @@ class AppController extends EventEmitter {
     const s = this.getSession(id);
     return `# ${this.sessionTitle(s)}\n\n${this.t('工作目录：{path}', { path: s.cwd })}\n\n` + s.messages.map(m => {
       const plan = Array.isArray(m.plan) && m.plan.length ? `\n\n### ${this.t('执行计划')}\n\n` + m.plan.map(entry => `- [${entry.status === 'completed' ? 'x' : ' '}] ${entry.content}`).join('\n') : '';
-      const images = (m.images || []).map(image => `\n\n![${String(image.altIsDefault === true || (image.altIsDefault === undefined && image.alt === 'Grok 返回的图片') ? this.t('Grok 返回的图片') : image.alt || this.t('图片')).replace(/[\[\]\\]/g, '')}](<${this.exportSource(image.src).replace(/>/g, '%3E')}>)`).join('');
+      const images = (m.images || []).map(image => `\n\n![${String(image.altIsDefault === true || (image.altIsDefault === undefined && image.alt === 'Grok 返回的图片') ? this.t('Grok 返回的图片') : image.alt || this.t('图片')).replace(/[[\]\\]/g, '')}](<${this.exportSource(image.src).replace(/>/g, '%3E')}>)`).join('');
       const notice = m.noticeKey ? `\n\n${this.t(m.noticeKey)}` : '';
-      const attachments = (m.attachments || []).filter(item => !item.mimeType?.startsWith('image/')).map(item => `\n\n[${String(item.name).replace(/[\[\]\\]/g, '')}](<${this.exportSource(item.src).replace(/>/g, '%3E')}>)`).join('');
+      const attachments = (m.attachments || []).filter(item => !item.mimeType?.startsWith('image/')).map(item => `\n\n[${String(item.name).replace(/[[\]\\]/g, '')}](<${this.exportSource(item.src).replace(/>/g, '%3E')}>)`).join('');
       return `## ${m.role === 'user' ? this.t('你') : 'Grok'}\n\n${m.text || ''}${plan}${images}${attachments}${notice}${m.error ? '\n\n' + this.t('错误：') + m.error : ''}\n`;
     }).join('\n');
   }

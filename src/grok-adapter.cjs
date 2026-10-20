@@ -40,7 +40,7 @@ function failure(message, code) {
 function safeMessage(value, fallback) {
   return String(value || fallback)
     .replace(/\b(?:xai|sk|sk-proj)-[A-Za-z0-9_-]{16,}\b/g, '[redacted]')
-    .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, '$1[redacted]')
+    .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+/gi, '$1[redacted]')
     .replace(/((?:access_token|refresh_token|api_key|authorization)["']?\s*[:=]\s*["']?)[^\s,"'}]+/gi, '$1[redacted]')
     .slice(0, 8000);
 }
