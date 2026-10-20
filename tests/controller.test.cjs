@@ -652,6 +652,25 @@ test('cancelling during session restore prevents a later prompt from starting', 
   assert.equal(controller.active, null);
 });
 
+test('Stop pressed while a finished reply is still saving leaves the reply finished', async t => {
+  const { controller, session, adapter } = await started(t);
+  await controller.send({ sessionId: session.id, text: 'first' });
+  adapter.emit('event', { type: 'text', sessionId: session.id, text: 'complete answer' });
+  const saving = deferred();
+  const save = controller.save.bind(controller);
+  controller.save = async (...args) => { await saving.promise; return save(...args); };
+  adapter.prompts[0].gate.resolve({ stopReason: 'end_turn' });
+  while (!controller.turns.get(session.id)?.settled) await new Promise(resolve => setImmediate(resolve));
+  const finished = session.messages[1].status;
+  assert.notEqual(finished, 'cancelled');
+  assert.deepEqual(await controller.cancel(session.id), { cancelled: false });
+  assert.equal(adapter.cancels.length, 0);
+  saving.resolve();
+  await controller.turnPromise;
+  assert.equal(session.messages[1].status, finished);
+  assert.equal(readHistory(controller).sessions[0].messages[1].status, finished);
+});
+
 test('stopping a streamed reply keeps partial output and releases the next send', async t => {
   const { controller, session, adapter } = await started(t);
   await controller.send({ sessionId: session.id, text: 'first' });

@@ -837,7 +837,8 @@ class AppController extends EventEmitter {
   }
   async cancel(sessionId) {
     const turn = this.turns.get(sessionId);
-    if (!turn) return { cancelled: false };
+    // A finished reply stays registered while it saves; Stop no longer applies to it.
+    if (!turn || turn.settled) return { cancelled: false };
     turn.cancelled = true;
     // During connection/restore there is no prompt for the adapter to cancel yet.
     if (!turn.message) return { cancelled: true };
