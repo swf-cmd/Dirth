@@ -131,6 +131,18 @@ test('orphan cleanup keeps files saved under an earlier location of the data fol
   assert.equal((await fs.readFile(moved.src)).toString(), 'moved');
 });
 
+test('one orphan pass reads the live references once, however many files it removes', async t => {
+  const root = await fixture(t);
+  const blobs = new BlobStore(root);
+  const kept = blobs.store(Buffer.from('kept'));
+  for (let index = 0; index < 50; index++) blobs.store(Buffer.from(`orphan ${index}`));
+  await blobs.flush();
+  let calls = 0;
+  await blobs.collect(() => { calls++; return new Set([kept]); });
+  assert.equal(calls, 1);
+  assert.deepEqual(await fs.readdir(root), [kept.slice('grok-blob:'.length)]);
+});
+
 test('image protocol responses stream bounded validated files without base64 conversion', async t => {
   const root = await fixture(t);
   const cwd = path.join(root, 'cwd');

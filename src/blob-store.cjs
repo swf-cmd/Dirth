@@ -120,34 +120,41 @@ class BlobStore {
   collect(referenceProvider) {
     const operation = this.collection.catch(() => {}).then(async () => {
       const revision = this.revision;
-      const references = () => typeof referenceProvider === 'function' ? referenceProvider() : referenceProvider;
-      const retained = references();
       const files = await fs.readdir(this.directory, { withFileTypes: true }).catch(error => {
         if (error.code === 'ENOENT') return [];
         throw error;
       });
+      const unlink = file => fs.unlink(path.join(this.directory, file)).catch(error => {
+        if (error.code !== 'ENOENT') throw error;
+      });
+      // Every orphan is chosen and evicted in this one synchronous pass, so a
+      // single fresh set of references covers all of them: nothing can add a
+      // reference between the check and the eviction. Building the set walks
+      // live conversations, which is too slow to repeat for each orphan.
+      const retained = typeof referenceProvider === 'function' ? referenceProvider() : referenceProvider;
+      const removals = [];
       for (const file of files) {
         const hash = file.name;
         if (!file.isFile()) continue;
         const temporary = /^\.([a-f0-9]{64})\.[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}\.tmp$/.exec(hash);
         if (temporary) {
-          if (!this.pending.has(temporary[1])) await fs.unlink(path.join(this.directory, hash)).catch(error => { if (error.code !== 'ENOENT') throw error; });
+          if (!this.pending.has(temporary[1])) removals.push(unlink(hash));
           continue;
         }
         if (!/^[a-f0-9]{64}$/.test(hash)) continue;
-        const ref = `grok-blob:${hash}`;
-        if (retained.has(ref) || this.pending.has(hash) || (this.touched.get(hash) || 0) > revision || references().has(ref)) continue;
-        // Evict synchronously before yielding so store() retains fresh bytes
-        // and queues their write behind this deletion, even for known content.
+        if (retained.has(`grok-blob:${hash}`) || this.pending.has(hash) || (this.touched.get(hash) || 0) > revision) continue;
+        // Evict before yielding so store() retains fresh bytes and queues
+        // their write behind this deletion, even for known content.
         this.known.delete(hash);
-        const removal = fs.unlink(path.join(this.directory, hash)).catch(error => {
-          if (error.code !== 'ENOENT') throw error;
-        });
+        const removal = unlink(hash);
         this.deleting.set(hash, removal);
-        try { await removal; }
-        finally { this.deleting.delete(hash); }
-        if ((this.touched.get(hash) || 0) <= revision) this.touched.delete(hash);
+        removals.push(removal
+          .then(() => { if ((this.touched.get(hash) || 0) <= revision) this.touched.delete(hash); })
+          .finally(() => { this.deleting.delete(hash); }));
       }
+      // Settle every removal before the next collection starts, then report the first failure.
+      const failed = (await Promise.allSettled(removals)).find(result => result.status === 'rejected');
+      if (failed) throw failed.reason;
     });
     this.collection = operation;
     return operation;
