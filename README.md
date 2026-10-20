@@ -24,9 +24,9 @@ A desktop app for the [Grok Build](https://x.ai/cli) coding agent: streaming cha
 
 </div>
 
-![Dirth English welcome screen with animated rain over Shibuya](docs/images/welcome-en.gif?v=20260930)
+![Dirth English welcome screen with animated rain over Shibuya](docs/images/welcome-en.gif?v=20261020)
 
-*Animated rain in the Windows interface, using an isolated demo profile. Mac uses native window controls and Command-key shortcuts. [Still image](docs/images/welcome-en.png?v=20260930) · [Capture details](docs/images/README.md).*
+*Animated rain in the Windows interface, using an isolated demo profile. Mac uses native window controls and Command-key shortcuts. [Still image](docs/images/welcome-en.png?v=20261020) · [Capture details](docs/images/README.md).*
 
 [Grok Build](https://x.ai/cli) is the terminal coding agent from SpaceXAI (formerly xAI). Dirth is an **unofficial, open-source desktop app** for it: it starts the Grok Build CLI you installed and talks to it over the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP). Your sign-in, models, tools, permission rules, MCP servers and skills stay exactly as the CLI configures them. The app gives them a window worth keeping open.
 
@@ -47,7 +47,7 @@ This project is not affiliated with or endorsed by SpaceXAI or xAI. Authenticati
 | **Controls from your CLI** | Model choices and reasoning levels come from the CLI and update automatically; choose subagent settings and a workspace. |
 | **Seven interface languages** | English, 简体中文, 日本語, 한국어, Español, Deutsch and Français. |
 
-![English demo conversation with the subtle rain effect in the real desktop interface](docs/images/app-en.png?v=20260930)
+![English demo conversation with the subtle rain effect in the real desktop interface](docs/images/app-en.png?v=20261020)
 
 *Screenshots use an isolated demo profile and a simulated engine. Conversation text and quota figures are illustrative; available models and tools depend on your installed CLI.*
 

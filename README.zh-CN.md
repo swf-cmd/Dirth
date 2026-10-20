@@ -24,9 +24,9 @@
 
 </div>
 
-![Dirth 中文欢迎界面，涩谷夜景中的雨滴动态演示](docs/images/welcome-zh-CN.gif?v=20260930)
+![Dirth 中文欢迎界面，涩谷夜景中的雨滴动态演示](docs/images/welcome-zh-CN.gif?v=20261020)
 
-*Windows 欢迎页雨滴动态演示，使用隔离的演示账户；Mac 使用原生窗口按钮和 Command 快捷键。[静态截图](docs/images/welcome-zh-CN.png?v=20260930) · [拍摄说明](docs/images/README.md)。*
+*Windows 欢迎页雨滴动态演示，使用隔离的演示账户；Mac 使用原生窗口按钮和 Command 快捷键。[静态截图](docs/images/welcome-zh-CN.png?v=20261020) · [拍摄说明](docs/images/README.md)。*
 
 [Grok Build](https://x.ai/cli) 是 SpaceXAI（原 xAI）推出的终端编程智能体。Dirth 是它的**非官方开源桌面应用**：启动你本机安装的 Grok Build CLI，并通过 [Agent Client Protocol](https://agentclientprotocol.com/)（ACP）与之通信。登录、模型、工具、授权规则、MCP 服务和 Skills 都按 CLI 原有配置运行，应用只是为它们开了一扇值得一直亮着的窗。
 
@@ -47,7 +47,7 @@
 | **跟随官方引擎的控制** | 可选模型与推理档位来自 CLI 并自动更新，还可设置子代理与工作目录。 |
 | **七种界面语言** | 中文、English、日本語、한국어、Español、Deutsch、Français。 |
 
-![真实桌面界面中的中文演示对话，背景保留较淡的雨滴](docs/images/app-zh-CN.png?v=20260930)
+![真实桌面界面中的中文演示对话，背景保留较淡的雨滴](docs/images/app-zh-CN.png?v=20261020)
 
 *截图来自隔离的演示账户与模拟引擎，对话内容和额度数字仅作界面展示；可用模型和工具取决于你安装的 CLI。*
 

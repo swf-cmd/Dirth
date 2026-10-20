@@ -18,9 +18,9 @@ The focus-timer conversation is authored demo content, not a recorded model resp
 | `app-zh-CN.png` | Simplified Chinese demo conversation / 简体中文示例对话 |
 | `social-preview.png` | Link preview card for the repository, rendered from `social-preview.html` / 仓库链接分享卡片，由 `social-preview.html` 生成 |
 
-Captured on 2026-10-19 with rain enabled. The README uses looping welcome-screen GIFs so the rain remains recognizable when the image is scaled down. Each GIF records three seconds of the two production rain animations at 20 frames per second. The PNGs retain a fixed frame of the same effect; rain is naturally subtler in conversations. No rain was painted onto the images and no production styles were changed for the captures.
+Captured on 2026-10-20 with rain enabled. The README uses looping welcome-screen GIFs so the rain remains recognizable when the image is scaled down. Each GIF records three seconds of the two production rain animations at 20 frames per second. The PNGs retain a fixed frame of the same effect; rain is naturally subtler in conversations. No rain was painted onto the images and no production styles were changed for the captures.
 
-拍摄于 2026-10-19，开启了雨滴。介绍页使用循环播放的欢迎页 GIF，让缩小后的图片也能通过运动呈现下雨效果。每张 GIF 以每秒 20 帧记录应用原有的两层雨滴动画，共三秒。PNG 保留同一效果的固定帧，聊天界面中的雨滴按应用原本设计更淡。未在图片上后期添加雨滴，也未为拍摄修改应用样式。
+拍摄于 2026-10-20，开启了雨滴。介绍页使用循环播放的欢迎页 GIF，让缩小后的图片也能通过运动呈现下雨效果。每张 GIF 以每秒 20 帧记录应用原有的两层雨滴动画，共三秒。PNG 保留同一效果的固定帧，聊天界面中的雨滴按应用原本设计更淡。未在图片上后期添加雨滴，也未为拍摄修改应用样式。
 
 ## Reproduce / 重新拍摄
 
