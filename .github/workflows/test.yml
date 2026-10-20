@@ -82,6 +82,7 @@ jobs:
             work/model-refresh-qa/run-*/*.png
             work/theme-qa/run-*/*.png
             work/theme-qa/run-*/results.json
+            work/renderer-regressions/run-*/*.png
           retention-days: 7
           if-no-files-found: ignore
 
@@ -182,5 +183,6 @@ jobs:
             work/model-refresh-qa/run-*/*.png
             work/theme-qa/run-*/*.png
             work/theme-qa/run-*/results.json
+            work/renderer-regressions/run-*/*.png
           retention-days: 7
           if-no-files-found: ignore

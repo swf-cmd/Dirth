@@ -173,6 +173,7 @@
 :root[data-theme="kyoto"] .message-cancelled{color:#7c7163}
 :root[data-theme="kyoto"] .official-config-note strong{color:#493e32}
 :root[data-theme="kyoto"] .official-config-note p{color:#6a6053}
+:root[data-theme="kyoto"] #model-select:focus-visible,:root[data-theme="kyoto"] #mode-select:focus-visible{outline:2px solid var(--lime)}
 :root[data-theme="kyoto"] .music-volume-row{color:#544b3e}
 :root[data-theme="kyoto"] .music-volume-row input[type="range"]{accent-color:var(--lime)}
 :root[data-theme="kyoto"] .music-volume-row input[type="range"]:focus-visible{outline:2px solid var(--lime)}
@@ -425,6 +426,7 @@
 :root[data-theme="okinawa"] .message-cancelled{color:#47829a}
 :root[data-theme="okinawa"] .official-config-note strong{color:#044f63}
 :root[data-theme="okinawa"] .official-config-note p{color:#37708a}
+:root[data-theme="okinawa"] #model-select:focus-visible,:root[data-theme="okinawa"] #mode-select:focus-visible{outline:2px solid var(--lime)}
 :root[data-theme="okinawa"] .music-volume-row{color:#175b74}
 :root[data-theme="okinawa"] .music-volume-row input[type="range"]{accent-color:var(--lime)}
 :root[data-theme="okinawa"] .music-volume-row input[type="range"]:focus-visible{outline:2px solid var(--lime)}
@@ -677,6 +679,7 @@
 :root[data-theme="hokkaido"] .message-cancelled{color:#607a97}
 :root[data-theme="hokkaido"] .official-config-note strong{color:#2b4863}
 :root[data-theme="hokkaido"] .official-config-note p{color:#526885}
+:root[data-theme="hokkaido"] #model-select:focus-visible,:root[data-theme="hokkaido"] #mode-select:focus-visible{outline:2px solid var(--lime)}
 :root[data-theme="hokkaido"] .music-volume-row{color:#3c536f}
 :root[data-theme="hokkaido"] .music-volume-row input[type="range"]{accent-color:var(--lime)}
 :root[data-theme="hokkaido"] .music-volume-row input[type="range"]:focus-visible{outline:2px solid var(--lime)}
