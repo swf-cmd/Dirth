@@ -204,7 +204,14 @@ class AppController extends EventEmitter {
         }
         if (!Number.isInteger(this.settings.musicVolume) || this.settings.musicVolume < 0 || this.settings.musicVolume > 100) this.settings.musicVolume = 90;
         const replies = readTurnJournal(this.journal.file);
-        if (replies.size) for (const session of data.sessions) session.messages = session.messages.map(message => recoverReply(message, session.id, replies.get(message.id)));
+        // A recovered reply exists only in the journal, which the next save
+        // deletes. Its conversation must be written with it, whatever status
+        // it ended in (Stop leaves 'cancelled' before the CLI confirms).
+        if (replies.size) for (const session of data.sessions) session.messages = session.messages.map(message => {
+          const recovered = recoverReply(message, session.id, replies.get(message.id));
+          if (recovered !== message) this.dirtySessions.add(session.id);
+          return recovered;
+        });
         this.sessions = data.sessions;
         if (data.accounts !== undefined) {
           if (!Array.isArray(data.accounts) || !data.accounts.some(a => a?.id === 'local') || !data.accounts.every(a => a && typeof a.name === 'string' && (a.id === 'local' || ACCOUNT_ID.test(a.id))) || new Set(data.accounts.map(a => a.id)).size !== data.accounts.length) throw new Error('Invalid accounts');
@@ -429,10 +436,13 @@ class AppController extends EventEmitter {
   }
   cleanAttachments() {
     const operation = this.cleanupQueue.catch(() => {}).then(async () => {
+      // A backup of unreadable history keeps the uploads it names, as it keeps
+      // its images, so restoring it later still finds them.
+      const kept = await this.store.readRecoveryAttachmentFolders();
       for (const account of this.accounts) {
         const referenced = this.sessions.filter(session => (session.accountId || 'local') === account.id).flatMap(session => session.messages.flatMap(message => [...(message.attachments || []), ...(message.images || [])]));
         referenced.push(...[...this.pendingAttachments.values()].filter(item => item.accountId === account.id));
-        await cleanupAttachments(this.attachmentDirectory(account.id), referenced);
+        await cleanupAttachments(this.attachmentDirectory(account.id), referenced, kept);
       }
     });
     this.cleanupQueue = operation;
@@ -993,6 +1003,8 @@ class AppController extends EventEmitter {
     this.quotaPoll = null;
     // Cancel pending sends before waiting on a possibly slow login shutdown.
     for (const turn of this.turns.values()) {
+      // A finished reply still waiting for its save keeps its final status.
+      if (turn.settled) continue;
       turn.cancelled = true;
       if (turn.message) turn.message.status = 'cancelled';
     }
@@ -1004,7 +1016,12 @@ class AppController extends EventEmitter {
     if (this.accountManager.pending && this.accountManager.pending !== initialLogin) {
       try { await this.accountManager.cancelLogin(); } catch (error) { failure ||= error; }
     }
-    try { await this.historyOperation(() => this.save({ content: [...this.turns.keys()] })); } catch (error) { failure ||= error; }
+    // While staged account data could not be quarantined, history is deliberately
+    // never written (save() refuses). Quitting must still work: the message asks
+    // the user to restart after fixing the folder.
+    if (!this.accountRecoveryError) {
+      try { await this.historyOperation(() => this.save({ content: [...this.turns.keys()] })); } catch (error) { failure ||= error; }
+    }
     try {
       const running = [...this.turns.values()].map(turn => turn.promise).filter(Boolean);
       // A full/unavailable disk must never leave the owned Grok process running.

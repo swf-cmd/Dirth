@@ -92,14 +92,14 @@ function thumbnailPreview(bytes, mimeType, nativeImage) {
 // Only delete directories created by staging. A symlink or an unrelated folder
 // is never traversed; references from every account/session and live draft must
 // be collected by the controller before invoking this helper.
-async function cleanupAttachments(directory, referencedAttachments = []) {
+async function cleanupAttachments(directory, referencedAttachments = [], keptFolders = []) {
   let root;
   try {
     const stat = await fs.lstat(directory);
     if (!stat.isDirectory() || stat.isSymbolicLink()) return [];
     root = await fs.realpath(directory);
   } catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-  const retained = new Set();
+  const retained = new Set(keptFolders);
   for (const attachment of referencedAttachments) {
     const src = typeof attachment === 'string' ? attachment : attachment?.src;
     if (typeof src !== 'string' || !path.isAbsolute(src)) continue;

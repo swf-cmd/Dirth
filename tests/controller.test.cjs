@@ -1921,7 +1921,8 @@ test('failed quarantine blocks saving reset history until staged credentials can
   const locked = new AppController({ root, home: path.join(root, 'home'), Adapter: controller.Adapter, Accounts: LockedAccounts });
   assert.match(locked.loadError, /Could not isolate/);
   assert.throws(() => locked.save(), /history file was not overwritten/);
-  await assert.rejects(locked.close(), /history file was not overwritten/);
+  // Quitting still works (the message asks for a restart) and writes nothing.
+  await locked.close();
   assert.equal(fs.readFileSync(controller.file, 'utf8'), '{broken');
   assert.equal(fs.existsSync(locked.accountManager.profileDirectory(account.id, true)), true);
   const recovered = new AppController({ root, home: path.join(root, 'home'), Adapter: controller.Adapter });

@@ -5,6 +5,7 @@ const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const MAX_BLOB_BYTES = 20 * 1024 * 1024;
 const BLOB_REFERENCE = /^grok-blob:([a-f0-9]{64})$/;
+const PROSE_FIELDS = new Set(['text', 'thought']);
 
 function collectBlobReferences(value, references = new Set()) {
   if (typeof value === 'string') {
@@ -58,9 +59,11 @@ class BlobStore {
       const temporary = path.join(this.directory, `.${hash}.${randomUUID()}.tmp`);
       try {
         const stat = await fs.lstat(target).catch(error => { if (error.code !== 'ENOENT') throw error; return null; });
-        if (stat) {
-          if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== bytes.length) throw new Error('Invalid stored blob');
-        } else {
+        // A regular file of the right size is this content. Anything else at the
+        // name (a file cut short by a power loss or a partial restore, or a
+        // link) is replaced from the bytes in memory. Refusing instead would
+        // keep this write pending, and every later save waits for it.
+        if (!stat?.isFile() || stat.size !== bytes.length) {
           await fs.writeFile(temporary, bytes, { flag: 'wx', mode: 0o600 });
           await fs.rename(temporary, target);
         }
@@ -92,7 +95,10 @@ class BlobStore {
     if (!value || typeof value !== 'object') return value;
     if (Array.isArray(value)) return value.map(item => this.externalize(item));
     const result = {};
-    for (const [key, child] of Object.entries(value)) result[key] = this.externalize(child);
+    // Message text, streamed text and thoughts are prose, even when they begin
+    // with a data URL: they stay as written. Embedded media in a text field
+    // beside a URI and MIME type is handled below.
+    for (const [key, child] of Object.entries(value)) result[key] = typeof child === 'string' && PROSE_FIELDS.has(key) ? child : this.externalize(child);
     if (typeof value.mimeType === 'string') {
       const field = typeof value.blob === 'string' ? 'blob' : typeof value.data === 'string' && (value.type === 'image' || /^image\//i.test(value.mimeType) || value.encoding === 'base64') ? 'data' : null;
       const ref = field ? this.fromBase64(value[field]) : typeof value.text === 'string' && typeof value.uri === 'string' ? this.store(Buffer.from(value.text, 'utf8')) : null;
