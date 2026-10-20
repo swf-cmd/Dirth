@@ -229,6 +229,43 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       }
     });
 
+    await stage('a streamed reply ends as a fresh render of its text, and history is sanitized once per reply', async () => {
+      await select('Bravo');
+      const replies = [
+        // Raw HTML that spans paragraphs: rendered whole while it streams.
+        'Some <b>bold\n\nmore</b> text, a `<code>` span\n\nClick: <details><summary>More</summary>\n\nHidden text\n\nStill hidden </details> after\n\nfirst-end',
+        // Raw HTML closed within each block, and an <img> on its own line: rendered by blocks.
+        'Press <kbd>Ctrl</kbd>+<kbd>C</kbd>\n\nline<br>two\n\n<img src="missing-chart.png" alt="Standalone chart">\n\n- item H<sub>2</sub>O\n- [link](https://example.test/a)\n\nsecond-end',
+      ];
+      const content = () => page.evaluate(() => [...document.querySelectorAll('.message.assistant .response-content')].map(element => {
+        const copy = element.cloneNode(true);
+        const images = copy.querySelectorAll('.chat-image').length;
+        copy.querySelectorAll('.chat-image').forEach(figure => figure.remove());
+        return { html: copy.innerHTML, images };
+      }));
+      for (const reply of replies) {
+        await startReply('WAIT html stream');
+        for (let index = 0; index < reply.length; index += 9) await emit({ type: 'text', text: reply.slice(index, index + 9) });
+        await page.locator('.message').last().filter({ hasText: reply.split('\n').at(-1) }).waitFor();
+        await settle();
+        const streamed = (await content()).at(-1);
+        await finish(); await idle();
+        assert.deepEqual((await content()).at(-1), streamed, 'the end of the reply leaves it as streamed');
+      }
+      const streamed = await content();
+      await page.evaluate(() => {
+        window.__sanitized = 0;
+        const sanitize = window.DOMPurify.sanitize;
+        window.DOMPurify.sanitize = (...args) => { window.__sanitized++; return sanitize(...args); };
+      });
+      await select('Markup'); await select('Bravo');
+      assert.deepEqual(await content(), streamed, 'a fresh render of the saved replies matches what was streamed');
+      assert.deepEqual(streamed.map(reply => reply.images), [0, 1]);
+      assert.match(await page.locator('.message.assistant details').first().textContent(), /Hidden text[\s\S]*Still hidden/);
+      // Markup holds one reply and Bravo two: each is sanitized once, not once per block.
+      assert.equal(await page.evaluate(() => window.__sanitized), 3);
+    });
+
     await stage('no renderer errors', async () => assert.deepEqual(errors, []));
   } finally {
     await desktop.close().catch(() => {});

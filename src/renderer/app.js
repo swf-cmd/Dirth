@@ -459,16 +459,44 @@
     }
     return escapeHtml(text).replace(/\n/g, '<br>');
   }
+  // Raw HTML in a block (a <details> opened in one paragraph and closed in a
+  // later one) can only be rendered with the rest of the reply.
+  const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+  function rawHtmlOf(token, out = []) {
+    if (token.type === 'html') out.push(token.raw);
+    for (const child of token.tokens || []) rawHtmlOf(child, out);
+    for (const item of token.items || []) rawHtmlOf(item, out);
+    for (const cell of token.header || []) rawHtmlOf(cell, out);
+    for (const row of token.rows || []) for (const cell of row) rawHtmlOf(cell, out);
+    return out;
+  }
+  function closesItsHtml(token) {
+    const html = rawHtmlOf(token).join('').replace(/<!--[\s\S]*?-->/g, '');
+    if (!html) return true;
+    if (html.includes('<!--')) return false;
+    const open = [];
+    for (const [, closing, tag] of html.matchAll(/<(\/?)([A-Za-z][A-Za-z0-9-]*)\b[^>]*>/g)) {
+      const name = tag.toLowerCase();
+      if (VOID_TAGS.has(name)) continue;
+      if (!closing) { open.push(name); continue; }
+      const index = open.lastIndexOf(name);
+      if (index < 0) return false;
+      open.length = index;
+    }
+    return open.length === 0;
+  }
   // A streaming reply grows at its end. Its completed top-level blocks keep
   // their sanitized HTML, so each update parses and sanitizes only the blocks
-  // that changed instead of the whole reply. Raw HTML can span several blocks,
-  // so a reply with any falls back to rendering the whole text at once.
-  function markdownBlocks(text, previous) {
+  // that changed instead of the whole reply. A reply drawn once (history, a
+  // language change) is rendered whole: one sanitizer pass is much cheaper
+  // than one per block. So is a reply whose raw HTML spans blocks.
+  function markdownBlocks(text, previous, incremental) {
+    if (!incremental && !previous?.blocks) return { text, html: markdown(text) };
     if (!window.marked?.lexer || !window.DOMPurify) return { text, html: markdown(text) };
     try {
       const options = markdownOptions();
       const tokens = window.marked.lexer(text || '', options);
-      if (tokens.some(token => token.type === 'html')) return { text, html: markdown(text) };
+      if (!tokens.every(closesItsHtml)) return { text, html: markdown(text) };
       const links = JSON.stringify(tokens.links || {});
       const reusable = previous?.links === links ? previous.blocks || [] : [];
       const blocks = tokens.map((token, index) => reusable[index]?.raw === token.raw ? reusable[index]
@@ -573,7 +601,8 @@
     for (const [key, figures] of previousImages) previousImages.set(key, figures.filter(figure => !body.contains(figure)));
     for (const root of roots) {
       if (root.nodeType !== Node.ELEMENT_NODE) continue;
-      for (const placeholder of root.querySelectorAll('[data-image-source]')) {
+      // A raw <img> on a line of its own becomes a top-level placeholder: a root itself.
+      for (const placeholder of [...root.matches('[data-image-source]') ? [root] : [], ...root.querySelectorAll('[data-image-source]')]) {
         const src = placeholder.dataset.imageSource;
         seen.add(src);
         placeholder.replaceWith(createImage({ src, alt: placeholder.dataset.imageAlt, altIsDefault: false }, session, message.id, previousImages));
@@ -841,7 +870,7 @@
         const next = [];
         segments.forEach((segment, segmentIndex) => {
           if (!segment.text) return;
-          const rendered = previousHtml[segmentIndex]?.text === segment.text ? previousHtml[segmentIndex] : markdownBlocks(segment.text, previousHtml[segmentIndex]);
+          const rendered = previousHtml[segmentIndex]?.text === segment.text ? previousHtml[segmentIndex] : markdownBlocks(segment.text, previousHtml[segmentIndex], streaming);
           segmentHtml[segmentIndex] = rendered;
           let wrapper = wrappers[segmentIndex];
           if (wrapper?.kind !== segment.kind) {
