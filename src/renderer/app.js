@@ -481,7 +481,7 @@
         img.onload = () => {
           if (!current()) return;
           button.disabled = false; caption.textContent = t('{alt} · 点击放大', { alt: alt() });
-          if (follow && figure.isConnected) $('conversation-scroll').scrollTop = $('conversation-scroll').scrollHeight;
+          if (follow && figure.isConnected) followLatest();
         };
         img.onerror = () => { if (current()) failed(t('图片加载失败，地址可能已失效或需要登录'), request); };
         img.src = resolved.src;
@@ -557,6 +557,18 @@
     return ({ pending: t('等待中'), running: t('执行中'), in_progress: t('执行中'), completed: t('已完成'), complete: t('已完成'), success: t('已完成'), failed: t('失败'), error: t('失败'), cancelled: t('已取消') })[status] || status || t('执行中');
   }
 
+  // A streaming reply is rebuilt on every frame. Each tool update replaces its
+  // object, so the text of an unchanged tool (a large diff, say) is kept.
+  const toolTexts = new WeakMap();
+  function toolText(tool) {
+    const language = i18n.getLanguage();
+    const cached = toolTexts.get(tool);
+    if (cached?.language === language) return cached.text;
+    const text = safeText(tool.content ?? tool.output ?? tool.rawInput ?? tool.input);
+    toolTexts.set(tool, { language, text });
+    return text;
+  }
+
   function createTool(tool) {
     const details = document.createElement('details');
     details.className = 'tool-entry';
@@ -572,7 +584,7 @@
     label.className = 'tool-status'; label.textContent = toolStatus(tool.status);
     summary.append(status, title, label);
     const content = document.createElement('pre');
-    content.textContent = safeText(tool.content ?? tool.output ?? tool.rawInput ?? tool.input) || t('等待工具返回结果…');
+    content.textContent = toolText(tool) || t('等待工具返回结果…');
     details.append(summary, content);
     return details;
   }
@@ -592,6 +604,13 @@
     details.append(summary, list); return details;
   }
 
+  // The scroller animates scrolls (CSS smooth). Following new output must
+  // land at once: a follow still on its way reads as "scrolled away" on the
+  // next frame, and the view would stop following a fast reply.
+  function followLatest() {
+    const scroller = $('conversation-scroll');
+    scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'instant' });
+  }
   function nearBottom() {
     const scroller = $('conversation-scroll');
     return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 100;
@@ -603,7 +622,6 @@
   function touchMessage(message) { messageRevisions.set(message, (messageRevisions.get(message) || 0) + 1); }
 
   function renderMessages(forceBottom = false) {
-    const scroller = $('conversation-scroll');
     const pinned = forceBottom || nearBottom();
     const session = activeSession();
     const messages = session?.messages || [];
@@ -655,15 +673,20 @@
       }
       if (message.plan?.length) article.append(createPlan(message.plan, message.id, openDetails, previousPlans));
       const body = document.createElement('div'); body.className = 'message-body';
+      const segmentHtml = [];
       if (message.role === 'user') body.textContent = message.text;
       else {
         // Only protocol boundaries distinguish progress from the answer. Older
         // history and text mixed upstream remain intact without content guessing.
         const segments = message.responseSegments?.length ? message.responseSegments : [{ text: message.text, kind: 'response' }];
+        // Only the last segment of a streaming reply grows; earlier ones keep their parsed Markdown.
+        const previousHtml = cached?.segmentHtml || [];
         const hasContext = message.thought || message.tools?.length || segments.some(segment => segment.kind === 'commentary');
         segments.forEach((segment, segmentIndex) => {
           if (!segment.text) return;
-          const content = document.createElement('div'); content.className = 'response-content'; content.innerHTML = markdown(segment.text);
+          const html = previousHtml[segmentIndex]?.text === segment.text ? previousHtml[segmentIndex].html : markdown(segment.text);
+          segmentHtml[segmentIndex] = { text: segment.text, html };
+          const content = document.createElement('div'); content.className = 'response-content'; content.innerHTML = html;
           if (segment.kind === 'commentary') {
             const details = document.createElement('details'); details.className = 'response-commentary'; details.dataset.responseId = `${message.id}-response-${segmentIndex}`;
             details.open = openDetails.has(details.dataset.responseId);
@@ -693,7 +716,7 @@
         });
         code.parentElement.append(button);
       });
-      messageNodes.set(message.id, { article, message, revision, streaming, displayContext });
+      messageNodes.set(message.id, { article, message, revision, streaming, displayContext, segmentHtml });
       if (previous?.parentNode === container) previous.replaceWith(article);
       if (container.children[index] !== article) container.insertBefore(article, container.children[index] || null);
     });
@@ -703,12 +726,9 @@
     for (const figure of pendingImages.keys()) {
       if (!figure.isConnected) { imageObserver.unobserve(figure); pendingImages.delete(figure); }
     }
-    if (pinned) {
-      // Opening history must jump directly to its latest message; an animated
-      // trip through the entire conversation would preload every image en route.
-      if (forceBottom || contextChanged) scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'instant' });
-      else scroller.scrollTop = scroller.scrollHeight;
-    }
+    // Opening history also jumps directly to its latest message; an animated
+    // trip through the entire conversation would preload every image en route.
+    if (pinned) followLatest();
     $('scroll-bottom').hidden = !hasMessages || nearBottom();
     renderComposerState();
     renderPermissions();
