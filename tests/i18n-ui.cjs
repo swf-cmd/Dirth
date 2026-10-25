@@ -122,6 +122,13 @@ const translated = (locale, source, params) => createI18n(() => locale)(source, 
         await assertText('[data-account-action="switch"]', '当前账户 ✓', locale);
         await assertFits('#accounts-dialog');
         await page.locator('[data-close-dialog="accounts-dialog"]').click();
+        // Both quotes around a conversation's title are this language's.
+        await page.locator('.session-item.active').hover(); await page.locator('.session-item.active .session-more').click();
+        await page.locator('#menu-delete').click(); await page.locator('#delete-dialog[open]').waitFor();
+        const [open, close] = { 'zh-CN': '“”', ja: '「」', en: '“”', ko: '‘’', es: '“”', de: '„“', fr: '“”' }[locale];
+        const title = await page.locator('#delete-title').textContent();
+        assert.ok((await page.locator('#delete-dialog p').textContent()).startsWith(`${open}${title}${close}`), `${locale} delete dialog quotes`);
+        await page.locator('#delete-dialog .secondary-button').click();
         await openSettings(); await page.locator('#choose-workspace').click();
         const chooser = await desktop.evaluate(() => globalThis.__tokyoUITest.calls.filter(item => item.method === 'showOpenDialog').at(-1));
         assert.equal(chooser.options.title, translated(locale, '选择 Grok 工作目录'));
@@ -209,6 +216,7 @@ const translated = (locale, source, params) => createI18n(() => locale)(source, 
         assert.equal(await page.locator('#stop-button').isVisible(), true);
         await assertAttribute('#stop-button', 'aria-label', '停止生成', locale);
         await assertText('#permission-panel button:first-child', '允许一次', locale);
+        assert.match(await page.locator('#activity-duration').textContent(), { en: /^\d+(?:m \d+)?s$/, ko: /초$/, de: /Sek\.$/ }[locale], `${locale} elapsed time`);
         assert.equal(await starts(), before);
       }
       await page.locator('#permission-panel button:first-child').click(); await idle();

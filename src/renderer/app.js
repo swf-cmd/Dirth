@@ -621,9 +621,16 @@
       seen.add(image.src); body.insertBefore(createImage(image, session, message.id, previousImages), attachments);
     }
   }
+  // Sizes and elapsed times use the interface language's decimal separator
+  // and units, as dates and the quota already do.
   function attachmentSize(size) {
     if (!Number.isFinite(size) || size < 0) return '';
-    return size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
+    const decimal = value => new Intl.NumberFormat(i18n.getLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+    return size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${decimal(size / 1024)} KB` : `${decimal(size / 1024 / 1024)} MB`;
+  }
+  function elapsedText(seconds) {
+    const duration = seconds < 60 ? { seconds } : { minutes: Math.floor(seconds / 60), seconds: seconds % 60 };
+    return new Intl.DurationFormat(i18n.getLanguage(), { style: 'narrow', secondsDisplay: 'always' }).format(duration);
   }
 
   // Fills a reply segment. With per-block HTML, blocks that did not change keep
@@ -1000,8 +1007,7 @@
     const tool = message?.tools?.filter(item => ['running', 'pending', 'in_progress'].includes(item.status)).at(-1);
     $('activity-text').textContent = sessionPermissions(state.activeId).length ? t('等待你的授权') : tool ? tool.title || t('正在执行工具') : message?.text ? t('Grok Build 正在回答') : t('Grok Build 正在思考');
     const start = state.started.get(state.activeId) || Date.now();
-    const elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
-    $('activity-duration').textContent = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+    $('activity-duration').textContent = elapsedText(Math.max(0, Math.floor((Date.now() - start) / 1000)));
   }
 
   let shownPermission, shownPermissionLanguage;
