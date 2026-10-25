@@ -675,11 +675,16 @@ class AppController extends EventEmitter {
     const created = await this.adapter.newSession({ cwd, model, mode });
     const session = { id: created.sessionId, accountId: this.activeAccountId, title: '新会话', titleIsDefault: true, cwd, createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
     this.syncSession(session, created);
-    this.sessions.unshift(session);
-    this.loaded.add(session.id);
-    this.modelRefreshes.set(session.id, revision);
-    try { await this.save(); }
-    catch (error) { this.sessions = this.sessions.filter(item => item !== session); this.loaded.delete(session.id); this.modelRefreshes.delete(session.id); throw error; }
+    // Other conversations can finish and save meanwhile. Adding the new one,
+    // saving it and undoing a failed save in the history queue keeps their
+    // saves from writing a conversation whose creation is reported as failed.
+    await this.historyOperation(async () => {
+      this.sessions.unshift(session);
+      this.loaded.add(session.id);
+      this.modelRefreshes.set(session.id, revision);
+      try { await this.save(); }
+      catch (error) { this.sessions = this.sessions.filter(item => item !== session); this.loaded.delete(session.id); this.modelRefreshes.delete(session.id); throw error; }
+    });
     this.emitEvent({ type: 'session-updated', sessionId: session.id, session });
     this.emitEvent({ type: 'info', info: this.normalizeInfo(), connected: this.connected });
     return session;
@@ -886,7 +891,12 @@ class AppController extends EventEmitter {
       const update = event;
       event = applyReplyUpdate(message, event, current.sessionId, nested => this.emitEvent(nested));
       // Log the update itself rather than rewriting the whole history.
-      if (isPlan || REPLY_UPDATE_TYPES.has(update.type)) this.journal.record(current.sessionId, message.id, update);
+      if (isPlan || REPLY_UPDATE_TYPES.has(update.type)) {
+        this.journal.record(current.sessionId, message.id, update);
+        // The window routes output by conversation as well. Without an ID it
+        // would give it to the chat on screen and leave that one busy.
+        if (!event.sessionId) event = { ...event, sessionId: current.sessionId };
+      }
     }
     this.emitEvent(event);
   }
@@ -1045,11 +1055,14 @@ class AppController extends EventEmitter {
     clearInterval(this.quotaPoll);
     this.quotaPoll = null;
     // Cancel pending sends before waiting on a possibly slow login shutdown.
+    // Running replies are asked to stop now: shutdown may wait for another
+    // operation (a long restore) first, and their tools must not run on
+    // meanwhile. Each records how it actually ended, as on any Stop.
     for (const turn of this.turns.values()) {
       // A finished reply still waiting for its save keeps its final status.
       if (turn.settled) continue;
       turn.cancelled = true;
-      if (turn.message) turn.message.status = 'cancelled';
+      if (turn.message) void this.adapter?.cancel(turn.sessionId)?.catch(() => {});
     }
     let failure;
     const initialLogin = this.accountManager.pending;

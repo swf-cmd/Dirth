@@ -1577,6 +1577,29 @@ test('per-session model menus are saved independently of the global engine selec
   assert.deepEqual(readHistory(controller).sessions[0].models, session.models);
 });
 
+test('quitting during another operation stops running replies at once and keeps how each one ended', async t => {
+  const { controller, adapter, session } = await started(t);
+  const other = await controller.createSession();
+  await controller.send({ sessionId: session.id, text: 'run the long build' });
+  // This CLI finishes the reply before it handles the Stop that quitting sends.
+  adapter.cancel = async sessionId => { adapter.cancels.push(sessionId); };
+  controller.loaded.delete(other.id);
+  adapter.loadGate = deferred();
+  const opening = controller.selectSession(other.id);
+  await new Promise(resolve => setImmediate(resolve));
+  assert.ok(controller.operation, 'opening the other conversation restores it');
+  const closing = controller.close();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(adapter.cancels, [session.id], 'the running reply is asked to stop at once, not after the restore');
+  assert.equal(adapter.closeCount, 0, 'the engine itself still waits for the restore');
+  adapter.prompts[0].gate.resolve({ stopReason: 'end_turn' });
+  adapter.loadGate.resolve();
+  await opening;
+  await closing;
+  const saved = readHistory(controller).sessions.find(item => item.id === session.id).messages.at(-1);
+  assert.deepEqual([saved.status, saved.stopReason], ['complete', 'end_turn'], 'a reply the CLI completed is not saved as stopped');
+});
+
 test('closing still stops the engine and releases an active turn when the final save fails', async t => {
   const { controller, adapter, session } = await started(t);
   await controller.send({ sessionId: session.id, text: 'running at shutdown' });
@@ -2468,6 +2491,18 @@ test('streamed Markdown attachment scans are throttled and completion always sca
   await controller.turnPromise;
   assert.equal(session.messages[1].attachments.length, 101);
   assert.equal(readHistory(controller).sessions[0].messages[1].attachments.length, 101);
+});
+
+test('output without a conversation ID reaches the window as part of the reply it joined', async t => {
+  const { controller, session, adapter } = await started(t);
+  await controller.createSession();
+  await controller.send({ sessionId: session.id, text: 'the only running reply' });
+  const events = []; controller.on('event', event => events.push(event));
+  // The window routes by conversation too; without an ID it would use the chat on screen.
+  adapter.emit('event', { type: 'text', text: 'Hello' });
+  adapter.emit('event', { type: 'status', status: 'plan', entries: [{ content: 'Step', status: 'pending' }] });
+  assert.deepEqual(events.map(event => [event.type, event.sessionId]), [['text', session.id], ['status', session.id]]);
+  assert.equal(session.messages.at(-1).text, 'Hello');
 });
 
 test('a long streaming reply is rescanned for links less often, and completion still finds them all', async t => {
