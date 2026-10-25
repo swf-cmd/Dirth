@@ -102,6 +102,10 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       };
       const stringify = JSON.stringify;
       JSON.stringify = function(value, ...rest) { if (value?.type === 'diff') window.__diffSerializations++; return stringify.call(this, value, ...rest); };
+      // Rebuilding the reply text from all its segments per chunk is quadratic.
+      window.__segmentJoins = 0;
+      const join = Array.prototype.join;
+      Array.prototype.join = function(separator, ...rest) { if (separator === '\n\n') window.__segmentJoins++; return join.call(this, separator, ...rest); };
     });
     for (let index = 1; index <= 4; index++) {
       await desktop.evaluate((_, index) => {
@@ -111,8 +115,10 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       }, index);
       await page.locator('.message').last().filter({ hasText: `answer-${index}` }).waitFor();
     }
-    assert.deepEqual(await page.evaluate(() => ({ frozen: window.__frozenParses, diffs: window.__diffSerializations })), { frozen: 0, diffs: 0 },
-      'later chunks must not parse frozen progress text or serialize an unchanged tool again');
+    assert.deepEqual(await page.evaluate(() => ({ frozen: window.__frozenParses, diffs: window.__diffSerializations, joins: window.__segmentJoins })), { frozen: 0, diffs: 0, joins: 0 },
+      'later chunks must not parse frozen progress text, serialize an unchanged tool again or rejoin the reply text');
+    // Appended chunks still read exactly as the segments joined by blank lines.
+    assert.equal(await page.locator('.message').last().locator('.response-answer').innerText().then(text => /answer-0 answer-1 answer-2 answer-3 answer-4/.test(text)), true);
     // A long chunk is followed at once, not by a smooth scroll still on its way
     // that the next frame would read as the user scrolling up.
     await desktop.evaluate(() => {

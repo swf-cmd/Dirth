@@ -1322,12 +1322,15 @@
         } else if (text) {
           message.responseSegments ||= message.text ? [{ text: message.text, kind: 'response' }] : [];
           let segment = message.responseSegments.at(-1);
-          if (!segment || event.segmentStart || segment.kind === 'commentary') {
+          const opened = !segment || event.segmentStart || segment.kind === 'commentary';
+          if (opened) {
             if (segment) segment.kind = 'commentary';
             segment = { text: '', kind: 'response' }; message.responseSegments.push(segment);
           }
           segment.text += text;
-          message.text = message.responseSegments.map(item => item.text).join('\n\n');
+          // The text is its segments joined by blank lines. Joining them all again
+          // for every delta made a long reply quadratic (seconds per reply).
+          message.text += `${opened && message.responseSegments.length > 1 ? '\n\n' : ''}${text}`;
         }
       }
       if (event.type === 'thought') message.thought = event.delta === false ? safeText(event.text) : message.thought + safeText(event.text);

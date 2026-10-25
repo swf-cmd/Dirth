@@ -2470,6 +2470,26 @@ test('streamed Markdown attachment scans are throttled and completion always sca
   assert.equal(readHistory(controller).sessions[0].messages[1].attachments.length, 101);
 });
 
+test('a long streaming reply is rescanned for links less often, and completion still finds them all', async t => {
+  const { controller, session, adapter } = await started(t);
+  await controller.send({ sessionId: session.id, text: 'links' });
+  t.mock.timers.enable({ apis: ['Date'], now: 1e6 });
+  const emit = text => adapter.emit('event', { type: 'text', sessionId: session.id, text });
+  const reply = session.messages[1];
+  emit('[first](first.pdf) ');
+  assert.equal(reply.attachments.length, 1);
+  // 100,000 characters: scanned again only after two seconds, not 500 ms.
+  emit(`${'Long prose without links. '.repeat(3846)}[second](second.pdf) `);
+  t.mock.timers.tick(600); emit('a ');
+  assert.equal(reply.attachments.length, 1, 'a long reply is not reparsed on the short interval');
+  t.mock.timers.tick(1500); emit('b ');
+  assert.equal(reply.attachments.length, 2);
+  emit('[third](third.pdf) ');
+  adapter.prompts[0].gate.resolve({ stopReason: 'end_turn' });
+  await controller.turnPromise;
+  assert.deepEqual(reply.attachments.map(item => item.name), ['first', 'second', 'third']);
+});
+
 test('startup publishes metadata and defers legacy Markdown discovery until opening a session', async t => {
   const { controller } = fixture(t, { settings: {}, sessions: [
     { id: 'legacy', title: 'Legacy', cwd: process.cwd(), messages: [{ id: 'legacy-reply', role: 'assistant', text: '[report](report.pdf)', status: 'complete' }] },

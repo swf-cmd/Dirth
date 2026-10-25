@@ -15,7 +15,12 @@ const { TurnJournal, readTurnJournal } = require('./turn-journal.cjs');
 const { pathToFileURL } = require('node:url');
 const { BlobStore, BLOB_REFERENCE, collectBlobReferences } = require('./blob-store.cjs');
 const { HistoryStore, sessionMetadata } = require('./history-store.cjs');
+// While a reply streams, its Markdown is rescanned for file links at most this
+// often. Each scan reads the whole reply (tens of milliseconds for a long one,
+// which delays every event behind it), so a long reply waits one more
+// millisecond per 50 characters. The scan when the turn ends finds them all.
 const TEXT_SCAN_INTERVAL = 500;
+const TEXT_SCAN_CHARS_PER_MS = 50;
 const textScanTimes = new WeakMap();
 const MEDIA_VERSION = 1;
 
@@ -94,7 +99,8 @@ function applyReplyUpdate(message, event, sessionId, emit = () => {}, scanText =
       message.text += `${event.segmentStart && message.text ? '\n\n' : ''}${text}`;
     }
   }
-  if (event.type === 'scan-attachments' || (event.type === 'text' && scanText && Date.now() - (textScanTimes.get(message) ?? -Infinity) >= TEXT_SCAN_INTERVAL)) {
+  if (event.type === 'scan-attachments' || (event.type === 'text' && scanText
+    && Date.now() - (textScanTimes.get(message) ?? -Infinity) >= Math.max(TEXT_SCAN_INTERVAL, message.text.length / TEXT_SCAN_CHARS_PER_MS))) {
     textScanTimes.set(message, Date.now());
     for (const attachment of attachmentsFromText(message.text)) addAttachment({ ...attachment, origin: 'assistant' });
   }

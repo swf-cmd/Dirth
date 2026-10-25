@@ -60,6 +60,8 @@ class HistoryStore {
     this.savedIndex = null;
     this.queue = Promise.resolve();
     this.write = writeInWorker;
+    // Must return a new tree that shares no objects with its input: it is the
+    // snapshot a queued save writes while the live messages keep changing.
     /** @type {((messages: any[]) => any[]) | undefined} */
     this.transformMessages = undefined;
     /** @type {(() => Promise<void>) | undefined} */
@@ -146,8 +148,9 @@ class HistoryStore {
     const metadata = sessions.map(sessionMetadata);
     // Only changed message arrays cross the worker boundary. Metadata changes
     // such as switching models never clone or stringify historical messages.
+    // A transform already returns a copy; cloning that again doubled the cost.
     const content = sessions.filter(session => dirty.has(session.id) || !this.files.has(session.id))
-      .map(session => ({ id: session.id, messages: structuredClone(this.transformMessages ? this.transformMessages(session.messages) : session.messages) }));
+      .map(session => ({ id: session.id, messages: this.transformMessages ? this.transformMessages(session.messages) : structuredClone(session.messages) }));
     for (const item of content) for (const message of item.messages) if (this.unsettled.has(message.id)) message.status = 'working';
     const contentReferences = new Map(content.map(item => [item.id, collectBlobReferences(item.messages)]));
     const queuedReferences = new Set();
