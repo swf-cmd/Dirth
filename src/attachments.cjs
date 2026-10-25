@@ -4,7 +4,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
 const { fileURLToPath } = require('node:url');
-const { imageMime, isReadTool, readLocalBytes } = require('./media.cjs');
+const { imageMime, isReadTool, readLocalBytes, openablePath } = require('./media.cjs');
 const { downloadPublicResource } = require('./resource-download.cjs');
 const { createI18n } = require('./i18n.js');
 const { lexer } = require('./renderer/vendor/marked.umd.js');
@@ -214,10 +214,10 @@ async function resolveAttachment(src, directories, t = defaultT, fetcher) {
   } else {
     try { const decoded = decodeURIComponent(src); if (decoded !== src) files.push(decoded); } catch {}
   }
-  files = files.filter(file => !/^(?:\\\\|\/\/)/.test(file) && (!file.includes(':') || /^[a-z]:[\\/][^:]*$/i.test(file)));
-  if (!files.length) throw new Error(t('不支持的附件地址'));
   const roots = [];
   for (const directory of directories.filter(Boolean)) { try { roots.push(await fs.realpath(directory)); } catch {} }
+  files = files.filter(file => openablePath(file, roots));
+  if (!files.length) throw new Error(t('不支持的附件地址'));
   for (const root of roots) for (const file of files) {
     let target;
     try { target = await fs.realpath(path.resolve(root, file)); } catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') continue; throw error; }
