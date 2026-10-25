@@ -44,7 +44,7 @@ test.waitForGate = async method => {
   await gate.promise;
 };
 for (const method of (process.env.TOKYO_TEST_HOLD || '').split(',').filter(Boolean)) {
-  if (!['start', 'loadSession', 'newSession'].includes(method)) throw new Error(`Unsupported fixture gate: ${method}`);
+  if (!['start', 'loadSession', 'newSession', 'readSession'].includes(method)) throw new Error(`Unsupported fixture gate: ${method}`);
   test.hold(method);
 }
 const copy = value => structuredClone(value);
@@ -171,5 +171,10 @@ dialog.showSaveDialog = async (_win, options) => {
   return result;
 };
 shell.openExternal = async url => { test.external.push(url); };
+// Saved history is read locally; a held read lets a test choose conversations
+// while one is still loading.
+const { AppController } = require(path.join(sourceRoot, 'src', 'app-controller.cjs'));
+const readSession = AppController.prototype.readSession;
+AppController.prototype.readSession = async function (...args) { await test.waitForGate('readSession'); return readSession.apply(this, args); };
 app.setPath('userData', path.join(root, 'data', 'browser'));
 require(path.join(sourceRoot, 'src', 'main.cjs'));

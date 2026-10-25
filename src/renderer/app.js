@@ -594,28 +594,43 @@
   }
 
   // Replaces image placeholders inside the newly drawn nodes, then adds the
-  // reply's other images at the end. Images already shown keep their figures.
+  // reply's other images after its text. Images already shown keep their figures.
   function mountImages(body, message, session, previousImages, roots = [body]) {
+    // A raw <img> on a line of its own becomes a top-level placeholder: a root itself.
+    const placeholders = roots.filter(root => root.nodeType === Node.ELEMENT_NODE)
+      .flatMap(root => [...root.matches('[data-image-source]') ? [root] : [], ...root.querySelectorAll('[data-image-source]')]);
+    // An image shown after the text moves into it once the text shows it too.
+    const inline = new Set(placeholders.map(placeholder => placeholder.dataset.imageSource));
+    for (const child of [...body.children]) {
+      if (child.classList.contains('chat-image') && (inline.has(child.imageSrc) || !(message.images || []).some(image => image.src === child.imageSrc))) child.remove();
+    }
     const seen = new Set([...body.querySelectorAll('.chat-image')].map(figure => figure.imageSrc));
     // A figure still shown in a block that was kept stays where it is.
     for (const [key, figures] of previousImages) previousImages.set(key, figures.filter(figure => !body.contains(figure)));
-    for (const root of roots) {
-      if (root.nodeType !== Node.ELEMENT_NODE) continue;
-      // A raw <img> on a line of its own becomes a top-level placeholder: a root itself.
-      for (const placeholder of [...root.matches('[data-image-source]') ? [root] : [], ...root.querySelectorAll('[data-image-source]')]) {
-        const src = placeholder.dataset.imageSource;
-        seen.add(src);
-        placeholder.replaceWith(createImage({ src, alt: placeholder.dataset.imageAlt, altIsDefault: false }, session, message.id, previousImages));
-      }
+    for (const placeholder of placeholders) {
+      const src = placeholder.dataset.imageSource;
+      seen.add(src);
+      const figure = createImage({ src, alt: placeholder.dataset.imageAlt, altIsDefault: false }, session, message.id, previousImages);
+      placeholder.replaceWith(figure);
+      // The block that drew the placeholder removes its figure when redrawn.
+      placeholder.mountedAs = figure;
     }
+    const attachments = [...body.children].find(child => child.classList.contains('message-attachments')) || null;
     for (const image of message.images || []) {
       if (typeof image.src !== 'string' || seen.has(image.src)) continue;
-      seen.add(image.src); body.append(createImage(image, session, message.id, previousImages));
+      seen.add(image.src); body.insertBefore(createImage(image, session, message.id, previousImages), attachments);
     }
   }
+  // Sizes and elapsed times use the interface language's decimal separator
+  // and units, as dates and the quota already do.
   function attachmentSize(size) {
     if (!Number.isFinite(size) || size < 0) return '';
-    return size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${(size / 1024).toFixed(1)} KB` : `${(size / 1024 / 1024).toFixed(1)} MB`;
+    const decimal = value => new Intl.NumberFormat(i18n.getLanguage(), { minimumFractionDigits: 1, maximumFractionDigits: 1 }).format(value);
+    return size < 1024 ? `${size} B` : size < 1024 * 1024 ? `${decimal(size / 1024)} KB` : `${decimal(size / 1024 / 1024)} MB`;
+  }
+  function elapsedText(seconds) {
+    const duration = seconds < 60 ? { seconds } : { minutes: Math.floor(seconds / 60), seconds: seconds % 60 };
+    return new Intl.DurationFormat(i18n.getLanguage(), { style: 'narrow', secondsDisplay: 'always' }).format(duration);
   }
 
   // Fills a reply segment. With per-block HTML, blocks that did not change keep
@@ -630,7 +645,8 @@
     let keep = 0;
     if (previous) while (keep < previous.length && keep < rendered.blocks.length && previous[keep].raw === rendered.blocks[keep].raw && previous[keep].html === rendered.blocks[keep].html) keep++;
     else content.replaceChildren();
-    for (const block of previous?.slice(keep) || []) for (const node of block.nodes) node.remove();
+    // An image placeholder drawn as a block of its own was replaced by its figure.
+    for (const block of previous?.slice(keep) || []) for (const node of block.nodes) (node.mountedAs || node).remove();
     const blocks = previous?.slice(0, keep) || [];
     const added = [];
     for (const block of rendered.blocks.slice(keep)) {
@@ -643,10 +659,16 @@
     return added;
   }
   function mountAttachments(body, message, session) {
-    if (!message.attachments?.length) return;
-    const list = document.createElement('div'); list.className = 'message-attachments';
-    for (const attachment of message.attachments) {
-      if (!attachment?.id) continue;
+    const attachments = (message.attachments || []).filter(attachment => attachment?.id);
+    // The same files keep their cards, so focus, or a press on Save, survives a
+    // reply that is redrawn while it streams. A changed list is drawn again.
+    const signature = JSON.stringify([i18n.getLanguage(), state.activeAccountId, ...attachments.map(attachment => attachment.id)]);
+    const current = [...body.children].find(child => child.classList.contains('message-attachments'));
+    if (current?.attachmentSignature === signature) return;
+    current?.remove();
+    if (!attachments.length) return;
+    const list = document.createElement('div'); list.className = 'message-attachments'; list.attachmentSignature = signature;
+    for (const attachment of attachments) {
       const card = document.createElement('div'); card.className = 'attachment-card'; card.dataset.attachmentId = attachment.id;
       const icon = document.createElement('span'); icon.className = 'attachment-icon'; icon.textContent = attachment.mimeType?.startsWith('image/') ? '▧' : '↳'; icon.setAttribute('aria-hidden', 'true');
       const info = document.createElement('div'); info.className = 'attachment-info';
@@ -857,9 +879,12 @@
       const added = [];
       if (message.role === 'user') body.textContent = message.text;
       else {
-        // Everything after the reply text is rebuilt below.
+        // What follows the reply text is rebuilt below, except images shown
+        // after it and its attachment list: they keep their nodes.
         const wrappers = body.segmentWrappers || [];
-        for (const child of [...body.children]) if (!wrappers.some(wrapper => wrapper?.element === child)) child.remove();
+        for (const child of [...body.children]) {
+          if (!wrappers.some(wrapper => wrapper?.element === child) && !child.classList.contains('chat-image') && !child.classList.contains('message-attachments')) child.remove();
+        }
         // Only protocol boundaries distinguish progress from the answer. Older
         // history and text mixed upstream remain intact without content guessing.
         const segments = message.responseSegments?.length ? message.responseSegments : [{ text: message.text, kind: 'response' }];
@@ -982,8 +1007,7 @@
     const tool = message?.tools?.filter(item => ['running', 'pending', 'in_progress'].includes(item.status)).at(-1);
     $('activity-text').textContent = sessionPermissions(state.activeId).length ? t('等待你的授权') : tool ? tool.title || t('正在执行工具') : message?.text ? t('Grok Build 正在回答') : t('Grok Build 正在思考');
     const start = state.started.get(state.activeId) || Date.now();
-    const elapsed = Math.max(0, Math.floor((Date.now() - start) / 1000));
-    $('activity-duration').textContent = elapsed < 60 ? `${elapsed}s` : `${Math.floor(elapsed / 60)}m ${elapsed % 60}s`;
+    $('activity-duration').textContent = elapsedText(Math.max(0, Math.floor((Date.now() - start) / 1000)));
   }
 
   let shownPermission, shownPermissionLanguage;
@@ -1115,10 +1139,11 @@
     // Fetch saved history without waiting for ACP or restoring an engine session.
     if (state.startingEngine) {
       if (!state.sessions.some(session => session.id === id)) return;
-      state.activeId = id;
-      await loadSessionMessages(id);
-      restoreDraft(); renderSessions(); renderSelects(); renderWorkspace(); renderMessages(true);
-      closeSessionMenu(); $('prompt').focus();
+      // Its draft shows at once: another choice made while this history loads
+      // saves the prompt as this conversation's draft, not the previous one's.
+      state.activeId = id; restoreDraft();
+      try { await loadSessionMessages(id); }
+      finally { renderSessions(); renderSelects(); renderWorkspace(); renderMessages(true); closeSessionMenu(); $('prompt').focus(); }
       return;
     }
     state.selecting = true; renderSelects(); renderComposerState();
@@ -1322,12 +1347,15 @@
         } else if (text) {
           message.responseSegments ||= message.text ? [{ text: message.text, kind: 'response' }] : [];
           let segment = message.responseSegments.at(-1);
-          if (!segment || event.segmentStart || segment.kind === 'commentary') {
+          const opened = !segment || event.segmentStart || segment.kind === 'commentary';
+          if (opened) {
             if (segment) segment.kind = 'commentary';
             segment = { text: '', kind: 'response' }; message.responseSegments.push(segment);
           }
           segment.text += text;
-          message.text = message.responseSegments.map(item => item.text).join('\n\n');
+          // The text is its segments joined by blank lines. Joining them all again
+          // for every delta made a long reply quadratic (seconds per reply).
+          message.text += `${opened && message.responseSegments.length > 1 ? '\n\n' : ''}${text}`;
         }
       }
       if (event.type === 'thought') message.thought = event.delta === false ? safeText(event.text) : message.thought + safeText(event.text);

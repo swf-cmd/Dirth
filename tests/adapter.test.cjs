@@ -240,6 +240,28 @@ test('load labels replay events and allows session continuation', async t => {
   assert.equal((await adapter.prompt({ sessionId: session.sessionId, text: 'continue' })).text, '东京雨夜');
 });
 
+test('CLI error text shown, saved and exported never carries a credential', () => {
+  const { safeMessage } = new GrokAdapter();
+  const jwt = 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.c2lnbmF0dXJlLXZhbHVl';
+  const secrets = ['abc.def-123', 'dXNlcjpwYXNzd29yZA==', 'tok_live_123', 'rt-secret-1', 'it-secret-2', 'cs-secret-3', 'pw-secret-4', 'ks-secret-5', jwt, 'xai-abcdefghijklmnopqrstuvwx'];
+  for (const text of [
+    'request failed: Authorization: Bearer abc.def-123',
+    'proxy answered: authorization: Basic dXNlcjpwYXNzd29yZA==',
+    '{"authorization":"Token tok_live_123"}',
+    'refresh failed: refresh_token=rt-secret-1 id_token=it-secret-2',
+    'oauth error: client_secret=cs-secret-3&password=pw-secret-4',
+    'auth store: {"key":"ks-secret-5","auth_mode":"oidc"}',
+    `panic while holding ${jwt}`,
+    'api key xai-abcdefghijklmnopqrstuvwx was rejected',
+  ]) {
+    const shown = safeMessage(text);
+    for (const secret of secrets) assert.equal(shown.includes(secret), false, `${secret} must not appear in: ${shown}`);
+    assert.match(shown, /\[redacted\]/);
+  }
+  // Ordinary diagnostics stay readable.
+  for (const text of ['Unexpected token } in JSON at position 5', 'model key: grok-4 is unavailable']) assert.equal(safeMessage(text), text);
+});
+
 test('process exit rejects an in-flight request and permits reconnect', async t => {
   const { adapter } = await fixture(t);
   const { sessionId } = await adapter.newSession();

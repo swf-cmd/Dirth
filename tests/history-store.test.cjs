@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { HistoryStore } = require('../src/history-store.cjs');
+const { BlobStore } = require('../src/blob-store.cjs');
 
 function fixture(t) {
   const base = path.resolve(__dirname, '../work/history-store-tests');
@@ -70,6 +71,29 @@ test('queued saves retain their captured messages and compose per-session genera
   assert.equal(writes.length, 2);
   assert.equal(writes[0].updates[0].messages[0].text, 'one committed');
   assert.deepEqual(new HistoryStore(directory).read().sessions.map(s => s.messages[0].text), ['one committed', 'two committed']);
+});
+
+test('a transformed save writes the messages as they were when it was queued', async t => {
+  const { directory, state, store } = fixture(t);
+  const blobs = new BlobStore(path.join(directory, 'blobs'));
+  // The controller's transform: its copy is the save's only snapshot.
+  store.transformMessages = messages => blobs.externalize(messages);
+  await store.save(state);
+  const reply = state.sessions[1].messages[0];
+  Object.assign(reply, { status: 'working', responseSegments: [{ text: 'second', kind: 'response' }],
+    tools: [{ toolCallId: 'edit', status: 'in_progress', content: [{ type: 'diff', path: 'a.js', newText: 'first draft' }] }] });
+  const queued = store.save(state, ['two']);
+  // The reply keeps streaming while its save waits for the disk.
+  reply.status = 'complete';
+  reply.responseSegments[0].kind = 'commentary';
+  reply.tools[0].status = 'completed';
+  reply.tools[0].content[0].newText = 'final';
+  await queued;
+  const saved = new HistoryStore(directory).read().sessions[1].messages[0];
+  assert.equal(saved.status, 'working');
+  assert.deepEqual(saved.responseSegments, [{ text: 'second', kind: 'response' }]);
+  assert.equal(saved.tools[0].status, 'in_progress');
+  assert.equal(saved.tools[0].content[0].newText, 'first draft');
 });
 
 test('metadata changes never clone or serialize historical message content', async t => {

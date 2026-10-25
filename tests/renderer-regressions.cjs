@@ -271,6 +271,54 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       assert.equal(await page.evaluate(() => window.__sanitized), 3);
     });
 
+    await stage('an image on its own line stays one figure while the text after it streams in', async () => {
+      await select('Charlie');
+      await startReply('WAIT one image');
+      const figures = () => page.evaluate(() => document.querySelectorAll('.message:last-child .chat-image').length);
+      try {
+        for (const text of ['Intro text\n\n<img src="https://images.example.test/preview.png" alt="Chart">', '\n', '*Figure', ' 1*', '\n\nAfter the figure']) {
+          await emit({ type: 'text', text });
+          await settle(); await settle();
+          assert.equal(await figures(), 1, `figures after ${JSON.stringify(text)}`);
+        }
+      } finally { await finish(); await idle(); }
+      await settle();
+      assert.equal(await figures(), 1);
+    });
+
+    await stage('Save and image buttons under a streaming reply keep focus, and a press across a chunk still clicks', async () => {
+      await select('Alpha renamed');
+      await startReply('WAIT controls');
+      try {
+        await emit({ type: 'attachment', attachment: { id: 'streamed-report', name: 'report.csv', src: path.join(workspace, 'report.csv'), mimeType: 'text/csv', size: 8 } });
+        await emit({ type: 'image', image: { src: 'https://images.example.test/preview.png', alt: 'Chart' } });
+        await emit({ type: 'text', text: 'Saved the report.' });
+        const save = page.locator('.message:last-child .attachment-save');
+        const thumbnail = page.locator('.message:last-child .image-thumbnail');
+        await save.waitFor();
+        await page.waitForFunction(() => document.querySelector('.message:last-child .image-thumbnail')?.disabled === false);
+        await save.focus();
+        await emit({ type: 'text', text: ' More text.' }); await settle(); await settle();
+        assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('attachment-save')), true, 'focus stays on Save');
+        const press = async (locator, during) => {
+          const box = await locator.boundingBox();
+          await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+          await page.mouse.down();
+          await during(); await settle(); await settle();
+          await page.mouse.up();
+        };
+        const saveDialogs = () => desktop.evaluate(() => globalThis.__tokyoUITest.calls.filter(call => call.method === 'showSaveDialog').length);
+        const before = await saveDialogs();
+        await press(save, () => emit({ type: 'text', text: ' Even more.' }));
+        await page.waitForFunction(() => document.querySelector('.message:last-child .attachment-save')?.disabled === false);
+        assert.equal(await saveDialogs(), before + 1, 'Save opens its dialog');
+        await press(thumbnail, () => emit({ type: 'text', text: ' Still more.' }));
+        await page.locator('#image-dialog[open]').waitFor();
+        await page.keyboard.press('Escape');
+        assert.equal(await page.locator('.message:last-child .chat-image').count(), 1);
+      } finally { await finish(); await idle(); }
+    });
+
     await stage('no renderer errors', async () => assert.deepEqual(errors, []));
   } finally {
     await desktop.close().catch(() => {});

@@ -283,6 +283,8 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
         assert.equal(await page.locator('#attach-button').getAttribute('aria-label'), catalogs[language]['添加图片或附件']);
         assert.equal(await page.locator('#attachment-drafts').getAttribute('aria-label'), catalogs[language]['待发送附件']);
         assert.equal(await page.locator('.attachment-save').first().textContent(), catalogs[language]['保存附件']);
+        // The 6,862-byte image, with this language's decimal separator.
+        assert.equal(await page.locator('.attachment-draft .attachment-size').first().textContent(), ['es', 'de', 'fr'].includes(language) ? '6,7 KB' : '6.7 KB');
       }
       await page.locator('[data-close-dialog="settings-dialog"]').click();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);

@@ -191,6 +191,27 @@ async function assertEngineBlocked(page) {
     });
   }
 
+  await run('switch-while-history-loads', { hold: 'start,readSession' }, async test => {
+    const { page, gate, release } = test;
+    await gate('start'); await test.localReady();
+    const newDraft = 'Draft for a conversation not started yet';
+    await page.locator('#prompt').fill(newDraft);
+    await page.locator('.session-select[title="Older history"]').click();
+    await gate('readSession');
+    // Another choice while the first conversation's history is still loading.
+    await page.locator('.session-select[title="Recent history"]').click();
+    await release('readSession');
+    await page.waitForFunction(() => document.querySelector('.message.user .message-body')?.textContent === 'Recent history — saved content');
+    assert.equal(await page.locator('#prompt').inputValue(), '');
+    await page.locator('.session-select[title="Older history"]').click();
+    await page.waitForFunction(() => document.querySelector('.message.user .message-body')?.textContent === 'Older history — saved content');
+    assert.equal(await page.locator('#prompt').inputValue(), '', 'a conversation chosen while history loads keeps its own (empty) draft');
+    await page.locator('#new-session').click();
+    assert.equal(await page.locator('#prompt').inputValue(), newDraft);
+    await release('start'); await test.engineReady();
+    await test.timed('choosing conversations while their history loads keeps each draft with its own conversation');
+  });
+
   await run('empty-history', { history: false, hold: 'newSession' }, async test => {
     const { page, gate, release } = test;
     await gate('newSession'); await test.localReady();

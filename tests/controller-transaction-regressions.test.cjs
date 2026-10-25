@@ -112,6 +112,32 @@ test('a failed delete cannot resurrect a different session deleted by the next t
   assert.deepEqual((await index(controller)).sessions.map(session => session.id), ['one']);
 });
 
+test('a new conversation whose save failed is not written by another conversation finishing meanwhile', async t => {
+  const { controller, reopen } = await fixture(t);
+  const running = addSession(controller, 'running');
+  await controller.save({ content: ['running'] });
+  const finish = deferred();
+  controller._connect = async () => {};
+  controller._ensureLoaded = async () => running;
+  controller.adapter = {
+    getInfo: () => ({}),
+    async newSession() { return { sessionId: 'created', loaded: true, model: 'm', mode: '', models: [], modes: [], modelSelectionVerified: true }; },
+    async prompt() { await finish.promise; return { stopReason: 'end_turn' }; },
+  };
+  await controller.send({ sessionId: 'running', text: 'A long task' });
+  const gate = failFirstWrite(controller);
+  // A new chat beside the running one; its first save fails.
+  const creating = assert.rejects(controller.createSession(), /injected first write failure/);
+  await gate.entered;
+  finish.resolve();
+  gate.release();
+  await creating;
+  await controller.turnPromise;
+  assert.deepEqual(controller.sessions.map(session => session.id), ['running']);
+  assert.deepEqual((await index(controller)).sessions.map(session => session.id), ['running'], 'the failed conversation is not saved by the other one');
+  assert.deepEqual(reopen().sessions.map(session => session.id), ['running']);
+});
+
 test('cancellation during the initial async history save never dispatches the prompt', async t => {
   const { controller } = await fixture(t);
   const session = addSession(controller, 'one');

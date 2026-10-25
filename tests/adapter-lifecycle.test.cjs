@@ -176,6 +176,89 @@ test('a restore that timed out keeps its late replay out of the next reply', asy
   assert.equal((await prompt).text, 'fresh answer');
 });
 
+test('a forced restore that timed out keeps the next message out of its replay too', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const { adapter, writes, events, answer } = wired();
+  adapter.info.capabilities = { loadSession: true };
+  const chunk = text => adapter._message({ jsonrpc: '2.0', method: 'session/update', params: { sessionId: 's', update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text } } } });
+  const opened = adapter.loadSession({ sessionId: 's' });
+  await new Promise(setImmediate);
+  answer('session/load', { sessionId: 's', configOptions: [] });
+  assert.equal((await opened).loaded, true);
+  // A model catalog refresh restores the open conversation again and times out.
+  const refresh = adapter.loadSession({ sessionId: 's', force: true });
+  await new Promise(setImmediate);
+  t.mock.timers.tick(3 * 60000);
+  await assert.rejects(refresh, { code: 'TIMEOUT' });
+  chunk('OLD REPLY ');
+  // Still replaying: a message sent now would have its whole answer taken for replay.
+  await assert.rejects(adapter.prompt({ sessionId: 's', text: 'new question' }), { code: 'SESSION_BUSY' });
+  await assert.rejects(adapter._setSelection('s', 'model', 'grok-4'), { code: 'SESSION_BUSY' });
+  assert.equal(writes.filter(item => item.method === 'session/prompt').length, 0);
+  answer('session/load', { sessionId: 's', configOptions: [] });
+  await new Promise(setImmediate);
+  const prompt = adapter.prompt({ sessionId: 's', text: 'new question' });
+  await new Promise(setImmediate);
+  chunk('fresh answer');
+  answer('session/prompt', { stopReason: 'end_turn' });
+  assert.equal((await prompt).text, 'fresh answer');
+  assert.equal(events.filter(event => event.type === 'text' && !event.replay).map(event => event.text).join(''), 'fresh answer');
+});
+
+test('a Stop that cannot reach a CLI that just crashed leaves the crash on the reply', async t => {
+  let cli;
+  const adapter = new GrokAdapter({ cwd: __dirname, spawnProcess: () => (cli = syntheticChild((message, child) => standardReply(message, child))) });
+  t.after(() => adapter.close().catch(() => {}));
+  const events = [];
+  adapter.on('event', event => events.push(event));
+  const { sessionId } = await adapter.newSession();
+  const prompt = adapter.prompt({ sessionId, text: 'work' });
+  await new Promise(setImmediate);
+  // The exit is reported before the pipes close; Stop is pressed in between.
+  cli.stderr.write('panic: out of memory\n');
+  await new Promise(setImmediate);
+  cli.exitCode = 101; cli.emit('exit', 101, null);
+  await assert.rejects(adapter.cancel(sessionId), { code: 'NOT_CONNECTED' });
+  cli.stdout.end(); cli.stderr.end(); cli.emit('close', 101, null);
+  await assert.rejects(prompt, { code: 'PROCESS_EXIT' });
+  assert.ok(events.some(event => event.type === 'error' && event.sessionId === sessionId && /101/.test(event.message) && /out of memory/.test(event.message)),
+    'the reply reports why the CLI stopped, not a cancellation that never reached it');
+});
+
+test('nothing new is sent to a CLI that an unanswered Stop is shutting down', async t => {
+  const received = [];
+  const children = [];
+  const adapter = new GrokAdapter({ cwd: __dirname, spawnProcess: () => {
+    const child = syntheticChild((message, owner) => {
+      received.push({ child: children.indexOf(owner), method: message.method });
+      if (message.method === 'initialize') owner.send({ id: message.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true } } });
+      else if (message.method === 'session/new') owner.send({ id: message.id, result: { sessionId: `s${children.length}-${received.length}`, configOptions: [] } });
+      // Prompts and Stop go unanswered: a stuck CLI.
+    });
+    children.push(child);
+    return child;
+  } });
+  t.after(() => adapter.close().catch(() => {}));
+  const a = await adapter.newSession();
+  const b = await adapter.newSession();
+  // SIGTERM gives the CLI a moment to stop its own tools before it exits.
+  let killStarted, finishKill;
+  const killing = new Promise(resolve => { killStarted = resolve; });
+  const graceOver = new Promise(resolve => { finishKill = resolve; });
+  adapter._kill = async child => { killStarted(); await graceOver; child.kill(); };
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const first = adapter.prompt({ sessionId: a.sessionId, text: 'long task' });
+  await new Promise(setImmediate);
+  await adapter.cancel(a.sessionId);
+  t.mock.timers.tick(10000);
+  await killing;
+  t.mock.timers.reset();
+  await assert.rejects(adapter.prompt({ sessionId: b.sessionId, text: 'task in another conversation' }), { code: 'NOT_CONNECTED' });
+  assert.equal(received.filter(item => item.method === 'session/prompt').length, 1, 'only the stopped prompt ever reached the old CLI');
+  finishKill();
+  assert.equal((await first).cancelled, true);
+});
+
 test('POSIX shutdown lets the CLI stop the tools it started in their own sessions', { skip: process.platform === 'win32' }, async t => {
   const base = path.resolve(__dirname, '..', 'work', 'adapter-lifecycle-tests');
   await fs.mkdir(base, { recursive: true });

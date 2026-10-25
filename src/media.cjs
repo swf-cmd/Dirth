@@ -65,6 +65,19 @@ function isWithin(root, target) {
   return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
 }
 
+// Whether a path named by a reply may be opened at all, before any file is
+// touched. A network path (\\server\share, //server/share) is opened only
+// inside one of the conversation's own folders, `roots` (resolved already):
+// opening another one would connect to its server and offer it this
+// computer's credentials. That folder can itself be on a share, for an app
+// kept on a network drive. Windows allows a colon only after a drive letter
+// (elsewhere it names a data stream or a device); other systems allow it in
+// file names, so only a leading scheme ("smb:", "javascript:") is refused.
+function openablePath(file, roots, platform = process.platform) {
+  if (/^(?:\\\\|\/\/)/.test(file) && !roots.some(root => isWithin(root, path.resolve(file)))) return false;
+  return platform === 'win32' ? !file.includes(':') || /^[a-z]:[\\/][^:]*$/i.test(file) : !/^[a-z][a-z0-9+.-]*:/i.test(file);
+}
+
 async function openLocalFile(file, roots, t = defaultT, attachment = false) {
   const invalid = attachment ? '附件必须是文件，且不能超过 20 MB' : '图片不能超过 20 MB';
   const denied = attachment ? '附件不在这段对话允许的目录内' : '图片不在这段对话的工作目录或图片缓存内';
@@ -255,14 +268,14 @@ async function resolveLocalImage(src, directories, t, allowAnyExtension = false)
     files = [src];
     try { const decoded = decodeURIComponent(src); if (decoded !== src) files.push(decoded); } catch {}
   }
-  files = files.filter(file => !/^(?:\\\\|\/\/)/.test(file) && (!/:/.test(file) || /^[a-z]:[\\/][^:]*$/i.test(file)));
-  if (!files.length) throw new Error(t('不支持的图片地址'));
-  files = files.filter(file => allowAnyExtension || /\.(?:png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(file));
-  if (!files.length) throw new Error(t('不支持的图片格式'));
   const roots = [];
   for (const directory of directories.filter(Boolean)) {
     try { roots.push(await fs.realpath(directory)); } catch (error) { if (error.code !== 'ENOENT') throw error; }
   }
+  files = files.filter(file => openablePath(file, roots));
+  if (!files.length) throw new Error(t('不支持的图片地址'));
+  files = files.filter(file => allowAnyExtension || /\.(?:png|jpe?g|gif|webp|svg|avif|bmp|ico)$/i.test(file));
+  if (!files.length) throw new Error(t('不支持的图片格式'));
   let target;
   search: for (const root of roots) {
     for (const file of files) {
@@ -304,4 +317,4 @@ async function resolveImageResponse(src, cwd, sessionDirectory, t = defaultT, fe
   } catch (error) { await handle.close(); throw error; }
 }
 
-module.exports = { imagesFromContent, imagesFromTools, restoreMessageImages, isReadTool, resolveImage, imageMime, findSessionImageDirectory, readLocalBytes, resolveImageResponse };
+module.exports = { imagesFromContent, imagesFromTools, restoreMessageImages, isReadTool, resolveImage, imageMime, findSessionImageDirectory, readLocalBytes, resolveImageResponse, openablePath };

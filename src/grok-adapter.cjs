@@ -40,8 +40,14 @@ function failure(message, code) {
 function safeMessage(value, fallback) {
   return String(value || fallback)
     .replace(/\b(?:xai|sk|sk-proj)-[A-Za-z0-9_-]{16,}\b/g, '[redacted]')
+    // JSON Web Tokens (OAuth access and ID tokens), wherever they appear.
+    .replace(/\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*/g, '[redacted]')
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+/gi, '$1[redacted]')
-    .replace(/((?:access_token|refresh_token|api_key|authorization)["']?\s*[:=]\s*["']?)[^\s,"'}]+/gi, '$1[redacted]')
+    // An Authorization value is a credential whatever its scheme (Basic, Token…).
+    .replace(/(authorization["']?\s*[:=]\s*["']?)(?:[A-Za-z]+\s+)?[^\s,"'}]+/gi, '$1[redacted]')
+    .replace(/((?:access_token|refresh_token|id_token|api_key|client_secret|password)["']?\s*[:=]\s*["']?)[^\s,&"'}]+/gi, '$1[redacted]')
+    // The CLI's auth store keeps each token under "key".
+    .replace(/("key"\s*:\s*")[^"]*/g, '$1[redacted]')
     .slice(0, 8000);
 }
 
@@ -531,7 +537,7 @@ class GrokAdapter extends EventEmitter {
   async _setSelection(sessionId, configId, value) {
     const session = this.sessions.get(sessionId);
     if (!session?.loaded) throw failure(this.t('请先恢复会话后再修改配置。'), 'INVALID_SESSION');
-    if (this.active.has(sessionId) || this.configuring.has(sessionId) || this.sessionLoads.has(sessionId)) throw failure(this.t('请等待当前会话操作完成后修改配置。'), 'SESSION_BUSY');
+    if (this.active.has(sessionId) || this.configuring.has(sessionId) || this.sessionLoads.has(sessionId) || this.loading.has(sessionId)) throw failure(this.t('请等待当前会话操作完成后修改配置。'), 'SESSION_BUSY');
     this.configuring.add(sessionId);
     let sent = false;
     let verified = false;
@@ -700,7 +706,9 @@ class GrokAdapter extends EventEmitter {
     } finally { if (this.preparing.get(sessionId) === turn) this.preparing.delete(sessionId); }
     if (turn.cancelled) return stopped();
     // Check again after the asynchronous connection/load to reject double sends.
-    if (this.active.has(sessionId) || this.configuring.has(sessionId) || this.sessionLoads.has(sessionId)) throw failure(this.t('这个会话正在处理请求，请先停止或等待完成。'), 'SESSION_BUSY');
+    // A forced restore that timed out leaves the conversation loaded while the
+    // CLI still replays it; every update of a reply sent now would be replay.
+    if (this.active.has(sessionId) || this.configuring.has(sessionId) || this.sessionLoads.has(sessionId) || this.loading.has(sessionId)) throw failure(this.t('这个会话正在处理请求，请先停止或等待完成。'), 'SESSION_BUSY');
     this.active.set(sessionId, turn);
     this._event({ type: 'status', status: 'busy', sessionId });
     try {
@@ -760,9 +768,13 @@ class GrokAdapter extends EventEmitter {
       this._event({ type: 'status', status: 'cancelling', sessionId });
       return { cancelled: true };
     }
+    const wasCancelled = turn.cancelled;
     turn.cancelled = true;
     this._cancelPermissions(sessionId);
-    this._write({ jsonrpc: '2.0', method: 'session/cancel', params: { sessionId } });
+    // A CLI that can no longer be asked to stop (it just exited) was not
+    // stopped by this request: the reply keeps the reason it ended.
+    try { this._write({ jsonrpc: '2.0', method: 'session/cancel', params: { sessionId } }); }
+    catch (error) { turn.cancelled = wasCancelled; throw error; }
     this._event({ type: 'status', status: 'cancelling', sessionId });
     if (!turn.cancelTimer) {
       const child = this.process;
@@ -779,6 +791,9 @@ class GrokAdapter extends EventEmitter {
           turn.cancelTimer.unref?.();
           return;
         }
+        // The CLI may take a moment to stop its tools and exit. Work sent to it
+        // meanwhile would start only to be killed, so it fails at once instead.
+        this.disconnectedProcesses.add(child);
         this._kill(child);
       };
       turn.cancelTimer = setTimeout(cancelWhenSafe, 10000);

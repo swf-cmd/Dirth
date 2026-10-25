@@ -11,7 +11,8 @@ const { EventEmitter } = require('node:events');
 const { PassThrough } = require('node:stream');
 const { randomUUID } = require('node:crypto');
 const { AccountManager } = require('../src/account-manager.cjs');
-const { imagesFromContent, resolveImage, findSessionImageDirectory } = require('../src/media.cjs');
+const { imagesFromContent, resolveImage, findSessionImageDirectory, openablePath } = require('../src/media.cjs');
+const { resolveAttachment } = require('../src/attachments.cjs');
 const { GrokAdapter } = require('../src/grok-adapter.cjs');
 const png = fs.readFileSync(path.resolve(__dirname, '../src/renderer/assets/icon.png'));
 const encoded = png.toString('base64');
@@ -78,6 +79,34 @@ test('image URLs and inline images are validated without arbitrary file or schem
   }
   fs.writeFileSync(path.join(root, 'fake.png'), '<script>alert(1)</script>');
   await assert.rejects(resolveImage('fake.png', root), /image format/);
+});
+
+test('files whose names contain a colon open where the system allows such names', { skip: process.platform === 'win32' }, async t => {
+  const cwd = path.join(fixture(t), 'workspace');
+  fs.mkdirSync(path.join(cwd, 'out'), { recursive: true });
+  const image = path.join(cwd, 'out', 'loss 10:30:00.png');
+  fs.writeFileSync(image, png);
+  fs.writeFileSync(path.join(cwd, 'out', 'report 10:30.csv'), 'a,b\n');
+  for (const src of ['out/loss 10:30:00.png', image, pathToFileURL(image).href]) assert.equal((await resolveImage(src, cwd)).src, `data:image/png;base64,${encoded}`);
+  for (const src of ['out/report 10:30.csv', path.join(cwd, 'out', 'report 10:30.csv')]) assert.equal((await resolveAttachment(src, [cwd])).toString(), 'a,b\n');
+  // A scheme is still not a file name.
+  for (const src of ['smb://server/share/x.png', 'javascript:alert(1).png']) await assert.rejects(resolveImage(src, cwd), /address/);
+});
+
+test('a colon belongs to a file name except on Windows, where only a drive letter has one', () => {
+  for (const [file, platform, allowed] of [
+    ['out/loss 10:30:00.png', 'darwin', true], ['/Users/me/Sales 2025:2026.pdf', 'linux', true],
+    ['javascript:alert(1)', 'darwin', false], ['smb://server/share/x.png', 'linux', false],
+    ['C:\\Users\\me\\a.png', 'win32', true], ['out\\loss 10:30.png', 'win32', false], ['C:\\a.txt:hidden', 'win32', false], ['javascript:alert(1)', 'win32', false],
+  ]) assert.equal(openablePath(file, [], platform), allowed, `${platform}: ${file}`);
+});
+
+test('a network path opens only inside a folder the conversation already uses', { skip: process.platform !== 'win32' }, () => {
+  // An app kept on a network drive stages its uploads there (realpath gives \\server\share).
+  const share = '\\\\fileserver\\home$\\alice\\Dirth\\data\\attachments\\local';
+  assert.equal(openablePath(`${share}\\${randomUUID()}\\report.pdf`, [share]), true);
+  for (const file of ['\\\\attacker\\share\\x.png', `${share}\\..\\..\\..\\..\\other\\x.png`, '//attacker/share/x.png']) assert.equal(openablePath(file, [share]), false, file);
+  assert.equal(openablePath('\\\\fileserver\\home$\\alice\\x.png', ['C:\\Users\\alice\\Workspace']), false);
 });
 
 test('symlink escape, missing images and oversize files report recoverable errors', async t => {
