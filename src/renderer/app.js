@@ -1115,10 +1115,11 @@
     // Fetch saved history without waiting for ACP or restoring an engine session.
     if (state.startingEngine) {
       if (!state.sessions.some(session => session.id === id)) return;
-      state.activeId = id;
-      await loadSessionMessages(id);
-      restoreDraft(); renderSessions(); renderSelects(); renderWorkspace(); renderMessages(true);
-      closeSessionMenu(); $('prompt').focus();
+      // Its draft shows at once: another choice made while this history loads
+      // saves the prompt as this conversation's draft, not the previous one's.
+      state.activeId = id; restoreDraft();
+      try { await loadSessionMessages(id); }
+      finally { renderSessions(); renderSelects(); renderWorkspace(); renderMessages(true); closeSessionMenu(); $('prompt').focus(); }
       return;
     }
     state.selecting = true; renderSelects(); renderComposerState();
