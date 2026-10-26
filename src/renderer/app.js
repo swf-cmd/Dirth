@@ -2033,7 +2033,8 @@
       if (input.validity.customError) input.setCustomValidity(diagnostic(input.validationMessage));
     }
     updateSettingsReconnect(); updateClock();
-    $('conversation-scroll').scrollTop = scrollTop;
+    // Keep the reader's place at once; the conversation's CSS would animate it.
+    $('conversation-scroll').scrollTo({ top: scrollTop, behavior: 'instant' });
   }
 
   function updateClock() {

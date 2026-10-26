@@ -290,7 +290,12 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       await page.locator('#connection-button').click(); await ready(); assert.equal(await page.locator('#model-select').isDisabled(), false);
     });
     await stage('scroll to latest, compact settings, window maximize/restore/minimize', async () => {
-      await page.locator('#conversation-scroll').evaluate(element => { element.scrollTop = 0; }); await page.locator('#scroll-bottom').waitFor({ state: 'visible' }); await page.locator('#scroll-bottom').click();
+      // The conversation scrolls smoothly (CSS). Reach the top at once and let it
+      // settle: on macOS a smooth scroll still running can override the jump
+      // to the latest message that the button makes.
+      await page.locator('#conversation-scroll').evaluate(element => element.scrollTo({ top: 0, behavior: 'instant' }));
+      await page.waitForFunction(() => document.querySelector('#conversation-scroll').scrollTop === 0);
+      await page.locator('#scroll-bottom').waitFor({ state: 'visible' }); await page.locator('#scroll-bottom').click();
       await page.waitForFunction(() => { const element = document.querySelector('#conversation-scroll'); return element.scrollHeight - element.scrollTop - element.clientHeight < 100; });
       await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(980, 680)); await page.locator('#settings-button').click();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
