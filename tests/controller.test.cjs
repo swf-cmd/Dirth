@@ -577,6 +577,33 @@ test('streamed assistant text and tool updates persist without echoing user or r
   assert.equal(controller.active, null);
 });
 
+test('a reply nested deeper than the Markdown parser can follow still ends, saves, reopens and deletes', async t => {
+  const { controller, session, adapter } = await started(t);
+  await controller.send({ sessionId: session.id, text: 'Quote the thread' });
+  // A model stuck repeating ">" overflows the parser's recursion. The final
+  // look for file links used to throw there, leaving the turn reserved: no
+  // Stop, no new message, no delete, and quitting failed.
+  const nested = '> '.repeat(4000) + 'end';
+  adapter.emit('event', { sessionId: session.id, type: 'text', text: nested });
+  adapter.prompts[0].gate.resolve({ stopReason: 'end_turn' });
+  await controller.turnPromise;
+  assert.equal(controller.turns.size, 0);
+  const saved = readHistory(controller);
+  assert.equal(saved.sessions[0].messages[1].text, nested);
+  assert.equal(saved.sessions[0].messages[1].status, 'complete');
+  await controller.send({ sessionId: session.id, text: 'Thanks' });
+  adapter.prompts[1].gate.resolve({ stopReason: 'end_turn' });
+  await controller.turnPromise;
+  // History saved before this fix has such a reply without its media version,
+  // so opening the conversation scans its links again.
+  delete saved.sessions[0].messages[1].mediaVersion;
+  const reloaded = fixture(t, saved).controller;
+  assert.equal(reloaded.readSession(session.id).messages[1].text, nested);
+  assert.match(reloaded.exportMarkdown(session.id), /> > > end/);
+  assert.equal(await reloaded.deleteSession(session.id), true);
+  assert.equal(reloaded.visibleSessions().length, 0);
+});
+
 test('response segments keep progress separate from the answer across streaming, persistence and export', async t => {
   const { controller, session, adapter } = await started(t);
   const events = [];
@@ -2201,6 +2228,25 @@ test('turning the quota display off stops requests, persists and validates the s
   const offline = fixture(t).controller;
   signIn(offline, { id: 'local' });
   assert.equal((await offline.refreshQuota({ force: true })).status, 'disabled');
+});
+
+test('turning the quota off aborts a read in flight, and turning it on again starts only one', async t => {
+  const signals = [];
+  const quotaFetch = (_url, init) => { signals.push(init.signal); return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted')))); };
+  const { controller } = fixture(t, undefined, { quotaFetch });
+  signIn(controller, { id: 'local' });
+  const first = controller.refreshQuota({ force: true });
+  await new Promise(setImmediate);
+  assert.equal(signals.length, 1);
+  await controller.saveSettings({ quotaEnabled: false });
+  assert.equal(signals[0].aborted, true, 'the token request stops when the card is turned off');
+  await first;
+  assert.equal(controller.quotaState().status, 'disabled');
+  await controller.saveSettings({ quotaEnabled: true });
+  void controller.refreshQuota({ force: true });
+  void controller.refreshQuota({ force: true });
+  await new Promise(setImmediate);
+  assert.equal(signals.filter(signal => !signal.aborted).length, 1);
 });
 
 test('a finished turn schedules a quota refresh and closing clears quota timers', async t => {

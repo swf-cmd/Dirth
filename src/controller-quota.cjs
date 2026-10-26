@@ -20,6 +20,10 @@ class ControllerQuota {
   resetQuota() {
     clearTimeout(this.quotaTimer);
     this.quotaTimer = null;
+    // Stop a read still in flight. Left running, its token request would go
+    // on after the card was turned off, and the next refresh would send a
+    // second, overlapping one.
+    this.quotaRequest?.abort.abort();
     this.quotaRequest = null;
     this.quota = { status: 'idle', accountId: this.activeAccountId };
   }
@@ -52,11 +56,11 @@ class ControllerQuota {
     if (previous?.checkedAt && since < (force ? QUOTA_FORCE_INTERVAL : minInterval)) return this.quotaState();
     const retained = previous?.usage ? { usage: previous.usage, fetchedAt: previous.fetchedAt } : {};
     this.setQuota({ status: previous?.usage ? 'ok' : 'loading', ...retained, refreshing: true, ...(previous?.checkedAt ? { checkedAt: previous.checkedAt } : {}) });
-    const request = { accountId };
+    const request = { accountId, abort: new AbortController() };
     request.promise = (async () => {
-      const result = await fetchAccountQuota(auth, { fetch: this.quotaFetch, clientVersion: this.normalizeInfo().version });
+      const result = await fetchAccountQuota(auth, { fetch: this.quotaFetch, clientVersion: this.normalizeInfo().version, signal: request.abort.signal });
       // Discard a response for an account that is no longer displayed.
-      if (this.closing || this.activeAccountId !== accountId || this.quotaRequest !== request) return this.quotaState();
+      if (this.closing || !this.settings.quotaEnabled || this.activeAccountId !== accountId || this.quotaRequest !== request) return this.quotaState();
       const checkedAt = Date.now();
       if (result.usage) return this.setQuota({ status: 'ok', usage: result.usage, fetchedAt: checkedAt, checkedAt });
       // Keep the last confirmed value visible, marked with why it is stale.

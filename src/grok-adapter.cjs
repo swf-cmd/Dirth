@@ -21,15 +21,41 @@ const CONTROL_TIMEOUT = 60000;
 const LOAD_TIMEOUT = 3 * 60000;
 // After the CLI exits, how long its pipes may take to deliver what it wrote last.
 const EXIT_DRAIN_TIMEOUT = 2000;
-// How long the CLI gets to stop its own tools before its process group is killed.
+// How long the CLI gets to exit after SIGTERM before its process group is killed.
 const TERMINATE_GRACE = 1500;
+// How long shutdown waits for Grok to close its sessions, which stops the
+// commands their tools started, before it ends the process anyway.
+const SESSION_CLOSE_TIMEOUT = 3000;
 // A 50 MB attachment batch needs roughly 67 MB when base64-encoded in ACP.
 const MAX_LINE = 80 * 1024 * 1024;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const MAX_ATTACHMENT_BATCH_BYTES = 50 * 1024 * 1024;
+// Grok reads at most 64 MiB per JSON-RPC line, and a longer one ends the
+// connection for every conversation. Images embedded in one prompt stay
+// within this much base64; any beyond it go as file references instead.
+const MAX_INLINE_IMAGE_BASE64 = 48 * 1024 * 1024;
 const PROTOCOL_VERSION = 1;
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isRequestId = value => typeof value === 'string' || Number.isSafeInteger(value);
+// In plan mode Grok writes a plan, then asks the client before it leaves plan
+// mode and starts changing files. The window shows it as an approval card
+// with these three answers. Any error instead is taken as a lost client: the
+// turn stops and the conversation stays in plan mode, unable to edit.
+const PLAN_APPROVAL_METHODS = new Set(['_x.ai/exit_plan_mode', 'x.ai/exit_plan_mode']);
+const PLAN_OPTIONS = Object.freeze(['approved', 'cancelled', 'abandoned'].map(optionId =>
+  Object.freeze({ optionId, name: optionId, kind: optionId === 'approved' ? 'allow_once' : 'reject_once' })));
+// Questions and MCP forms have no place in this window. Answer them as the
+// CLI's own non-interactive client does, as declined, not with an error.
+// Sessions are also created without the question tool, so Grok asks in its
+// reply instead.
+const DECLINED_REQUESTS = new Map([
+  ['_x.ai/ask_user_question', { outcome: 'cancelled' }], ['x.ai/ask_user_question', { outcome: 'cancelled' }],
+  ['_x.ai/mcp/elicit', { outcome: 'cancel' }], ['x.ai/mcp/elicit', { outcome: 'cancel' }],
+]);
+const SESSION_META = Object.freeze({ askUserQuestion: false });
+const permissionResult = (permission, optionId) => permission.plan
+  ? { outcome: optionId || 'cancelled' }
+  : { outcome: optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' } };
 
 function failure(message, code) {
   const error = new Error(message);
@@ -49,6 +75,18 @@ function safeMessage(value, fallback) {
     // The CLI's auth store keeps each token under "key".
     .replace(/("key"\s*:\s*")[^"]*/g, '$1[redacted]')
     .slice(0, 8000);
+}
+
+// Grok's errors carry only a generic name ("Authentication required",
+// "Internal error") in `message`; the reason a person can act on (an expired
+// sign-in, a rate limit, an outage) is in `data`, as text or as
+// { message, http_status }.
+function errorText(error) {
+  const title = typeof error?.message === 'string' ? error.message.trim() : '';
+  const data = error?.data;
+  const detail = (typeof data === 'string' ? data : typeof data?.message === 'string' ? data.message : '').trim();
+  if (!detail || detail === title) return title;
+  return title ? `${title}: ${detail}` : detail;
 }
 
 function textFromContent(content) {
@@ -321,7 +359,7 @@ class GrokAdapter extends EventEmitter {
       if (!request) return;
       this.pending.delete(message.id);
       clearTimeout(request.timer);
-      if (message.error) request.reject(failure(this.safeMessage(message.error.message), message.error.code));
+      if (message.error) request.reject(failure(this.safeMessage(errorText(message.error)), message.error.code));
       else {
         // Consume the initial catalog in wire order. A newer notification can
         // follow this response in the same stdout chunk, before await resumes.
@@ -334,13 +372,14 @@ class GrokAdapter extends EventEmitter {
     }
     const params = message.params || {};
     if (Object.hasOwn(message, 'id')) {
-      if (message.method === 'session/request_permission') {
+      if (message.method === 'session/request_permission' || PLAN_APPROVAL_METHODS.has(message.method)) {
         if (!isRequestId(message.id)) return;
+        const plan = message.method !== 'session/request_permission';
         const turn = this.active.get(params.sessionId);
-        const validOptions = Array.isArray(params.options) && params.options.length > 0
+        const validOptions = plan || (Array.isArray(params.options) && params.options.length > 0
           && params.options.every(option => isRecord(option) && typeof option.optionId === 'string'
             && ['allow_once', 'allow_always', 'reject_once', 'reject_always'].includes(option.kind))
-          && new Set(params.options.map(option => option.optionId)).size === params.options.length;
+          && new Set(params.options.map(option => option.optionId)).size === params.options.length);
         // Fail closed for stale, malformed, or unsolicited requests. A queued
         // renderer click must never approve a new request that reuses a wire ID.
         const duplicate = [...this.permissions.entries()].find(([, permission]) => permission.id === message.id);
@@ -348,14 +387,24 @@ class GrokAdapter extends EventEmitter {
           this.permissions.delete(duplicate[0]);
           this._event({ type: 'status', status: 'permission_resolved', sessionId: duplicate[1].sessionId, requestId: duplicate[0], cancelled: true });
         }
-        if (this.closed || !turn?.dispatched || turn.cancelled || !validOptions || !isRecord(params.toolCall) || duplicate) {
-          this._write({ jsonrpc: '2.0', id: message.id, result: { outcome: { outcome: 'cancelled' } } });
+        // Grok asks again for a plan left waiting when its conversation is
+        // restored, under a tool call ID of its own. That request belongs to
+        // no reply here, even when it arrives after the next message was
+        // sent: approving or revising would start a turn this window never
+        // shows. The plan is set aside instead, and the conversation leaves
+        // plan mode and works normally.
+        const restoredPlan = plan && (!turn?.dispatched || String(params.toolCallId ?? '').startsWith('exit-plan-mode-resume-'));
+        if (this.closed || restoredPlan || !turn?.dispatched || turn.cancelled || !validOptions || (!plan && !isRecord(params.toolCall)) || duplicate) {
+          this._write({ jsonrpc: '2.0', id: message.id, result: plan ? { outcome: restoredPlan ? 'abandoned' : 'cancelled' } : { outcome: { outcome: 'cancelled' } } });
           return;
         }
         const requestId = randomUUID();
-        const permission = { id: message.id, sessionId: params.sessionId, toolCall: params.toolCall, options: params.options };
+        const toolCall = plan ? { toolCallId: String(params.toolCallId ?? ''), kind: 'plan', content: typeof params.planContent === 'string' ? params.planContent : '' } : params.toolCall;
+        const permission = { id: message.id, sessionId: params.sessionId, toolCall, options: plan ? PLAN_OPTIONS : params.options, ...(plan ? { plan: true } : {}) };
         this.permissions.set(requestId, permission);
-        this._event({ type: 'permission', requestId, sessionId: params.sessionId, toolCall: permission.toolCall, options: permission.options });
+        this._event({ type: 'permission', requestId, sessionId: params.sessionId, toolCall, options: permission.options, ...(plan ? { plan: true } : {}) });
+      } else if (DECLINED_REQUESTS.has(message.method)) {
+        this._write({ jsonrpc: '2.0', id: message.id, result: DECLINED_REQUESTS.get(message.method) });
       } else {
         this._write({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: `Client method not supported: ${message.method}` } });
       }
@@ -371,6 +420,18 @@ class GrokAdapter extends EventEmitter {
   _receiveModelCatalog(state, notify = false) {
     const available = state?.availableModels || (Array.isArray(state) ? state : null);
     this._updateModels(state);
+    // Grok's pushes name its global default model, which moves when any
+    // conversation switches model. The reasoning levels offered for new
+    // conversations must then be that model's, not the levels of the last
+    // conversation restored, or a new chat pairs one model with another's
+    // level and Grok refuses it.
+    if (this.info.currentModelId !== this.modesModelId) {
+      const model = (Array.isArray(available) ? this.info.models : this.modelCatalogModels ?? this.info.models).find(item => item.id === this.info.currentModelId);
+      const efforts = Array.isArray(model?.reasoningEfforts) ? model.reasoningEfforts.filter(effort => typeof effort?.id === 'string' && effort.id) : [];
+      this.info.modes = efforts.map(effort => ({ id: effort.id, name: effort.label || effort.name || effort.id, description: effort.description || '', value: effort.value ?? effort.id }));
+      this.info.currentModeId = efforts.find(effort => effort.value === model?.reasoningEffort || effort.id === model?.reasoningEffort)?.id || '';
+      this.modesModelId = this.info.currentModelId;
+    }
     if (!Array.isArray(available)) return;
     this.modelCatalogModels = this.info.models;
     // Session menus can be narrower than the account catalog. Track only the
@@ -437,6 +498,7 @@ class GrokAdapter extends EventEmitter {
     this.info.modes = modes;
     this.info.currentModeId = currentModeId || '';
     this.info.currentModelId = model || '';
+    this.modesModelId = this.info.currentModelId;
     const session = {
       sessionId, cwd, loaded: true,
       model: model || '',
@@ -477,11 +539,18 @@ class GrokAdapter extends EventEmitter {
     try {
       await this.start();
       cwd = await this._validateCwd(cwd);
-      const result = await this._request('session/new', { cwd, mcpServers: [] });
+      const result = await this._request('session/new', { cwd, mcpServers: [], _meta: SESSION_META });
       if (!result.sessionId) throw failure(this.t('Grok 没有返回会话 ID。'), 'INVALID_RESPONSE');
       const session = this._rememberSession(result, result.sessionId, cwd);
-      if (model && model !== session.model) await this.setModel({ sessionId: session.sessionId, model });
-      if (mode && mode !== this.sessions.get(session.sessionId).mode) await this.setMode({ sessionId: session.sessionId, mode });
+      try {
+        if (model && model !== session.model) await this.setModel({ sessionId: session.sessionId, model });
+        if (mode && mode !== this.sessions.get(session.sessionId).mode) await this.setMode({ sessionId: session.sessionId, mode });
+      } catch (error) {
+        // The conversation is reported as not created, so Grok should not keep it open either.
+        this.sessions.delete(session.sessionId);
+        if (isRecord(this.info.capabilities?.sessionCapabilities?.close)) this._request('session/close', { sessionId: session.sessionId }, SESSION_CLOSE_TIMEOUT).catch(() => {});
+        throw error;
+      }
       this._event({ type: 'status', status: 'idle', sessionId: session.sessionId });
       return this.getSession(session.sessionId);
     } finally { this.creating--; }
@@ -502,7 +571,7 @@ class GrokAdapter extends EventEmitter {
       // marked as replay, so it can never join a new reply in this conversation.
       if (this.active.has(sessionId) || this.loading.has(sessionId)) throw failure(this.t('这个会话正在处理请求，请先停止或等待完成。'), 'SESSION_BUSY');
       this.loading.add(sessionId);
-      const request = this._request('session/load', { sessionId, cwd, mcpServers: [] }, 0);
+      const request = this._request('session/load', { sessionId, cwd, mcpServers: [], _meta: SESSION_META }, 0);
       request.then(() => this.loading.delete(sessionId), () => this.loading.delete(sessionId));
       let timer;
       const timeout = new Promise((_, reject) => {
@@ -649,7 +718,7 @@ class GrokAdapter extends EventEmitter {
   async _promptContent(text, attachments) {
     const prompt = text.trim() ? [{ type: 'text', text }] : [];
     const manifest = [];
-    let total = 0;
+    let total = 0, inlineBase64 = 0;
     for (const attachment of attachments) {
       // Main owns file selection, account isolation and staging. Never accept
       // arbitrary renderer-provided URLs or bytes as a substitute for that path.
@@ -663,8 +732,11 @@ class GrokAdapter extends EventEmitter {
       total += stat.size;
       if (total > MAX_ATTACHMENT_BATCH_BYTES) throw failure(this.t('每条消息的附件总大小不能超过 50 MB'), 'ATTACHMENT_LIMIT');
       const uri = pathToFileURL(attachment.path).href;
-      const inlineImage = attachment.mimeType.startsWith('image/') && this.info.capabilities.promptCapabilities?.image === true;
+      const base64Size = Math.ceil(stat.size / 3) * 4;
+      const inlineImage = attachment.mimeType.startsWith('image/') && this.info.capabilities.promptCapabilities?.image === true
+        && inlineBase64 + base64Size <= MAX_INLINE_IMAGE_BASE64;
       if (inlineImage) {
+        inlineBase64 += base64Size;
         const bytes = await readLocalBytes(attachment.path, [path.dirname(attachment.path)], this.t, true);
         if (bytes.length > MAX_ATTACHMENT_BYTES || bytes.length !== stat.size) throw failure(this.t('附件读取期间发生变化，请重新选择'), 'ATTACHMENT_CHANGED');
         prompt.push({ type: 'image', data: bytes.toString('base64'), mimeType: imageMime(bytes, this.t), uri });
@@ -741,7 +813,7 @@ class GrokAdapter extends EventEmitter {
     for (const [requestId, permission] of this.permissions) {
       if (sessionId && permission.sessionId !== sessionId) continue;
       this.permissions.delete(requestId);
-      try { this._write({ jsonrpc: '2.0', id: permission.id, result: { outcome: { outcome: 'cancelled' } } }); }
+      try { this._write({ jsonrpc: '2.0', id: permission.id, result: permissionResult(permission) }); }
       catch { /* A disconnected agent already released its requests. */ }
       this._event({ type: 'status', status: 'permission_resolved', sessionId: permission.sessionId, requestId, cancelled: true });
     }
@@ -752,7 +824,7 @@ class GrokAdapter extends EventEmitter {
     const permission = this.permissions.get(requestId);
     if (!permission) throw failure(this.t('这条授权请求已经结束。'), 'PERMISSION_EXPIRED');
     if (!permission.options.some(option => option.optionId === optionId)) throw failure(this.t('无效的授权选项。'), 'INVALID_PERMISSION');
-    this._write({ jsonrpc: '2.0', id: permission.id, result: { outcome: { outcome: 'selected', optionId } } });
+    this._write({ jsonrpc: '2.0', id: permission.id, result: permissionResult(permission, optionId) });
     this.permissions.delete(requestId);
     this._event({ type: 'status', status: 'permission_resolved', sessionId: permission.sessionId, requestId, optionId });
     return { ok: true };
@@ -816,8 +888,10 @@ class GrokAdapter extends EventEmitter {
 
   async _kill(child) {
     if (process.platform !== 'win32' && child && child.exitCode === null && child.signalCode === null && Number.isInteger(child.pid)) {
-      // Ask first. Grok's SIGTERM handler stops the commands its tools started
-      // in their own sessions (setsid), which no process-group kill can reach.
+      // Ask first, so Grok can flush its own logs. In `agent stdio` mode its
+      // SIGTERM handler exits at once without stopping the commands its tools
+      // started in their own sessions (setsid), which no process-group kill
+      // reaches either; closing each session beforehand stops those.
       try { process.kill(this.processGroups.has(child) ? -child.pid : child.pid, 'SIGTERM'); } catch { /* Already gone. */ }
       await this._waitForExit(child, TERMINATE_GRACE);
     }
@@ -868,6 +942,7 @@ class GrokAdapter extends EventEmitter {
     this._cancelPermissions();
     const child = this.process;
     if (!child) return;
+    await this._closeSessions(child);
     // Windows workers may retain the working directory after their parent exits.
     // Kill this owned tree before ending stdin so taskkill can still find descendants.
     if (process.platform === 'win32') {
@@ -876,6 +951,25 @@ class GrokAdapter extends EventEmitter {
     }
     try { child.stdin.end(); } catch { /* Escalate below if exit is not observed. */ }
     if (!await this._waitForExit(child, 1000)) await this._terminateProcess(child);
+  }
+
+  // Grok stops a session's tool processes (dev servers, watchers, long
+  // builds, all started in sessions of their own) only when that session is
+  // closed. Ending its input or sending SIGTERM leaves them running after the
+  // app quits, reconnects or switches accounts. On Windows, closing a session
+  // also ends its job object, which reaches processes whose parent already
+  // exited and that a process-tree kill can no longer find. Closed sessions
+  // stay on disk and are loaded again as usual.
+  async _closeSessions(child) {
+    if (!isRecord(this.info.capabilities?.sessionCapabilities?.close)) return;
+    if (this.process !== child || this.disconnectedProcesses.has(child) || !this.ready) return;
+    const ids = [...this.sessions.keys()];
+    if (!ids.length) return;
+    let timer;
+    const deadline = new Promise(resolve => { timer = setTimeout(resolve, SESSION_CLOSE_TIMEOUT); timer.unref?.(); });
+    try {
+      await Promise.race([Promise.allSettled(ids.map(sessionId => this._request('session/close', { sessionId }, SESSION_CLOSE_TIMEOUT))), deadline]);
+    } finally { clearTimeout(timer); }
   }
 }
 

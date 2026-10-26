@@ -143,6 +143,10 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       const menuFile = path.join(testRoot, 'menu-export.md'); await queueDialog({ canceled: false, filePath: menuFile }); await openMenu(); await page.locator('#menu-export').click();
       await page.waitForFunction(() => document.querySelector('#toast-container').textContent.includes('menu-export.md'));
       assert.match(fs.readFileSync(menuFile, 'utf8'), /Fixture reply/);
+      // The chooser opens where the person last saved, never inside the data folder.
+      const exports = (await calls('showSaveDialog')).filter(call => call.options.filters?.[0]?.extensions?.includes('md'));
+      assert.equal(exports.length, 3);
+      for (const { options } of exports) assert.match(options.defaultPath, /^[^\\/]+\.md$/);
     });
     await stage('rename save/cancel, search toggle/filter/Escape, per-chat drafts', async () => {
       await openMenu(); await page.locator('#menu-rename').click(); await page.locator('#rename-input').fill('Renamed fixture'); await page.locator('#rename-form button[type="submit"]').click();
@@ -201,6 +205,20 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
         await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click(); await idle();
         assert.equal((await calls('respondPermission')).at(-1).optionId, optionId); assert.equal(await page.locator('#permission-panel').isHidden(), true);
       }
+    });
+    await stage('a plan Grok wants to start on shows its text and the three plan choices', async () => {
+      await page.locator('#prompt').fill('WAIT plan approval'); await page.locator('#send-button').click(); await page.waitForFunction(() => !document.querySelector('#stop-button').hidden);
+      await desktop.evaluate(() => {
+        const test = globalThis.__tokyoUITest; const sessionId = [...test.adapter.pending.keys()][0];
+        test.adapter.emit('event', { type: 'permission', sessionId, requestId: 'plan-1', plan: true, toolCall: { toolCallId: 'exit-1', kind: 'plan', content: '# Plan\n\n1. Fixture step' },
+          options: ['approved', 'cancelled', 'abandoned'].map(optionId => ({ optionId, name: optionId, kind: optionId === 'approved' ? 'allow_once' : 'reject_once' })) });
+      });
+      const panel = page.locator('#permission-panel'); await panel.waitFor({ state: 'visible' });
+      assert.equal(await panel.locator('.permission-heading').textContent(), 'Grok 拟好了计划，要开始修改吗？');
+      assert.match(await panel.locator('.permission-description').textContent(), /1\. Fixture step/);
+      assert.deepEqual(await panel.locator('button').allTextContents(), ['批准并开始', '继续完善计划', '放弃计划']);
+      await panel.getByRole('button', { name: '批准并开始', exact: true }).click(); await idle();
+      assert.equal((await calls('respondPermission')).at(-1).optionId, 'approved'); assert.equal(await panel.isHidden(), true);
     });
     await stage('queued permissions, external resolution, nonfatal errors keep stop available', async () => {
       await page.locator('#prompt').fill('WAIT queued permissions'); await page.locator('#send-button').click(); await page.waitForFunction(() => !document.querySelector('#stop-button').hidden && !document.querySelector('#prompt').disabled);
@@ -272,7 +290,12 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       await page.locator('#connection-button').click(); await ready(); assert.equal(await page.locator('#model-select').isDisabled(), false);
     });
     await stage('scroll to latest, compact settings, window maximize/restore/minimize', async () => {
-      await page.locator('#conversation-scroll').evaluate(element => { element.scrollTop = 0; }); await page.locator('#scroll-bottom').waitFor({ state: 'visible' }); await page.locator('#scroll-bottom').click();
+      // The conversation scrolls smoothly (CSS). Reach the top at once and let it
+      // settle: on macOS a smooth scroll still running can override the jump
+      // to the latest message that the button makes.
+      await page.locator('#conversation-scroll').evaluate(element => element.scrollTo({ top: 0, behavior: 'instant' }));
+      await page.waitForFunction(() => document.querySelector('#conversation-scroll').scrollTop === 0);
+      await page.locator('#scroll-bottom').waitFor({ state: 'visible' }); await page.locator('#scroll-bottom').click();
       await page.waitForFunction(() => { const element = document.querySelector('#conversation-scroll'); return element.scrollHeight - element.scrollTop - element.clientHeight < 100; });
       await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(980, 680)); await page.locator('#settings-button').click();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
@@ -291,6 +314,22 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       await page.bringToFront();
       await page.waitForFunction(() => document.visibilityState === 'visible' && document.hasFocus());
       assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMinimized()), false);
+    });
+    await stage('a notice raised while a dialog is open is shown above it and read out', async () => {
+      // Under a modal dialog, notices (an engine error, a chat asking for
+      // permission, a failed delete) used to sit behind the backdrop, inert
+      // to screen readers.
+      await page.locator('#settings-button').click(); await page.locator('#settings-dialog[open]').waitFor();
+      await desktop.evaluate(() => globalThis.__tokyoUITest.adapter.emit('event', { type: 'error', message: 'Fixture: notice behind a dialog' }));
+      const notice = page.locator('#settings-dialog .toast.error').filter({ hasText: 'Fixture: notice behind a dialog' });
+      await notice.waitFor();
+      assert.equal(await page.locator('#toast-container').evaluate(element => element.matches(':popover-open')), true);
+      assert.match(await page.locator('#settings-dialog').ariaSnapshot(), /Fixture: notice behind a dialog/);
+      const box = await notice.boundingBox(); const height = await page.evaluate(() => innerHeight);
+      assert.ok(box && box.y + box.height <= height && box.y > height / 2, 'the notice stays at the bottom of the window');
+      await page.locator('[data-close-dialog="settings-dialog"]').click(); await page.locator('#settings-dialog').waitFor({ state: 'hidden' });
+      // Once the dialog closes, notices return to the window itself.
+      await page.waitForFunction(() => document.querySelector('#toast-container').parentElement === document.body && document.querySelector('#toast-container').matches(':popover-open'));
     });
     await stage('delete keep/close/confirm and disabled export after deletion', async () => {
       const before = readState().sessions.length;

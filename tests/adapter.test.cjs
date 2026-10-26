@@ -31,6 +31,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  fs.appendFileSync('requests.ndjson',line+'\n');
  if(m.method==='initialize') {
    const result={protocolVersion:Number(process.env.TEST_PROTOCOL||1),agentCapabilities:{loadSession:process.env.TEST_NO_LOAD!=='1'},_meta:{agentVersion:'test'}};
+   if(process.env.TEST_SESSION_CLOSE==='1') result.agentCapabilities.sessionCapabilities={close:{}};
    if(process.env.TEST_CATALOG_INIT_RACE==='1') {
      result._meta.modelState={currentModelId:model,availableModels:models.slice(0,1)};
      // One pipe write deliberately puts the newer catalog before the client's
@@ -49,6 +50,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
    configured=true;send({id:m.id,result:{_meta:{model:{Ok:model}}}});
  }
  else if(m.method==='session/set_mode') send({id:m.id,result:{}});
+ else if(m.method==='session/close') send({id:m.id,result:{_meta:{'x.ai/closeOutcome':'closed'}}});
  else if(m.method==='session/prompt') {
    pendingPrompt=m;
    const text=p.prompt[0].text;
@@ -89,6 +91,7 @@ async function fixture(t, settings = {}) {
     options.env.TEST_LOAD_DELAY = String(settings.loadDelay || 0);
     options.env.TEST_DESCENDANT = settings.descendant ? '1' : '0';
     options.env.TEST_CATALOG_INIT_RACE = settings.catalogInitRace ? '1' : '0';
+    options.env.TEST_SESSION_CLOSE = settings.sessionClose ? '1' : '0';
     return spawn(executable, ['agent'], options);
   } });
   t.after(async () => { await adapter.close(); assert(path.resolve(cwd).startsWith(base + path.sep)); await fs.rm(cwd, { recursive: true, force: true }); });
@@ -106,6 +109,28 @@ test('a catalog notification beside initialize wins over the older initial catal
   assert.equal(changes.length, 1);
   assert.equal(changes[0].revision, 2);
   assert.deepEqual(changes[0].info.models.map(model => model.id), ['grok-test', 'grok-plain']);
+});
+
+test("a pushed default model offers its own reasoning levels for new chats, not the last restored chat's", () => {
+  const adapter = new GrokAdapter();
+  const efforts = (...ids) => ids.map(id => ({ id, value: id, label: id.toUpperCase() }));
+  const catalog = [
+    { modelId: 'grok-a', name: 'A', _meta: { reasoningEfforts: efforts('low', 'high'), reasoningEffort: 'high' } },
+    { modelId: 'grok-b', name: 'B', _meta: { reasoningEfforts: efforts('fast'), reasoningEffort: 'fast' } },
+    { modelId: 'grok-c', name: 'C' },
+  ];
+  adapter._receiveModelCatalog({ currentModelId: 'grok-a', availableModels: catalog });
+  adapter._rememberSession({ models: { currentModelId: 'grok-a', availableModels: catalog } }, 'chat-a', process.cwd());
+  assert.deepEqual([adapter.getInfo().currentModelId, adapter.getInfo().modes.map(mode => mode.id), adapter.getInfo().currentModeId], ['grok-a', ['low', 'high'], 'high']);
+  // Another conversation switched to B, so Grok pushes B as its default with
+  // an identical catalog. A new chat must not offer B with A's levels.
+  adapter._message({ method: '_x.ai/models/update', params: { modelState: { currentModelId: 'grok-b', availableModels: catalog } } });
+  assert.deepEqual([adapter.getInfo().currentModelId, adapter.getInfo().modes.map(mode => mode.id), adapter.getInfo().currentModeId], ['grok-b', ['fast'], 'fast']);
+  // A model whose levels are unknown offers none rather than borrowing some.
+  adapter._message({ method: '_x.ai/models/update', params: { modelState: { currentModelId: 'grok-c' } } });
+  assert.deepEqual([adapter.getInfo().modes, adapter.getInfo().currentModeId], [[], '']);
+  // The chat itself keeps the levels Grok confirmed for it.
+  assert.deepEqual(adapter.getSession('chat-a').modes.map(mode => mode.id), ['low', 'high']);
 });
 
 test('late catalogs publish revisions without expanding a session menu or repeating identical updates', () => {
@@ -262,6 +287,24 @@ test('CLI error text shown, saved and exported never carries a credential', () =
   for (const text of ['Unexpected token } in JSON at position 5', 'model key: grok-4 is unavailable']) assert.equal(safeMessage(text), text);
 });
 
+test("a CLI error shows Grok's reason from its data, still redacted", async () => {
+  const adapter = new GrokAdapter();
+  const reject = error => {
+    let rejection;
+    adapter.pending.set(1, { method: 'session/prompt', resolve() {}, reject: value => { rejection = value; }, timer: null });
+    adapter._message({ jsonrpc: '2.0', id: 1, error });
+    return rejection;
+  };
+  // Grok puts a generic name in `message` and the reason in `data`.
+  assert.equal(reject({ code: -32000, message: 'Authentication required', data: 'Your sign-in expired. Run grok login.' }).message, 'Authentication required: Your sign-in expired. Run grok login.');
+  const outage = reject({ code: -32603, message: 'Internal error', data: { message: 'Service unavailable, try again shortly', http_status: 503 } });
+  assert.equal(outage.message, 'Internal error: Service unavailable, try again shortly');
+  assert.equal(outage.code, -32603);
+  assert.equal(reject({ code: -32602, message: 'Invalid params' }).message, 'Invalid params');
+  assert.equal(reject({ code: -32602, message: 'Invalid params', data: 'Invalid params' }).message, 'Invalid params');
+  assert.equal(reject({ code: -32000, message: 'Authentication required', data: 'refresh failed: refresh_token=rt-secret-1' }).message.includes('rt-secret-1'), false);
+});
+
 test('process exit rejects an in-flight request and permits reconnect', async t => {
   const { adapter } = await fixture(t);
   const { sessionId } = await adapter.newSession();
@@ -294,7 +337,9 @@ test('legacy reasoning uses official metadata wire values and verifies engine st
   assert.equal(sent.some(m => m.method === 'session/set_mode'), false, 'session mode is not reasoning effort');
   assert.deepEqual(sent.filter(m => m.method === 'session/set_model').map(m => m.params._meta), [{ reasoningEffort: 'low' }, { reasoningEffort: 'high' }]);
   assert.equal(sent.filter(m => m.method === 'session/load').length, 2);
-  assert.equal(sent.find(m => m.method === 'session/new').params._meta, undefined, 'official permission defaults are not overwritten');
+  // Sessions only turn off the question tool, which this window cannot show.
+  // Permission defaults (yoloMode and the like) stay as the CLI configures them.
+  assert.deepEqual(sent.find(m => m.method === 'session/new').params._meta, { askUserQuestion: false }, 'official permission defaults are not overwritten');
 });
 
 test('a no-op success cannot masquerade as an applied reasoning change', async t => {
@@ -584,6 +629,52 @@ test('unsolicited, cancelled and malformed permission requests cannot reach the 
   }
 });
 
+test('a plan Grok wants to start on becomes an approval card answered with its own outcomes', async () => {
+  const f = permissionFixture();
+  const plan = (id, sessionId = 'session') => f.adapter._message({ jsonrpc: '2.0', id, method: '_x.ai/exit_plan_mode', params: { sessionId, toolCallId: 'exit-1', planContent: '# Plan\n\n1. Edit app.js' } });
+  plan(7);
+  const card = f.events.find(event => event.type === 'permission');
+  assert.equal(card.plan, true);
+  assert.equal(card.toolCall.content, '# Plan\n\n1. Edit app.js');
+  assert.deepEqual(card.options.map(option => option.optionId), ['approved', 'cancelled', 'abandoned']);
+  await f.adapter.respondPermission({ requestId: card.requestId, optionId: 'approved' });
+  assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: 7, result: { outcome: 'approved' } });
+  // Stop, a lost engine or quitting answer an open card as "keep planning".
+  plan(8);
+  f.adapter._cancelPermissions('session');
+  assert.deepEqual(f.sent.at(-1).result, { outcome: 'cancelled' });
+  f.adapter.active.get('session').cancelled = true;
+  plan(9);
+  assert.deepEqual(f.sent.at(-1).result, { outcome: 'cancelled' });
+  // Restoring a conversation that was waiting for approval asks again with no
+  // reply running. The plan is set aside instead of starting an unseen turn.
+  const before = f.events.length;
+  plan(10, 'restored-session');
+  assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: 10, result: { outcome: 'abandoned' } });
+  assert.equal(f.events.length, before);
+  // Grok can send that restored request late, after the next message is on
+  // its way. Its own tool call ID still marks it as the restored plan.
+  f.adapter.active.get('session').cancelled = false;
+  f.adapter._message({ jsonrpc: '2.0', id: 11, method: '_x.ai/exit_plan_mode', params: { sessionId: 'session', toolCallId: 'exit-plan-mode-resume-session', planContent: '# Old plan' } });
+  assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: 11, result: { outcome: 'abandoned' } });
+  assert.equal(f.events.length, before);
+});
+
+test('questions and MCP forms are declined the way Grok expects, and sessions start without the question tool', async t => {
+  const f = permissionFixture();
+  for (const [method, result] of [['_x.ai/ask_user_question', { outcome: 'cancelled' }], ['_x.ai/mcp/elicit', { outcome: 'cancel' }]]) {
+    f.adapter._message({ jsonrpc: '2.0', id: method, method, params: { sessionId: 'session' } });
+    assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: method, result });
+  }
+  f.adapter._message({ jsonrpc: '2.0', id: 'other', method: '_x.ai/unknown', params: {} });
+  assert.equal(f.sent.at(-1).error.code, -32601);
+  assert.equal(f.events.length, 0);
+  const { adapter, requests } = await fixture(t);
+  const session = await adapter.newSession();
+  await adapter.loadSession({ sessionId: session.sessionId, force: true });
+  for (const method of ['session/new', 'session/load']) assert.deepEqual((await requests()).find(message => message.method === method).params._meta, { askUserQuestion: false });
+});
+
 test('closing during cwd validation prevents any later CLI spawn', async () => {
   const adapter = new GrokAdapter({ spawnProcess: () => assert.fail('a closed adapter must never spawn') });
   let release;
@@ -616,6 +707,29 @@ test('failed process termination retains ownership and close can be retried', as
   }
   await adapter.close();
   assert.equal(adapter.process, null);
+});
+
+test('shutdown closes each session through Grok first, so it stops their tool processes', async t => {
+  const { adapter, requests } = await fixture(t, { sessionClose: true });
+  const session = await adapter.newSession();
+  const child = adapter.process;
+  // Ending Grok's input (POSIX) or killing its process tree (Windows) comes
+  // only after Grok has answered every close.
+  let closedBeforeStop;
+  const note = () => { closedBeforeStop ??= adapter.pending.size === 0; };
+  const end = child.stdin.end.bind(child.stdin);
+  child.stdin.end = (...args) => { note(); return end(...args); };
+  const terminate = adapter._terminateProcess.bind(adapter);
+  adapter._terminateProcess = (...args) => { note(); return terminate(...args); };
+  await adapter.close();
+  const sent = await requests();
+  assert.deepEqual(sent.filter(message => message.method === 'session/close').map(message => message.params), [{ sessionId: session.sessionId }]);
+  assert.equal(closedBeforeStop, true, 'Grok answers every close before it is stopped');
+  // Only a CLI that advertises session/close is asked to close sessions.
+  const plain = await fixture(t);
+  await plain.adapter.newSession();
+  await plain.adapter.close();
+  assert.equal((await plain.requests()).some(message => message.method === 'session/close'), false);
 });
 
 test('a broken transport retains its CLI until shutdown observes process exit', async t => {

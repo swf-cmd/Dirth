@@ -61,6 +61,32 @@
   let clockDay;
   let clockOffset;
 
+  // Notices sit in a manual popover, in the top layer, inside the dialog
+  // opened last when one is open. A modal dialog makes everything outside it
+  // inert and covers it with its backdrop: a notice anywhere else (a failed
+  // delete, a chat asking for permission while Preferences is open) could be
+  // neither seen nor heard. Top-layer placement keeps it on the viewport even
+  // inside a dialog that scrolls or blurs what is behind it.
+  const openDialogs = [];
+  function placeToasts() {
+    const container = $('toast-container');
+    const host = openDialogs.filter(dialog => dialog.open).at(-1) || document.body;
+    if (container.parentElement !== host) host.append(container);
+    try { if (!container.matches(':popover-open')) container.showPopover(); } catch { /* Shown as an ordinary fixed layer. */ }
+  }
+  document.addEventListener('toggle', event => {
+    if (!(event.target instanceof HTMLDialogElement)) return;
+    const index = openDialogs.indexOf(event.target);
+    if (index >= 0) openDialogs.splice(index, 1);
+    if (event.newState === 'open') openDialogs.push(event.target);
+    // A dialog closed and reopened at once reports a single "open" and is back
+    // in the top layer above the notices inside it: show them again on top.
+    if (event.newState === 'open' && $('toast-container').parentElement === event.target) {
+      try { $('toast-container').hidePopover(); } catch { /* Not shown yet. */ }
+    }
+    placeToasts();
+  }, true);
+
   function toast(message, error = false, duration = 4200) {
     message = diagnostic(safeText(message));
     for (const previous of $('toast-container').children) {
@@ -69,6 +95,7 @@
     const element = document.createElement('div');
     element.className = `toast${error ? ' error' : ''}`;
     element.textContent = safeText(message);
+    placeToasts();
     $('toast-container').append(element);
     setTimeout(() => element.remove(), duration);
   }
@@ -1022,13 +1049,17 @@
     shownPermission = permission; shownPermissionLanguage = i18n.getLanguage();
     panel.replaceChildren(); panel.hidden = !permission;
     if (!permission) return;
-    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.textContent = permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
-    const description = document.createElement('p'); description.className = 'permission-description';
-    description.textContent = safeText(permission.toolCall?.rawInput ?? permission.toolCall?.content ?? permission.description) || t('请确认是否允许此操作。你的选择会发送给本地引擎。');
+    // In plan mode Grok asks before it leaves the plan and starts changing files.
+    const plan = permission.plan === true;
+    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.textContent = plan ? t('Grok 拟好了计划，要开始修改吗？') : permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
+    const description = document.createElement('p'); description.className = `permission-description${plan ? ' plan' : ''}`;
+    description.textContent = plan ? safeText(permission.toolCall?.content) || t('Grok 没有附上计划内容。')
+      : safeText(permission.toolCall?.rawInput ?? permission.toolCall?.content ?? permission.description) || t('请确认是否允许此操作。你的选择会发送给本地引擎。');
     const actions = document.createElement('div'); actions.className = 'permission-actions';
+    const planLabels = { approved: t('批准并开始'), cancelled: t('继续完善计划'), abandoned: t('放弃计划') };
     for (const option of permission.options || []) {
       const button = document.createElement('button');
-      button.textContent = ({ allow_once: t('允许一次'), allow_always: t('始终允许'), reject_once: t('拒绝一次'), reject_always: t('始终拒绝') })[option.kind] || option.name || option.optionId;
+      button.textContent = (plan ? planLabels[option.optionId] : ({ allow_once: t('允许一次'), allow_always: t('始终允许'), reject_once: t('拒绝一次'), reject_always: t('始终拒绝') })[option.kind]) || option.name || option.optionId;
       if ((option.kind || '').startsWith('allow')) button.className = 'allow';
       button.addEventListener('click', () => guarded(async () => {
         for (const other of actions.children) other.disabled = true;
@@ -2002,7 +2033,8 @@
       if (input.validity.customError) input.setCustomValidity(diagnostic(input.validationMessage));
     }
     updateSettingsReconnect(); updateClock();
-    $('conversation-scroll').scrollTop = scrollTop;
+    // Keep the reader's place at once; the conversation's CSS would animate it.
+    $('conversation-scroll').scrollTo({ top: scrollTop, behavior: 'instant' });
   }
 
   function updateClock() {

@@ -123,19 +123,36 @@ function clientVersionHeader(value) {
   return /^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]{1,40})?$/.test(version) ? version : FALLBACK_CLI_VERSION;
 }
 
+// Reads at most MAX_RESPONSE_BYTES. Without Content-Length, response.text()
+// would hold a body of any size in memory before it could be measured.
 async function readLimited(response) {
   const declared = Number(response.headers?.get?.('content-length'));
-  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) return null;
-  const text = await response.text();
-  return text.length > MAX_RESPONSE_BYTES ? null : text;
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) { await response.body?.cancel().catch(() => {}); return null; }
+  if (!response.body?.getReader) {
+    const text = await response.text();
+    return Buffer.byteLength(text) > MAX_RESPONSE_BYTES ? null : text;
+  }
+  const reader = response.body.getReader();
+  const chunks = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > MAX_RESPONSE_BYTES) { await reader.cancel().catch(() => {}); return null; }
+    chunks.push(Buffer.from(value.buffer, value.byteOffset, value.byteLength));
+  }
+  return Buffer.concat(chunks, size).toString('utf8');
 }
 
-/** @param {object} auth @param {{fetch?: typeof globalThis.fetch, clientVersion?: string, now?: () => number, timeoutMs?: number}} options */
-async function fetchAccountQuota(auth, { fetch, clientVersion, now = Date.now, timeoutMs = TIMEOUT_MS } = {}) {
-  if (typeof fetch !== 'function') return { reason: 'network' };
+/** @param {object} auth @param {{fetch?: typeof globalThis.fetch, clientVersion?: string, now?: () => number, timeoutMs?: number, signal?: AbortSignal}} options */
+async function fetchAccountQuota(auth, { fetch, clientVersion, now = Date.now, timeoutMs = TIMEOUT_MS, signal } = {}) {
+  if (typeof fetch !== 'function' || signal?.aborted) return { reason: 'network' };
   const { token, reason } = accessToken(auth, now());
   if (!token) return { reason };
   const controller = new AbortController();
+  // Turning the quota card off, switching accounts or quitting abandons the read.
+  signal?.addEventListener('abort', () => controller.abort(), { once: true });
   let timer;
   const timeout = new Promise((_resolve, reject) => {
     timer = setTimeout(() => { controller.abort(); reject(Object.assign(new Error('timeout'), { name: 'TimeoutError' })); }, timeoutMs);

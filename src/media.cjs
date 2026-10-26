@@ -56,7 +56,12 @@ function imageMime(bytes, t = defaultT) {
   if (bytes.toString('ascii', 0, 2) === 'BM') return 'image/bmp';
   if (bytes.toString('ascii', 4, 8) === 'ftyp' && /avif|avis/.test(bytes.toString('ascii', 8, 32))) return 'image/avif';
   if (bytes[0] === 0 && bytes[1] === 0 && bytes[2] === 1 && bytes[3] === 0) return 'image/x-icon';
-  if (/^(?:\uFEFF)?\s*(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg[\s>]/i.test(bytes.subarray(0, 4096).toString('utf8'))) return 'image/svg+xml';
+  // A comment body may not contain "-->", so each comment can end in only one
+  // place. With a lazy body (<!--[\s\S]*?-->), a run of comments not followed
+  // by <svg> (an XML or HTML file, a hostile download) backtracked
+  // exponentially: 30 comments froze the main process for seconds, 40 for
+  // minutes.
+  if (/^(?:\uFEFF)?\s*(?:<\?xml[^>]*>\s*)?(?:<!--(?:[^-]|-(?!->))*-->\s*)*<svg[\s>]/i.test(bytes.subarray(0, 4096).toString('utf8'))) return 'image/svg+xml';
   throw new Error(t('文件不是支持的图片格式'));
 }
 

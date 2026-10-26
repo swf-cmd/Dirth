@@ -6,21 +6,21 @@
 
 **城市灯火，照亮你的灵感。**
 
-为 [Grok Build](https://x.ai/cli) 编程智能体打造的桌面应用：流式对话、多任务并行、多账户独立管理，窗外是东京的雨夜、京都的灯笼、冲绳的海或北海道的雪。
+为 SpaceXAI 的终端编程智能体 [Grok Build](https://x.ai/cli) 打造的桌面应用：流式对话、最多四个任务并行、多账户独立管理，窗外是一座日本城市——东京的雨夜、京都的灯笼、冲绳的海或北海道的雪。
 
 [English](README.md) · **简体中文**
 
-[![测试](https://github.com/swf-cmd/dirth/actions/workflows/test.yml/badge.svg)](https://github.com/swf-cmd/dirth/actions/workflows/test.yml)
-[![最新版本](https://img.shields.io/github/v/release/swf-cmd/dirth?label=release&color=c1adff)](https://github.com/swf-cmd/dirth/releases/latest)
+[![测试](https://github.com/swf-cmd/grokbuild-tokyo/actions/workflows/test.yml/badge.svg)](https://github.com/swf-cmd/grokbuild-tokyo/actions/workflows/test.yml)
+[![最新版本](https://img.shields.io/github/v/release/swf-cmd/grokbuild-tokyo?label=release&color=c1adff)](https://github.com/swf-cmd/grokbuild-tokyo/releases/latest)
 [![MIT 许可证](https://img.shields.io/badge/license-MIT-71d6c6)](LICENSE)
 ![Windows x64](https://img.shields.io/badge/platform-Windows_x64-86b7f9)
 ![macOS 13+ · Intel + Apple Silicon](https://img.shields.io/badge/macOS-13%2B_Intel_%2B_Apple_Silicon-86b7f9)
 
-**[下载 Mac 版](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip) · [下载 Windows 版](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip) · [全部版本](https://github.com/swf-cmd/dirth/releases)**
+**[下载 Mac 版](https://github.com/swf-cmd/grokbuild-tokyo/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip) · [下载 Windows 版](https://github.com/swf-cmd/grokbuild-tokyo/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip) · [全部版本](https://github.com/swf-cmd/grokbuild-tokyo/releases)**
 
 <sub>免费开源 · 非官方 · 需另行安装官方 <a href="#安装-grok-build">Grok Build CLI</a> · 原名 Grokbuild Tokyo</sub>
 
-[快速开始](#快速开始) · [功能](#陪你把灵感写到深夜) · [常见问题](#常见问题) · [完整使用指南](docs/guide.zh-CN.md) · [参与贡献](CONTRIBUTING.zh-CN.md) · [反馈问题](https://github.com/swf-cmd/dirth/issues/new/choose)
+[快速开始](#快速开始) · [四座城市](#四座城市同一个工作台) · [功能](#陪你把灵感写到深夜) · [常见问题](#常见问题) · [完整使用指南](docs/guide.zh-CN.md) · [参与贡献](CONTRIBUTING.zh-CN.md) · [反馈问题](https://github.com/swf-cmd/grokbuild-tokyo/issues/new/choose)
 
 </div>
 
@@ -28,21 +28,52 @@
 
 *Windows 欢迎页雨滴动态演示，使用隔离的演示账户；Mac 使用原生窗口按钮和 Command 快捷键。[静态截图](docs/images/welcome-zh-CN.png?v=20261020) · [拍摄说明](docs/images/README.md)。*
 
-[Grok Build](https://x.ai/cli) 是 SpaceXAI（原 xAI）推出的终端编程智能体。Dirth 是它的**非官方开源桌面应用**：启动你本机安装的 Grok Build CLI，并通过 [Agent Client Protocol](https://agentclientprotocol.com/)（ACP）与之通信。登录、模型、工具、授权规则、MCP 服务和 Skills 都按 CLI 原有配置运行，应用只是为它们开了一扇值得一直亮着的窗。
+[Grok Build](https://x.ai/cli) 是 SpaceXAI（原 xAI）推出的终端编程智能体。Dirth 是它的**非官方开源桌面应用**：启动你本机安装的 Grok Build CLI，并通过 [Agent Client Protocol](https://agentclientprotocol.com/)（ACP，编辑器嵌入它时使用的同一协议）与之通信。登录、模型、工具、授权规则、MCP 服务和 Skills 都按 CLI 原有配置运行，应用只是为它们开了一扇值得一直亮着的窗。
 
 本项目与 SpaceXAI 或 xAI 无隶属关系，也未获其背书。登录、模型访问和用量由官方 CLI 及你的账户处理。
+
+## 四座城市，同一个工作台
+
+在**偏好设置**中选择一座城市，整个应用随之改变：配色、字体、窗外景致与天气，以及一首可离线播放的原创配乐。东京是深色夜间版，京都、冲绳、北海道为浅色版。
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/city-tokyo-zh-CN.webp"><img src="docs/images/city-tokyo-zh-CN.webp" alt="东京版：深色界面，窗外是雨夜中的涩谷十字路口" /></a>
+      <br /><b>东京</b> · 涩谷的雨夜
+      <br /><sub><i>Tokyo Afterimage · 東京残像</i>：温暖电钢琴、合成器与慢拍鼓点</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/city-kyoto-zh-CN.webp"><img src="docs/images/city-kyoto-zh-CN.webp" alt="京都版：和纸质感界面与衬线字体，圆窗外是灯笼映照的五重塔" /></a>
+      <br /><b>京都</b> · 东山的红叶
+      <br /><sub><i>Kyoto Lanterns · 京都灯籠</i>：筝的拨弦、尺八般的气息与远处钟声</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="docs/images/city-okinawa-zh-CN.webp"><img src="docs/images/city-okinawa-zh-CN.webp" alt="冲绳版：明亮界面，窗外是翡翠色的海、椰子树和帆船" /></a>
+      <br /><b>冲绳</b> · 恩纳海面的波光
+      <br /><sub><i>Okinawa Island Time · 沖縄島時間</i>：三线般的拨弦与轻摇的鼓点</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="docs/images/city-hokkaido-zh-CN.webp"><img src="docs/images/city-hokkaido-zh-CN.webp" alt="北海道版：磨砂玻璃质感界面，雪花落在小樽运河上" /></a>
+      <br /><b>北海道</b> · 小樽运河的落雪
+      <br /><sub><i>Hokkaido Snowlight · 北海道雪あかり</i>：八音盒、柔和钢琴与清冷合成器</sub>
+    </td>
+  </tr>
+</table>
+
+配乐默认开启，可在**偏好设置**中关闭或调节音量，窗外天气也有单独的开关。系统开启“减少动态效果”时，天气动画会保持静止。
 
 ## 陪你把灵感写到深夜
 
 | 功能 | 你可以做什么 |
 | --- | --- |
-| **有氛围的工作空间** | 窗外的城市景致、可关闭的天气动画，以及每座城市各自的原创离线配乐。 |
-| **四座城市主题** | 东京、京都、冲绳、北海道随时切换：东京保持雨夜深色，京都（和纸与墨）、冲绳（阳光海面）、北海道（雪与磨砂玻璃）为浅色日间版；每座城市都有自己的配色、字体、背景、窗外景致（雨、红叶、海面波光、飘雪）和原创配乐。 |
 | **多任务同时进行** | 最多四段对话并行生成，各自保留进度、授权请求、停止按钮和草稿。 |
-| **持续积累的对话** | 流式 Markdown 与代码块、搜索与重命名、历史恢复和 Markdown 导出。 |
-| **看得见的执行过程** | 查看工具进度和执行计划，逐项响应权限请求，随时停止生成。 |
-| **独立账户管理** | 添加、登录、切换、重命名和删除账户，各自保存登录状态与聊天历史。 |
+| **看得见的执行过程** | 查看工具进度和执行计划，在 Grok 开始修改文件前审批它拟好的计划，逐项响应权限请求，随时停止生成。 |
+| **持续积累的对话** | 流式 Markdown 与代码块、搜索与重命名、历史恢复和 Markdown 导出。回复生成到一半时应用或电脑意外停止，下次启动会恢复已经收到的部分。 |
 | **图片与文件** | 选择文件、将文件拖入消息输入区或粘贴图片，直接预览回复图片并保存返回的附件。 |
+| **独立账户管理** | 添加、登录、切换、重命名和删除账户，各自保存登录状态与聊天历史。 |
 | **额度一目了然** | 在侧边栏查看当前账户的 Grok 额度已用多少、何时重置。 |
 | **跟随官方引擎的控制** | 可选模型与推理档位来自 CLI 并自动更新，还可设置子代理与工作目录。 |
 | **七种界面语言** | 中文、English、日本語、한국어、Español、Deutsch、Français。 |
@@ -73,12 +104,12 @@ irm https://x.ai/cli/install.ps1 | iex
 
 ### 下载说明
 
-**[前往最新 Release](https://github.com/swf-cmd/dirth/releases/latest)**：公开下载，无需登录 GitHub。从 Grokbuild Tokyo（v1.2.5 及更早版本）升级？先退出旧版，再按下面的步骤安装，聊天记录和设置会沿用下来（见[你的数据放在哪里](#你的数据放在哪里)）。
+**[前往最新 Release](https://github.com/swf-cmd/grokbuild-tokyo/releases/latest)**：公开下载，无需登录 GitHub。从 Grokbuild Tokyo（v1.2.5 及更早版本）升级？先退出旧版，再按下面的步骤安装，聊天记录和设置会沿用下来（见[你的数据放在哪里](#你的数据放在哪里)）。
 
 | v1.3.0 下载 | 适用环境 | 校验文件 |
 | --- | --- | --- |
-| **[Mac 通用版 ZIP](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip)** | macOS 13 Ventura 及以上 · Intel 与 Apple Silicon | [SHA-256](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip.sha256) |
-| **[Windows x64 便携版 ZIP](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip)** | Windows x64 · 完整应用文件夹，免安装 | [SHA-256](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip.sha256) |
+| **[Mac 通用版 ZIP](https://github.com/swf-cmd/grokbuild-tokyo/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip)** | macOS 13 Ventura 及以上 · Intel 与 Apple Silicon | [SHA-256](https://github.com/swf-cmd/grokbuild-tokyo/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip.sha256) |
+| **[Windows x64 便携版 ZIP](https://github.com/swf-cmd/grokbuild-tokyo/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip)** | Windows x64 · 完整应用文件夹，免安装 | [SHA-256](https://github.com/swf-cmd/grokbuild-tokyo/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip.sha256) |
 
 - **Mac**：解压一次，将 **Dirth.app** 拖入**应用程序**（v1.2.5 及更早版本名为 **Grokbuild Tokyo.app**）。应用使用临时签名（ad hoc），尚未使用 Developer ID 证书或经过 Apple 公证。如首次启动被 macOS 阻止，请确认下载来自本仓库，再按照**系统设置 → 隐私与安全性 → 仍要打开**操作（[Apple 说明](https://support.apple.com/en-us/102445)）。
 - **Windows**：将 ZIP 完整解压到可写入的目录，运行 **`App\Dirth.exe`**（v1.2.5 及更早版本为 **`App\Grokbuild Tokyo.exe`**）。请保留**整个 `App` 文件夹**；这是便携版，不是安装器。升级时用新的 **`App`** 文件夹替换旧的即可，旁边的 `data` 与 `Workspace` 保持不动。应用尚未进行代码签名。如果出现 SmartScreen 提示，请先核实下载来源；如果系统提供相应选项，可点击**更多信息 → 仍要运行**。
@@ -145,7 +176,7 @@ Get-Content .\Dirth-1.3.0-win-x64.zip.sha256
 <details>
 <summary><b>支持哪些 Grok Build 版本？</b></summary>
 
-真实兼容性基线为 2026-09-07 在 Windows 上核查的 Grok Build **1.0.13 / ACP 1**。模型、推理档位等选项均从已连接的 CLI 读取，建议用 `grok update` 保持 CLI 为最新。客户端没有为所有终端功能提供界面，例如交互终端、Git/worktree 管理、会话分叉和斜杠菜单。详见[完整兼容说明](docs/guide.zh-CN.md#grok-兼容范围)。
+最近一次真实测试于 2026-09-07 在 Windows 上进行，使用 Grok Build **1.0.13 / ACP 1**。之后直至 1.0.70 的版本仍保留本应用使用的 ACP 版本、启动参数与会话方法；模型、推理档位等选项均从所连接的 CLI 读取，新旧两种上报方式都能识别。建议用 `grok update` 保持 CLI 为最新。客户端没有为所有终端功能提供界面，例如交互终端、Git/worktree 管理、会话分叉和斜杠菜单。详见[完整兼容说明](docs/guide.zh-CN.md#grok-兼容范围)。
 
 </details>
 
@@ -159,7 +190,7 @@ Get-Content .\Dirth-1.3.0-win-x64.zip.sha256
 <details>
 <summary><b>为什么首次打开时 macOS 或 Windows 会提示风险？</b></summary>
 
-Mac 版只使用临时签名、未经公证，Windows 版未进行代码签名。请确认下载来自本仓库的 [Releases](https://github.com/swf-cmd/dirth/releases)，必要时校验 SHA-256，再按照[下载说明](#下载说明)中的步骤打开。
+Mac 版只使用临时签名、未经公证，Windows 版未进行代码签名。请确认下载来自本仓库的 [Releases](https://github.com/swf-cmd/grokbuild-tokyo/releases)，必要时校验 SHA-256，再按照[下载说明](#下载说明)中的步骤打开。
 
 </details>
 
@@ -167,6 +198,13 @@ Mac 版只使用临时签名、未经公证，Windows 版未进行代码签名�
 <summary><b>应用会把我的数据发到别处吗？</b></summary>
 
 聊天记录保存在你的电脑上。CLI 会像在终端中一样，把提示词和工具上下文发送给模型服务。除了加载回复中引用的图片和文件，应用自身唯一的网络请求是可选的额度卡片，可随时关闭。详见[它如何工作](#它如何工作)与[你的数据放在哪里](#你的数据放在哪里)。
+
+</details>
+
+<details>
+<summary><b>为什么仓库名叫 grokbuild-tokyo？</b></summary>
+
+应用最初名为 Grokbuild Tokyo，只有东京主题；v1.3.0 加入京都、冲绳和北海道后改名为 Dirth。仓库沿用了原来的地址，已有的链接和克隆都能继续使用。
 
 </details>
 
@@ -208,7 +246,7 @@ Windows 的 `data/` 位于源码根目录，或打包后 `App` 文件夹的旁�
 需要 **Git**、**Node.js 22.13.0 或更高版本**及 npm；开发和 CI 使用 Node.js 24。安装依赖和首次构建需联网下载 Electron。
 
 ```sh
-git clone https://github.com/swf-cmd/dirth.git
+git clone https://github.com/swf-cmd/grokbuild-tokyo.git dirth
 cd dirth
 npm ci
 npm start
@@ -257,7 +295,7 @@ npm run test:all
 
 `test:all` 依次运行 ESLint、JavaScript 类型检查、单元测试和全部离线 UI 测试。测试使用隔离环境与模拟 CLI，不发送真实模型请求。CI 还会审计依赖、构建 Windows 版与 Mac 通用版，并在 Windows、Apple Silicon 和 Intel Mac 上对打包后的应用重跑 UI 测试。[贡献指南](CONTRIBUTING.zh-CN.md)包含完整检查命令、贡献流程及需主动开启的真实模型测试说明。
 
-欢迎反馈问题、提交范围清晰的修复、完善翻译和文档。敏感安全问题请使用 [GitHub 私密漏洞报告](https://github.com/swf-cmd/dirth/security/advisories/new)。
+欢迎反馈问题、提交范围清晰的修复、完善翻译和文档。敏感安全问题请使用 [GitHub 私密漏洞报告](https://github.com/swf-cmd/grokbuild-tokyo/security/advisories/new)。
 
 如果 Dirth 陪你度过了不少深夜，给仓库点个 Star，能帮更多人发现它。
 

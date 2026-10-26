@@ -168,6 +168,7 @@
 :root[data-theme="kyoto"] .session-menu button:hover{background:#7a446c10;color:var(--lime)}
 :root[data-theme="kyoto"] .session-menu button span{color:#7e6f5f}
 :root[data-theme="kyoto"] .session-menu button.danger-text{color:#773729}
+:root[data-theme="kyoto"] .toast-container{border:0;background:transparent;color:inherit}
 :root[data-theme="kyoto"] .toast{background:#cbc4baf2;border:1px solid #713a652c;color:#342516;box-shadow:0 8px 30px #281c1824}
 :root[data-theme="kyoto"] .toast.error{background:#dac6bb;border-color:#832e2338;color:#54261b}
 :root[data-theme="kyoto"] .message-cancelled{color:#7c7163}
@@ -421,6 +422,7 @@
 :root[data-theme="okinawa"] .session-menu button:hover{background:#0c7f8010;color:var(--lime)}
 :root[data-theme="okinawa"] .session-menu button span{color:#37839b}
 :root[data-theme="okinawa"] .session-menu button.danger-text{color:#823b35}
+:root[data-theme="okinawa"] .toast-container{border:0;background:transparent;color:inherit}
 :root[data-theme="okinawa"] .toast{background:#b2d0ddf2;border:1px solid #1076752c;color:#033641;box-shadow:0 8px 30px #0a334122}
 :root[data-theme="okinawa"] .toast.error{background:#e1cac1;border-color:#8f303238;color:#5f2b26}
 :root[data-theme="okinawa"] .message-cancelled{color:#47829a}
@@ -674,6 +676,7 @@
 :root[data-theme="hokkaido"] .session-menu button:hover{background:#48689210;color:var(--lime)}
 :root[data-theme="hokkaido"] .session-menu button span{color:#587a9b}
 :root[data-theme="hokkaido"] .session-menu button.danger-text{color:#7a3e37}
+:root[data-theme="hokkaido"] .toast-container{border:0;background:transparent;color:inherit}
 :root[data-theme="hokkaido"] .toast{background:#bbc9dbf2;border:1px solid #3c608b2c;color:#02314f;box-shadow:0 8px 30px #1d293d1f}
 :root[data-theme="hokkaido"] .toast.error{background:#dcc8c0;border-color:#86363438;color:#592d27}
 :root[data-theme="hokkaido"] .message-cancelled{color:#607a97}

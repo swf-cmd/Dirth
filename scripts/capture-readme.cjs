@@ -15,6 +15,17 @@ const motionEnabled = process.argv.includes('--motion');
 const motionFps = 20;
 const motionFrames = 60;
 const captureTime = '2026-09-07T14:42:00.000Z';
+// Tokyo is captured in full (welcome, conversation, motion). The other city
+// editions are captured on their welcome screens for the README's city gallery,
+// with the same demo data and clock.
+const cityThemes = ['kyoto', 'okinawa', 'hokkaido'];
+// The two production animations that draw each city's weather layer.
+const weatherAnimations = {
+  tokyo: ['rain-near', 'rain-far'],
+  kyoto: ['leaves-near', 'leaves-far'],
+  okinawa: ['glitter-drift', 'glitter-drift-far'],
+  hokkaido: ['snow-near', 'snow-far'],
+};
 // Illustrative sidebar quota, served by the fixture: nothing is read from xAI.
 // The reset falls one week after the demo clock so the card reads naturally.
 const demoQuota = { usage: { usedPercent: 37, periodType: 'weekly', resetAt: Date.UTC(2026, 8, 14, 0, 0), plan: 'SuperGrok', products: [{ name: 'Grok Build', usedPercent: 21 }] } };
@@ -46,8 +57,8 @@ const copy = {
   },
 };
 
-function seedProfile(runRoot, locale) {
-  const testRoot = path.join(runRoot, locale);
+function seedProfile(runRoot, locale, theme = 'tokyo') {
+  const testRoot = path.join(runRoot, theme === 'tokyo' ? locale : `${theme}-${locale}`);
   const executable = path.join(testRoot, 'grok.exe');
   for (const directory of ['data', 'default-grok']) fs.mkdirSync(path.join(testRoot, directory), { recursive: true });
   fs.writeFileSync(executable, 'Offline UI fixture only. This file must never be executed.');
@@ -68,7 +79,7 @@ function seedProfile(runRoot, locale) {
   ];
   fs.writeFileSync(path.join(testRoot, 'data', 'conversations.json'), JSON.stringify({
     version: 2,
-    settings: { executable, workspace, language: locale, rainEnabled: true, musicEnabled: false, musicVolume: 90, subagentsEnabled: true },
+    settings: { executable, workspace, language: locale, theme, rainEnabled: true, musicEnabled: false, musicVolume: 90, subagentsEnabled: true },
     accounts: [{ id: 'local', name: '本机 Grok 账户', nameIsDefault: true }],
     activeAccountId: 'local', sessions,
   }, null, 2));
@@ -83,7 +94,7 @@ async function settleAndPause(page) {
     document.querySelector('#conversation-scroll').scrollTo({ top: 0, behavior: 'instant' });
     await document.fonts.ready;
     const artwork = new Image();
-    artwork.src = new URL('assets/tokyo-rain.png', location.href).href;
+    artwork.src = new URL(`assets/${window.TokyoThemes.themes[document.documentElement.dataset.theme].backdrop}`, location.href).href;
     await artwork.decode();
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     const animations = document.getAnimations();
@@ -112,16 +123,16 @@ async function compareScreenshots(desktop, first, second, panel) {
     const a = firstImage.toBitmap({ scaleFactor: 1 });
     const b = secondImage.toBitmap({ scaleFactor: 1 });
     if (a.length !== b.length || a.length !== size.width * size.height * 4) throw new Error('Unexpected bitmap dimensions');
-    let changedPixels = 0, outsidePanelPixels = 0, maximumChannelDelta = 0;
+    let changedPixels = 0, outsidePanelPixels = 0, maximumChannelDelta = 0, outsidePanelMaximumDelta = 0;
     for (let index = 0; index < a.length; index += 4) {
       const delta = Math.max(Math.abs(a[index] - b[index]), Math.abs(a[index + 1] - b[index + 1]), Math.abs(a[index + 2] - b[index + 2]));
       maximumChannelDelta = Math.max(maximumChannelDelta, delta);
       if (delta < 3) continue;
       const x = (index / 4) % size.width, y = Math.floor(index / 4 / size.width);
       if (x >= panel.x && x < panel.x + panel.width && y >= panel.y && y < panel.y + panel.height) changedPixels++;
-      else outsidePanelPixels++;
+      else { outsidePanelPixels++; outsidePanelMaximumDelta = Math.max(outsidePanelMaximumDelta, delta); }
     }
-    return { changedPixels, outsidePanelPixels, maximumChannelDelta, threshold: 3 };
+    return { changedPixels, outsidePanelPixels, outsidePanelMaximumDelta, maximumChannelDelta, threshold: 3 };
   }, { first, second, panel });
 }
 
@@ -132,19 +143,24 @@ async function setRainHidden(page, hidden) {
   }, hidden);
 }
 
-async function captureView(desktop, page, locale, view) {
+async function captureView(desktop, page, locale, view, theme = 'tokyo') {
   await page.mouse.move(10, 10);
   await page.locator('#quota-card[data-state="normal"][aria-busy="false"]').waitFor({ state: 'visible' });
   assert.equal(await page.locator('#quota-value').textContent(), '37%');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), theme);
   await settleAndPause(page);
-  assert.equal(await page.locator('#rain-layer').isVisible(), true, 'The rain preference must be enabled');
+  assert.equal(await page.locator('#rain-layer').isVisible(), true, 'The weather preference must be enabled');
   const evidence = await page.locator('#rain-layer').evaluate(element => {
     const layer = getComputedStyle(element);
     const readPseudo = pseudo => {
       const style = getComputedStyle(element, pseudo);
       return { animationName: style.animationName, backgroundImage: style.backgroundImage, opacity: style.opacity, transform: style.transform };
     };
-    const panel = element.getBoundingClientRect();
+    // The weather belongs to the main panel. Kyoto shows it in a round window
+    // only, but hiding the layer there still re-rasterizes the panel's text
+    // (Windows draws ClearType text only away from an animated layer), so the
+    // whole panel may change and nothing outside it may.
+    const panel = element.closest('.main-panel').getBoundingClientRect();
     return {
       hidden: element.hidden, opacity: layer.opacity, maskImage: layer.maskImage,
       reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -160,14 +176,17 @@ async function captureView(desktop, page, locale, view) {
   assert.equal(evidence.overflow, false);
   assert.equal(evidence.contentOverflow, false);
   assert.equal(evidence.reducedMotion, false);
-  assert.equal(evidence.before.animationName, 'rain-near');
-  assert.equal(evidence.after.animationName, 'rain-far');
+  // Rain, maple leaves, sea glitter or snow: each city draws its weather with
+  // two production animations (some add a sway or a twinkle beside them).
+  const [near, far] = weatherAnimations[theme];
+  assert.equal(evidence.before.animationName.split(/,\s*/)[0], near);
+  assert.equal(evidence.after.animationName.split(/,\s*/)[0], far);
   for (const pseudo of [evidence.before, evidence.after]) {
-    assert.match(pseudo.backgroundImage, /radial-gradient/);
+    assert.match(pseudo.backgroundImage, /radial-gradient|url\(/);
     assert.notEqual(pseudo.transform, 'none');
   }
-  for (const name of ['rain-near', 'rain-far']) assert.ok(evidence.animations.some(animation => animation.name === name && animation.state === 'paused' && animation.currentTime > 0));
-  const basename = `${view}-${locale}`;
+  for (const name of [near, far]) assert.ok(evidence.animations.some(animation => animation.name === name && animation.state === 'paused' && animation.currentTime > 0));
+  const basename = theme === 'tokyo' ? `${view}-${locale}` : `${view}-${theme}-${locale}`;
   const rainOn = path.join(qa, `${basename}-rain-on.png`);
   const rainOff = path.join(qa, `${basename}-rain-off.png`);
   const rainOffStable = path.join(qa, `${basename}-rain-off-stable.png`);
@@ -187,10 +206,16 @@ async function captureView(desktop, page, locale, view) {
   // on the Windows runner). Anything larger is a real change in the UI.
   assert.ok(rainOffStability.maximumChannelDelta <= 1, `The rain-off comparison must have no changing UI pixels: ${JSON.stringify(rainOffStability)}`);
   const pixelDiff = await compareScreenshots(desktop, rainOn, rainOff, evidence.panel);
-  assert.ok(pixelDiff.changedPixels > 100, `Rain must change rendered pixels: ${JSON.stringify(pixelDiff)}`);
-  assert.equal(pixelDiff.outsidePanelPixels, 0, `Only the rain layer may change in the QA comparison: ${JSON.stringify(pixelDiff)}`);
+  assert.ok(pixelDiff.changedPixels > 100, `The weather must change rendered pixels: ${JSON.stringify(pixelDiff)}`);
+  if (theme === 'tokyo') assert.equal(pixelDiff.outsidePanelPixels, 0, `Only the rain layer may change in the QA comparison: ${JSON.stringify(pixelDiff)}`);
+  else {
+    // The daylight editions put soft shadows under white cards. Hiding the
+    // weather layer recomposites the page, which can move a few shadow-edge
+    // pixels by a few levels; anything stronger or wider is a real change.
+    assert.ok(pixelDiff.outsidePanelPixels <= 100 && pixelDiff.outsidePanelMaximumDelta <= 8, `Only the weather layer may change in the QA comparison: ${JSON.stringify(pixelDiff)}`);
+  }
   fs.copyFileSync(rainOn, path.join(images, `${basename}.png`));
-  return { locale, view, file: `${basename}.png`, ...evidence, pixelDiff, rainOffStability };
+  return { locale, view, theme, file: `${basename}.png`, ...evidence, pixelDiff, rainOffStability };
 }
 
 async function captureMotion(desktop, page, locale, panel) {
@@ -255,8 +280,8 @@ async function captureMotion(desktop, page, locale, panel) {
   };
 }
 
-async function captureLocale(electron, runRoot, locale, results) {
-  const { testRoot, sessions } = seedProfile(runRoot, locale);
+async function captureLocale(electron, runRoot, locale, results, theme = 'tokyo') {
+  const { testRoot, sessions } = seedProfile(runRoot, locale, theme);
   const env = { ...process.env, TOKYO_TEST_ROOT: testRoot, TOKYO_TEST_QUOTA: JSON.stringify(demoQuota) };
   delete env.ELECTRON_RUN_AS_NODE;
   delete env.TOKYO_UI_SOURCE_ROOT;
@@ -289,13 +314,15 @@ async function captureLocale(electron, runRoot, locale, results) {
     assert.equal(await page.locator('#model-select').inputValue(), 'grok-4');
     assert.equal(await page.locator('#tokyo-time').textContent(), '23:42 JST');
     await page.locator('#welcome').waitFor({ state: 'visible' });
-    const welcome = await captureView(desktop, page, locale, 'welcome');
+    const welcome = await captureView(desktop, page, locale, 'welcome', theme);
     results.captures.push(welcome);
-    if (motionEnabled) results.motion.push(await captureMotion(desktop, page, locale, welcome.panel));
-    await page.locator('.session-select').filter({ hasText: copy[locale].title }).click();
-    await page.waitForFunction(() => document.querySelectorAll('#messages .message').length === 2 && !document.querySelector('#model-select').disabled);
-    assert.equal(await page.locator('#model-select').inputValue(), 'grok-4');
-    results.captures.push(await captureView(desktop, page, locale, 'app'));
+    if (theme === 'tokyo') {
+      if (motionEnabled) results.motion.push(await captureMotion(desktop, page, locale, welcome.panel));
+      await page.locator('.session-select').filter({ hasText: copy[locale].title }).click();
+      await page.waitForFunction(() => document.querySelectorAll('#messages .message').length === 2 && !document.querySelector('#model-select').disabled);
+      assert.equal(await page.locator('#model-select').inputValue(), 'grok-4');
+      results.captures.push(await captureView(desktop, page, locale, 'app'));
+    }
     const activity = await desktop.evaluate(() => ({
       prompts: globalThis.__tokyoUITest.calls.filter(call => call.method === 'prompt').length,
       logins: globalThis.__tokyoUITest.calls.filter(call => call.method === 'login').length,
@@ -303,7 +330,7 @@ async function captureLocale(electron, runRoot, locale, results) {
     }));
     assert.deepEqual(activity, { prompts: 0, logins: 0, external: [] });
     assert.deepEqual(errors, []);
-    results.locales[locale] = { pageErrors: errors, fixtureActivity: activity };
+    results.locales[theme === 'tokyo' ? locale : `${theme}-${locale}`] = { pageErrors: errors, fixtureActivity: activity };
   } finally { await desktop.close(); }
 }
 
@@ -321,6 +348,7 @@ async function main() {
     mapped = true;
     fs.mkdirSync(workspace, { recursive: true });
     for (const locale of Object.keys(copy)) await captureLocale(electron, runRoot, locale, results);
+    for (const theme of cityThemes) for (const locale of Object.keys(copy)) await captureLocale(electron, runRoot, locale, results, theme);
     results.complete = true;
     console.log(JSON.stringify({ complete: true, images, qa, captures: results.captures.map(({ file, pixelDiff }) => ({ file, pixelDiff })), motion: results.motion }, null, 2));
   } catch (error) {
