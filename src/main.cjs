@@ -103,11 +103,14 @@ else {
     });
     handle('exportSession', async id => {
       const s = controller.getSession(id);
-      const title = Array.from(controller.sessionTitle(s).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_')).slice(0, 80).join('');
+      const title = safeName(Array.from(controller.sessionTitle(s).replace(/[\\/]/g, '_')).slice(0, 80).join(''));
       const markdown = controller.exportMarkdown(id);
-      const result = await dialog.showSaveDialog(win, { title: t('导出会话'), defaultPath: path.join(root, `${title}.md`), filters: [{ name: 'Markdown', extensions: ['md'] }] });
+      // A bare file name lets the system dialog open where the person last
+      // saved, as when saving an attachment, rather than in the app's data
+      // folder, which on Mac is hidden under ~/Library.
+      const result = await dialog.showSaveDialog(win, { title: t('导出会话'), defaultPath: `${title}.md`, filters: [{ name: 'Markdown', extensions: ['md'] }] });
       if (result.canceled || !result.filePath) return null;
-      fs.writeFileSync(result.filePath, markdown, 'utf8'); return result.filePath;
+      await fs.promises.writeFile(result.filePath, markdown, 'utf8'); return result.filePath;
     });
     handle('windowControl', action => { if (action === 'minimize') win.minimize(); else if (action === 'maximize') win.isMaximized() ? win.unmaximize() : win.maximize(); else if (action === 'close') win.close(); });
     handle('openExternal', async url => { const parsed = new URL(url); if (!['https:', 'http:'].includes(parsed.protocol)) throw new Error(t('不支持的链接')); return shell.openExternal(parsed.href); });

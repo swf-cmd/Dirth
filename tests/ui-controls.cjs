@@ -143,6 +143,10 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       const menuFile = path.join(testRoot, 'menu-export.md'); await queueDialog({ canceled: false, filePath: menuFile }); await openMenu(); await page.locator('#menu-export').click();
       await page.waitForFunction(() => document.querySelector('#toast-container').textContent.includes('menu-export.md'));
       assert.match(fs.readFileSync(menuFile, 'utf8'), /Fixture reply/);
+      // The chooser opens where the person last saved, never inside the data folder.
+      const exports = (await calls('showSaveDialog')).filter(call => call.options.filters?.[0]?.extensions?.includes('md'));
+      assert.equal(exports.length, 3);
+      for (const { options } of exports) assert.match(options.defaultPath, /^[^\\/]+\.md$/);
     });
     await stage('rename save/cancel, search toggle/filter/Escape, per-chat drafts', async () => {
       await openMenu(); await page.locator('#menu-rename').click(); await page.locator('#rename-input').fill('Renamed fixture'); await page.locator('#rename-form button[type="submit"]').click();
