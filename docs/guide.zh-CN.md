@@ -77,7 +77,7 @@ Mac 版共用 Windows 的界面、七种语言、账户管理、聊天、工具�
 
 ## 聊天、图片与附件
 
-支持流式回复、Markdown 和代码块、复制、对话搜索、重命名、导出 Markdown、工具进度、执行计划、逐项授权及停止生成。执行计划随 Grok 更新，并与聊天一起保存和导出；回复长度/请求次数达到上限或被拒绝时保留明确提示。Enter 发送；Shift+Enter 换行；Windows 使用 Ctrl+N 新会话、Ctrl+, 设置；Mac 对应使用 Cmd+N、Cmd+,。
+支持流式回复、Markdown 和代码块、复制、对话搜索、重命名、导出 Markdown、工具进度、执行计划、逐项授权及停止生成。执行计划随 Grok 更新，并与聊天一起保存和导出。Grok 在计划模式下拟好计划后，会在退出计划模式、开始修改文件前征求同意：计划以卡片形式出现，可选择**批准并开始**、**继续完善计划**或**放弃计划**（停止生成视为继续完善计划）；应用关闭时仍在等待审批的对话，恢复时会退出计划模式。Grok 的选择题提问和 MCP 表单没有对应卡片；会话启动时会关闭 Grok 的提问工具，让它直接在回复中提问。回复长度/请求次数达到上限或被拒绝时保留明确提示。Enter 发送；Shift+Enter 换行；Windows 使用 Ctrl+N 新会话、Ctrl+, 设置；Mac 对应使用 Cmd+N、Cmd+,。
 
 **多任务同时进行**：同一个引擎中最多四段对话可同时生成。一段对话运行时，可以打开或新建其他对话，为其选择模型和推理档位、添加附件并发送。每段对话各自保留进度、停止按钮、授权请求和草稿。“最近对话”旁的计数显示正在运行的数量；你在查看其他对话时，某段对话完成会弹出简短提示。需要重启或更换引擎的操作（重新连接、账户变更，以及更换可执行文件、工作目录或子代理设置）会等待所有对话结束或停止。其他对话仍在运行时，若 Grok 在 10 秒内未确认停止，只会释放被停止的这段对话，待 Grok 应答后即可继续发送；只有没有其他对话运行时才会重启引擎。
 
@@ -177,7 +177,7 @@ node tests/ui-attachments.cjs --packaged
 
 历史真实兼容性基线为 2026-09-07 核查的 Windows 本机 Grok Build **1.0.13 / ACP 1**。之后的版本经过静态核查（未做真实测试）：开源 CLI 代码（1.0.45）与 1.0.70 发布版仍提供客户端使用的 ACP 版本、`agent --no-leader stdio` 启动方式、`session/load`、`session/set_config_option` 与早期的 `session/set_model`、权限请求以及 `login --device-auth`。Mac 共用同一套 ACP 实现，但模拟界面与打包检查不代表已经完成 Mac 真实模型验证。聊天、会话恢复、模型/推理切换、工具执行、权限请求和子代理通过官方 CLI；文件读写、终端、MCP、Skills、插件和沙箱由 CLI 按自身配置处理，客户端不宣称接管文件或终端执行。权限提示是否出现取决于官方权限模式、规则和已保存授权。
 
-该版本通过 ACP 宣告 `image: false`、`audio: false`；图片和文件通过基线 `resource_link` 与准确的本地路径交给 CLI 工具处理，不把未读取的文件宣称为已经内嵌。回复仍支持图片预览及附件保存。客户端没有为所有 `x.ai/*` 扩展或 TUI 专用命令提供独立界面（例如 Git/worktree 管理、会话分叉/回退、交互终端与斜杠菜单），不能等同于官方 TUI 的全部功能。遇到不兼容的协议或不支持历史恢复的引擎，现在会明确提示。
+该版本通过 ACP 宣告 `image: false`、`audio: false`；图片和文件通过基线 `resource_link` 与准确的本地路径交给 CLI 工具处理，不把未读取的文件宣称为已经内嵌。回复仍支持图片预览及附件保存。计划审批（`x.ai/exit_plan_mode`）有专门的卡片；提问与 MCP 表单按 Grok 非交互客户端的方式婉拒。客户端没有为其他 `x.ai/*` 扩展或 TUI 专用命令提供独立界面（例如 Git/worktree 管理、会话分叉/回退、交互终端与斜杠菜单），不能等同于官方 TUI 的全部功能。遇到不兼容的协议或不支持历史恢复的引擎，现在会明确提示。
 
 东京背景为生成的涩谷雨夜图，提示词见 [IMAGE-PROMPT.md](../src/renderer/assets/IMAGE-PROMPT.md)；京都、冲绳、北海道背景及主题预览图由 `scripts/backdrop-art.js` 绘制，运行 `node scripts/render-backdrops.cjs` 重新生成（加 `--preview` 则输出到 `work/backdrops` 供审阅）。图标由 `scripts/make-icon.py` 绘制（需 Python 与 Pillow）。东京配乐可用 `node scripts/render-ambience.cjs` 从 `scripts/ambient-score.js` 重新生成，城市配乐用 `node scripts/render-ambience.cjs --theme kyoto`（或 `okinawa`、`hokkaido`、`all`）从 `scripts/theme-scores.js` 生成，并用 `ffmpeg` 无损编码为 FLAC。城市配色由 `node scripts/build-theme-css.cjs` 从 `styles.css` 生成到 `theme-colors.css`，文件过期时 `npm test` 会失败。
 

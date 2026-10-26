@@ -70,7 +70,7 @@ The soundtrack is on by default: turn it off or set its volume in **Preferences*
 | Experience | What you can do |
 | --- | --- |
 | **Several tasks at once** | Run up to four conversations in parallel, each with its own progress, permission prompts, stop button and draft. |
-| **See the agent at work** | Follow tool progress and execution plans, answer each permission request and stop generation at any time. |
+| **See the agent at work** | Follow tool progress and execution plans, approve Grok's plan before it starts changing files, answer each permission request and stop generation at any time. |
 | **Conversations that stay with you** | Stream Markdown and code, search and rename chats, restore sessions and export Markdown. If the app or computer stops mid-reply, the part that had arrived is restored on the next launch. |
 | **Images and files** | Pick files, drop them onto the message composer or paste images; preview image replies and save returned files. |
 | **Separate account profiles** | Add, sign in, switch, rename and remove profiles, each with its own login state and history. |
