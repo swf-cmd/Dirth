@@ -2230,6 +2230,25 @@ test('turning the quota display off stops requests, persists and validates the s
   assert.equal((await offline.refreshQuota({ force: true })).status, 'disabled');
 });
 
+test('turning the quota off aborts a read in flight, and turning it on again starts only one', async t => {
+  const signals = [];
+  const quotaFetch = (_url, init) => { signals.push(init.signal); return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted')))); };
+  const { controller } = fixture(t, undefined, { quotaFetch });
+  signIn(controller, { id: 'local' });
+  const first = controller.refreshQuota({ force: true });
+  await new Promise(setImmediate);
+  assert.equal(signals.length, 1);
+  await controller.saveSettings({ quotaEnabled: false });
+  assert.equal(signals[0].aborted, true, 'the token request stops when the card is turned off');
+  await first;
+  assert.equal(controller.quotaState().status, 'disabled');
+  await controller.saveSettings({ quotaEnabled: true });
+  void controller.refreshQuota({ force: true });
+  void controller.refreshQuota({ force: true });
+  await new Promise(setImmediate);
+  assert.equal(signals.filter(signal => !signal.aborted).length, 1);
+});
+
 test('a finished turn schedules a quota refresh and closing clears quota timers', async t => {
   const quotaFetch = async () => new Response('{"config":{}}', { status: 200 });
   const { controller, adapter, session } = await started(t, { quotaFetch });

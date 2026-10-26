@@ -112,6 +112,32 @@ test('failures become retryable reasons without throwing or exposing details', a
   assert.deepEqual(await fetchAccountQuota(oauth(), {}), { reason: 'network' });
 });
 
+test('a body without Content-Length is read only up to the limit, and a caller can abandon the read', async () => {
+  // A response streaming more than the limit is refused and cancelled once the
+  // limit passes, instead of being held in memory first.
+  let pulled = 0, cancelled = false;
+  const endless = new ReadableStream({
+    pull(controller) { pulled++; controller.enqueue(new Uint8Array(64 * 1024).fill(32)); },
+    cancel() { cancelled = true; },
+  });
+  assert.deepEqual(await fetchAccountQuota(oauth(), { fetch: async () => new Response(endless, { headers: { 'content-type': 'application/json' } }) }), { reason: 'invalid' });
+  assert.equal(cancelled, true);
+  assert.ok(pulled <= 10, `read ${pulled} chunks`);
+  const body = JSON.stringify({ config: { creditUsagePercent: 5, currentPeriod: { type: 'weekly', end: '2030-01-06T09:00:00Z' } } });
+  const streamed = new ReadableStream({ start(controller) { controller.enqueue(new TextEncoder().encode(body)); controller.close(); } });
+  assert.equal((await fetchAccountQuota(oauth(), { fetch: async () => new Response(streamed) })).usage.usedPercent, 5);
+  // Turning the card off aborts a read in flight.
+  const abort = new AbortController();
+  let signal;
+  const pending = fetchAccountQuota(oauth(), { fetch: (_url, init) => { signal = init.signal; return new Promise((_, reject) => init.signal.addEventListener('abort', () => reject(new Error('aborted')))); }, signal: abort.signal });
+  abort.abort();
+  assert.deepEqual(await pending, { reason: 'network' });
+  assert.equal(signal.aborted, true);
+  let called = false;
+  assert.deepEqual(await fetchAccountQuota(oauth(), { fetch: async () => { called = true; return json({}); }, signal: abort.signal }), { reason: 'network' });
+  assert.equal(called, false);
+});
+
 test('a stalled billing request times out and aborts', async () => {
   let signal;
   const fetch = (_url, init) => { signal = init.signal; return new Promise(() => {}); };
