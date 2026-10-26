@@ -310,6 +310,22 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       await page.waitForFunction(() => document.visibilityState === 'visible' && document.hasFocus());
       assert.equal(await desktop.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].isMinimized()), false);
     });
+    await stage('a notice raised while a dialog is open is shown above it and read out', async () => {
+      // Under a modal dialog, notices (an engine error, a chat asking for
+      // permission, a failed delete) used to sit behind the backdrop, inert
+      // to screen readers.
+      await page.locator('#settings-button').click(); await page.locator('#settings-dialog[open]').waitFor();
+      await desktop.evaluate(() => globalThis.__tokyoUITest.adapter.emit('event', { type: 'error', message: 'Fixture: notice behind a dialog' }));
+      const notice = page.locator('#settings-dialog .toast.error').filter({ hasText: 'Fixture: notice behind a dialog' });
+      await notice.waitFor();
+      assert.equal(await page.locator('#toast-container').evaluate(element => element.matches(':popover-open')), true);
+      assert.match(await page.locator('#settings-dialog').ariaSnapshot(), /Fixture: notice behind a dialog/);
+      const box = await notice.boundingBox(); const height = await page.evaluate(() => innerHeight);
+      assert.ok(box && box.y + box.height <= height && box.y > height / 2, 'the notice stays at the bottom of the window');
+      await page.locator('[data-close-dialog="settings-dialog"]').click(); await page.locator('#settings-dialog').waitFor({ state: 'hidden' });
+      // Once the dialog closes, notices return to the window itself.
+      await page.waitForFunction(() => document.querySelector('#toast-container').parentElement === document.body && document.querySelector('#toast-container').matches(':popover-open'));
+    });
     await stage('delete keep/close/confirm and disabled export after deletion', async () => {
       const before = readState().sessions.length;
       await openMenu(); await page.locator('#menu-delete').click(); await page.locator('#delete-dialog .secondary-button').click(); assert.equal(readState().sessions.length, before);

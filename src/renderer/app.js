@@ -61,6 +61,27 @@
   let clockDay;
   let clockOffset;
 
+  // Notices sit in a manual popover, in the top layer, inside the dialog
+  // opened last when one is open. A modal dialog makes everything outside it
+  // inert and covers it with its backdrop: a notice anywhere else (a failed
+  // delete, a chat asking for permission while Preferences is open) could be
+  // neither seen nor heard. Top-layer placement keeps it on the viewport even
+  // inside a dialog that scrolls or blurs what is behind it.
+  const openDialogs = [];
+  function placeToasts() {
+    const container = $('toast-container');
+    const host = openDialogs.filter(dialog => dialog.open).at(-1) || document.body;
+    if (container.parentElement !== host) host.append(container);
+    try { if (!container.matches(':popover-open')) container.showPopover(); } catch { /* Shown as an ordinary fixed layer. */ }
+  }
+  document.addEventListener('toggle', event => {
+    if (!(event.target instanceof HTMLDialogElement)) return;
+    const index = openDialogs.indexOf(event.target);
+    if (index >= 0) openDialogs.splice(index, 1);
+    if (event.newState === 'open') openDialogs.push(event.target);
+    placeToasts();
+  }, true);
+
   function toast(message, error = false, duration = 4200) {
     message = diagnostic(safeText(message));
     for (const previous of $('toast-container').children) {
@@ -69,6 +90,7 @@
     const element = document.createElement('div');
     element.className = `toast${error ? ' error' : ''}`;
     element.textContent = safeText(message);
+    placeToasts();
     $('toast-container').append(element);
     setTimeout(() => element.remove(), duration);
   }
