@@ -30,6 +30,10 @@ const SESSION_CLOSE_TIMEOUT = 3000;
 const MAX_LINE = 80 * 1024 * 1024;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
 const MAX_ATTACHMENT_BATCH_BYTES = 50 * 1024 * 1024;
+// Grok reads at most 64 MiB per JSON-RPC line, and a longer one ends the
+// connection for every conversation. Images embedded in one prompt stay
+// within this much base64; any beyond it go as file references instead.
+const MAX_INLINE_IMAGE_BASE64 = 48 * 1024 * 1024;
 const PROTOCOL_VERSION = 1;
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isRequestId = value => typeof value === 'string' || Number.isSafeInteger(value);
@@ -711,7 +715,7 @@ class GrokAdapter extends EventEmitter {
   async _promptContent(text, attachments) {
     const prompt = text.trim() ? [{ type: 'text', text }] : [];
     const manifest = [];
-    let total = 0;
+    let total = 0, inlineBase64 = 0;
     for (const attachment of attachments) {
       // Main owns file selection, account isolation and staging. Never accept
       // arbitrary renderer-provided URLs or bytes as a substitute for that path.
@@ -725,8 +729,11 @@ class GrokAdapter extends EventEmitter {
       total += stat.size;
       if (total > MAX_ATTACHMENT_BATCH_BYTES) throw failure(this.t('每条消息的附件总大小不能超过 50 MB'), 'ATTACHMENT_LIMIT');
       const uri = pathToFileURL(attachment.path).href;
-      const inlineImage = attachment.mimeType.startsWith('image/') && this.info.capabilities.promptCapabilities?.image === true;
+      const base64Size = Math.ceil(stat.size / 3) * 4;
+      const inlineImage = attachment.mimeType.startsWith('image/') && this.info.capabilities.promptCapabilities?.image === true
+        && inlineBase64 + base64Size <= MAX_INLINE_IMAGE_BASE64;
       if (inlineImage) {
+        inlineBase64 += base64Size;
         const bytes = await readLocalBytes(attachment.path, [path.dirname(attachment.path)], this.t, true);
         if (bytes.length > MAX_ATTACHMENT_BYTES || bytes.length !== stat.size) throw failure(this.t('附件读取期间发生变化，请重新选择'), 'ATTACHMENT_CHANGED');
         prompt.push({ type: 'image', data: bytes.toString('base64'), mimeType: imageMime(bytes, this.t), uri });

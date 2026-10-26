@@ -86,6 +86,20 @@ test('image:true embeds validated image bytes and combines arbitrary file refere
   assert(!content.some(item => item.type === 'resource'), 'binary documents stay readable local files instead of unsupported blob context');
 });
 
+test("embedded images stay within Grok's 64 MiB line, and the rest go as file references", async t => {
+  const { adapter, requests, sessionId, file } = await fixture(t, { capabilities: { image: true } });
+  // Three 16.6 MB images are allowed (under 20 MB each and 50 MB in all), but
+  // embedded together their base64 needs a 66 MiB line, which Grok refuses
+  // by dropping the connection for every conversation.
+  const size = Math.floor(16.6 * 1024 * 1024);
+  const pictures = [];
+  for (const name of ['one.png', 'two.png', 'three.png']) pictures.push(await file(name, Buffer.concat([png, Buffer.alloc(size - png.length)]), 'image/png'));
+  await adapter.prompt({ sessionId, text: 'Three screenshots', attachments: pictures });
+  const request = requests.find(item => item.method === 'session/prompt');
+  assert.deepEqual(request.params.prompt.map(item => item.type), ['text', 'image', 'image', 'resource_link', 'text']);
+  assert.ok(Buffer.byteLength(JSON.stringify(request)) < 64 * 1024 * 1024);
+});
+
 test('malformed, missing, non-image and oversized files fail without dispatching a partial prompt', async t => {
   const { adapter, requests, sessionId, file, cwd } = await fixture(t, { capabilities: { image: true } });
   const attachment = await file('document.txt', Buffer.from('hello'), 'text/plain');
