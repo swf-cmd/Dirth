@@ -21,8 +21,11 @@ const CONTROL_TIMEOUT = 60000;
 const LOAD_TIMEOUT = 3 * 60000;
 // After the CLI exits, how long its pipes may take to deliver what it wrote last.
 const EXIT_DRAIN_TIMEOUT = 2000;
-// How long the CLI gets to stop its own tools before its process group is killed.
+// How long the CLI gets to exit after SIGTERM before its process group is killed.
 const TERMINATE_GRACE = 1500;
+// How long shutdown waits for Grok to close its sessions, which stops the
+// commands their tools started, before it ends the process anyway.
+const SESSION_CLOSE_TIMEOUT = 3000;
 // A 50 MB attachment batch needs roughly 67 MB when base64-encoded in ACP.
 const MAX_LINE = 80 * 1024 * 1024;
 const MAX_ATTACHMENT_BYTES = 20 * 1024 * 1024;
@@ -855,8 +858,10 @@ class GrokAdapter extends EventEmitter {
 
   async _kill(child) {
     if (process.platform !== 'win32' && child && child.exitCode === null && child.signalCode === null && Number.isInteger(child.pid)) {
-      // Ask first. Grok's SIGTERM handler stops the commands its tools started
-      // in their own sessions (setsid), which no process-group kill can reach.
+      // Ask first, so Grok can flush its own logs. In `agent stdio` mode its
+      // SIGTERM handler exits at once without stopping the commands its tools
+      // started in their own sessions (setsid), which no process-group kill
+      // reaches either; closing each session beforehand stops those.
       try { process.kill(this.processGroups.has(child) ? -child.pid : child.pid, 'SIGTERM'); } catch { /* Already gone. */ }
       await this._waitForExit(child, TERMINATE_GRACE);
     }
@@ -913,8 +918,26 @@ class GrokAdapter extends EventEmitter {
       await this._terminateProcess(child);
       return;
     }
+    await this._closeSessions(child);
     try { child.stdin.end(); } catch { /* Escalate below if exit is not observed. */ }
     if (!await this._waitForExit(child, 1000)) await this._terminateProcess(child);
+  }
+
+  // Grok stops a session's tool processes (dev servers, watchers, long
+  // builds, all started in sessions of their own) only when that session is
+  // closed. Ending its input or sending SIGTERM leaves them running after the
+  // app quits, reconnects or switches accounts. Closed sessions stay on disk
+  // and are loaded again as usual.
+  async _closeSessions(child) {
+    if (!isRecord(this.info.capabilities?.sessionCapabilities?.close)) return;
+    if (this.process !== child || this.disconnectedProcesses.has(child) || !this.ready) return;
+    const ids = [...this.sessions.keys()];
+    if (!ids.length) return;
+    let timer;
+    const deadline = new Promise(resolve => { timer = setTimeout(resolve, SESSION_CLOSE_TIMEOUT); timer.unref?.(); });
+    try {
+      await Promise.race([Promise.allSettled(ids.map(sessionId => this._request('session/close', { sessionId }, SESSION_CLOSE_TIMEOUT))), deadline]);
+    } finally { clearTimeout(timer); }
   }
 }
 

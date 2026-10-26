@@ -31,6 +31,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
  fs.appendFileSync('requests.ndjson',line+'\n');
  if(m.method==='initialize') {
    const result={protocolVersion:Number(process.env.TEST_PROTOCOL||1),agentCapabilities:{loadSession:process.env.TEST_NO_LOAD!=='1'},_meta:{agentVersion:'test'}};
+   if(process.env.TEST_SESSION_CLOSE==='1') result.agentCapabilities.sessionCapabilities={close:{}};
    if(process.env.TEST_CATALOG_INIT_RACE==='1') {
      result._meta.modelState={currentModelId:model,availableModels:models.slice(0,1)};
      // One pipe write deliberately puts the newer catalog before the client's
@@ -49,6 +50,7 @@ readline.createInterface({input:process.stdin}).on('line', line => {
    configured=true;send({id:m.id,result:{_meta:{model:{Ok:model}}}});
  }
  else if(m.method==='session/set_mode') send({id:m.id,result:{}});
+ else if(m.method==='session/close') send({id:m.id,result:{_meta:{'x.ai/closeOutcome':'closed'}}});
  else if(m.method==='session/prompt') {
    pendingPrompt=m;
    const text=p.prompt[0].text;
@@ -89,6 +91,7 @@ async function fixture(t, settings = {}) {
     options.env.TEST_LOAD_DELAY = String(settings.loadDelay || 0);
     options.env.TEST_DESCENDANT = settings.descendant ? '1' : '0';
     options.env.TEST_CATALOG_INIT_RACE = settings.catalogInitRace ? '1' : '0';
+    options.env.TEST_SESSION_CLOSE = settings.sessionClose ? '1' : '0';
     return spawn(executable, ['agent'], options);
   } });
   t.after(async () => { await adapter.close(); assert(path.resolve(cwd).startsWith(base + path.sep)); await fs.rm(cwd, { recursive: true, force: true }); });
@@ -676,6 +679,24 @@ test('failed process termination retains ownership and close can be retried', as
   }
   await adapter.close();
   assert.equal(adapter.process, null);
+});
+
+test('shutdown closes each session through Grok first, so it stops their tool processes', async t => {
+  const { adapter, requests } = await fixture(t, { sessionClose: true });
+  const session = await adapter.newSession();
+  const child = adapter.process;
+  let closedBeforeInputEnded;
+  const end = child.stdin.end.bind(child.stdin);
+  child.stdin.end = (...args) => { closedBeforeInputEnded = adapter.pending.size === 0; return end(...args); };
+  await adapter.close();
+  const sent = await requests();
+  assert.deepEqual(sent.filter(message => message.method === 'session/close').map(message => message.params), [{ sessionId: session.sessionId }]);
+  assert.equal(closedBeforeInputEnded, true, 'Grok answers every close before its input ends');
+  // Only a CLI that advertises session/close is asked to close sessions.
+  const plain = await fixture(t);
+  await plain.adapter.newSession();
+  await plain.adapter.close();
+  assert.equal((await plain.requests()).some(message => message.method === 'session/close'), false);
 });
 
 test('a broken transport retains its CLI until shutdown observes process exit', async t => {
