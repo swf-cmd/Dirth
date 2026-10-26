@@ -206,6 +206,20 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
         assert.equal((await calls('respondPermission')).at(-1).optionId, optionId); assert.equal(await page.locator('#permission-panel').isHidden(), true);
       }
     });
+    await stage('a plan Grok wants to start on shows its text and the three plan choices', async () => {
+      await page.locator('#prompt').fill('WAIT plan approval'); await page.locator('#send-button').click(); await page.waitForFunction(() => !document.querySelector('#stop-button').hidden);
+      await desktop.evaluate(() => {
+        const test = globalThis.__tokyoUITest; const sessionId = [...test.adapter.pending.keys()][0];
+        test.adapter.emit('event', { type: 'permission', sessionId, requestId: 'plan-1', plan: true, toolCall: { toolCallId: 'exit-1', kind: 'plan', content: '# Plan\n\n1. Fixture step' },
+          options: ['approved', 'cancelled', 'abandoned'].map(optionId => ({ optionId, name: optionId, kind: optionId === 'approved' ? 'allow_once' : 'reject_once' })) });
+      });
+      const panel = page.locator('#permission-panel'); await panel.waitFor({ state: 'visible' });
+      assert.equal(await panel.locator('.permission-heading').textContent(), 'Grok 拟好了计划，要开始修改吗？');
+      assert.match(await panel.locator('.permission-description').textContent(), /1\. Fixture step/);
+      assert.deepEqual(await panel.locator('button').allTextContents(), ['批准并开始', '继续完善计划', '放弃计划']);
+      await panel.getByRole('button', { name: '批准并开始', exact: true }).click(); await idle();
+      assert.equal((await calls('respondPermission')).at(-1).optionId, 'approved'); assert.equal(await panel.isHidden(), true);
+    });
     await stage('queued permissions, external resolution, nonfatal errors keep stop available', async () => {
       await page.locator('#prompt').fill('WAIT queued permissions'); await page.locator('#send-button').click(); await page.waitForFunction(() => !document.querySelector('#stop-button').hidden && !document.querySelector('#prompt').disabled);
       await desktop.evaluate(() => {

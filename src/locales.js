@@ -87,6 +87,11 @@
     "HOKKAIDO / NIGHT SHIFT": "北海道 / 深夜时分"
   },
   "ja": {
+    "Grok 拟好了计划，要开始修改吗？": "Grok が計画を立てました。変更を始めますか？",
+    "Grok 没有附上计划内容。": "Grok は計画の内容を添えていません。",
+    "批准并开始": "承認して開始",
+    "继续完善计划": "計画を練り直す",
+    "放弃计划": "計画を破棄",
     "登录 Grok，开始对话": "Grok にログインして、会話を始めましょう",
     "当前账户尚未登录。请在浏览器中完成登录，随后回到这里继续。": "現在のアカウントは未ログインです。ブラウザーでログインを完了してから、ここに戻って続けてください。",
     "登录 Grok ↗": "Grok にログイン ↗",
@@ -598,6 +603,11 @@
     "冬夜氛围 · 原创器乐循环\n八音盒、柔和钢琴与清冷合成器，陪你看雪落在运河上。": "冬の夜のアンビエント · オリジナルのインストループ\nオルゴール、やわらかなピアノ、澄んだシンセで、運河に降る雪を。"
   },
   "en": {
+    "Grok 拟好了计划，要开始修改吗？": "Grok has a plan. Start making changes?",
+    "Grok 没有附上计划内容。": "Grok did not include the plan text.",
+    "批准并开始": "Approve and start",
+    "继续完善计划": "Keep planning",
+    "放弃计划": "Abandon plan",
     "登录 Grok，开始对话": "Sign in to Grok to start chatting",
     "当前账户尚未登录。请在浏览器中完成登录，随后回到这里继续。": "The current account is not signed in. Complete sign-in in your browser, then return here to continue.",
     "登录 Grok ↗": "Sign in to Grok ↗",
@@ -1109,6 +1119,11 @@
     "冬夜氛围 · 原创器乐循环\n八音盒、柔和钢琴与清冷合成器，陪你看雪落在运河上。": "Winter night ambient · Original instrumental loop\nMusic box, soft piano and crystalline synths as snow settles on the canal."
   },
   "ko": {
+    "Grok 拟好了计划，要开始修改吗？": "Grok이 계획을 세웠습니다. 변경을 시작할까요?",
+    "Grok 没有附上计划内容。": "Grok이 계획 내용을 첨부하지 않았습니다.",
+    "批准并开始": "승인하고 시작",
+    "继续完善计划": "계획 계속 다듬기",
+    "放弃计划": "계획 버리기",
     "登录 Grok，开始对话": "Grok에 로그인하고 대화를 시작하세요",
     "当前账户尚未登录。请在浏览器中完成登录，随后回到这里继续。": "현재 계정은 로그인되어 있지 않습니다. 브라우저에서 로그인을 완료한 후 여기로 돌아와 계속하세요.",
     "登录 Grok ↗": "Grok에 로그인 ↗",
@@ -1620,6 +1635,11 @@
     "冬夜氛围 · 原创器乐循环\n八音盒、柔和钢琴与清冷合成器，陪你看雪落在运河上。": "겨울밤 앰비언트 · 오리지널 연주곡 반복 재생\n오르골, 부드러운 피아노, 맑은 신시사이저와 함께 운하에 내리는 눈을 바라봐요."
   },
   "es": {
+    "Grok 拟好了计划，要开始修改吗？": "Grok tiene un plan. ¿Empezar a hacer cambios?",
+    "Grok 没有附上计划内容。": "Grok no ha incluido el texto del plan.",
+    "批准并开始": "Aprobar y empezar",
+    "继续完善计划": "Seguir planificando",
+    "放弃计划": "Descartar el plan",
     "登录 Grok，开始对话": "Inicia sesión en Grok para conversar",
     "当前账户尚未登录。请在浏览器中完成登录，随后回到这里继续。": "La cuenta actual no ha iniciado sesión. Completa el inicio de sesión en el navegador y vuelve aquí para continuar.",
     "登录 Grok ↗": "Iniciar sesión en Grok ↗",
@@ -2131,6 +2151,11 @@
     "冬夜氛围 · 原创器乐循环\n八音盒、柔和钢琴与清冷合成器，陪你看雪落在运河上。": "Ambient de noche invernal · Música instrumental original en bucle\nCaja de música, piano suave y sintetizadores cristalinos mientras la nieve cae sobre el canal."
   },
   "de": {
+    "Grok 拟好了计划，要开始修改吗？": "Grok hat einen Plan. Mit den Änderungen beginnen?",
+    "Grok 没有附上计划内容。": "Grok hat den Plantext nicht mitgeschickt.",
+    "批准并开始": "Genehmigen und starten",
+    "继续完善计划": "Weiter planen",
+    "放弃计划": "Plan verwerfen",
     "登录 Grok，开始对话": "Bei Grok anmelden und loschatten",
     "当前账户尚未登录。请在浏览器中完成登录，随后回到这里继续。": "Das aktuelle Konto ist nicht angemeldet. Schließe die Anmeldung im Browser ab und kehre dann hierher zurück.",
     "登录 Grok ↗": "Bei Grok anmelden ↗",
@@ -2642,6 +2667,11 @@
     "冬夜氛围 · 原创器乐循环\n八音盒、柔和钢琴与清冷合成器，陪你看雪落在运河上。": "Winterlicher Nacht-Ambient · Eigene Instrumentalschleife\nSpieluhr, sanftes Klavier und kristallklare Synthesizer, während Schnee auf den Kanal fällt."
   },
   "fr": {
+    "Grok 拟好了计划，要开始修改吗？": "Grok a un plan. Commencer les modifications ?",
+    "Grok 没有附上计划内容。": "Grok n'a pas joint le texte du plan.",
+    "批准并开始": "Approuver et commencer",
+    "继续完善计划": "Continuer à planifier",
+    "放弃计划": "Abandonner le plan",
     "登录 Grok，开始对话": "Connectez-vous à Grok pour discuter",
     "当前账户尚未登录。请在浏览器中完成登录，随后回到这里继续。": "Le compte actuel n’est pas connecté. Terminez la connexion dans votre navigateur, puis revenez ici pour continuer.",
     "登录 Grok ↗": "Se connecter à Grok ↗",

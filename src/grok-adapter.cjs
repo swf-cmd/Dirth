@@ -30,6 +30,25 @@ const MAX_ATTACHMENT_BATCH_BYTES = 50 * 1024 * 1024;
 const PROTOCOL_VERSION = 1;
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
 const isRequestId = value => typeof value === 'string' || Number.isSafeInteger(value);
+// In plan mode Grok writes a plan, then asks the client before it leaves plan
+// mode and starts changing files. The window shows it as an approval card
+// with these three answers. Any error instead is taken as a lost client: the
+// turn stops and the conversation stays in plan mode, unable to edit.
+const PLAN_APPROVAL_METHODS = new Set(['_x.ai/exit_plan_mode', 'x.ai/exit_plan_mode']);
+const PLAN_OPTIONS = Object.freeze(['approved', 'cancelled', 'abandoned'].map(optionId =>
+  Object.freeze({ optionId, name: optionId, kind: optionId === 'approved' ? 'allow_once' : 'reject_once' })));
+// Questions and MCP forms have no place in this window. Answer them as the
+// CLI's own non-interactive client does, as declined, not with an error.
+// Sessions are also created without the question tool, so Grok asks in its
+// reply instead.
+const DECLINED_REQUESTS = new Map([
+  ['_x.ai/ask_user_question', { outcome: 'cancelled' }], ['x.ai/ask_user_question', { outcome: 'cancelled' }],
+  ['_x.ai/mcp/elicit', { outcome: 'cancel' }], ['x.ai/mcp/elicit', { outcome: 'cancel' }],
+]);
+const SESSION_META = Object.freeze({ askUserQuestion: false });
+const permissionResult = (permission, optionId) => permission.plan
+  ? { outcome: optionId || 'cancelled' }
+  : { outcome: optionId ? { outcome: 'selected', optionId } : { outcome: 'cancelled' } };
 
 function failure(message, code) {
   const error = new Error(message);
@@ -334,13 +353,14 @@ class GrokAdapter extends EventEmitter {
     }
     const params = message.params || {};
     if (Object.hasOwn(message, 'id')) {
-      if (message.method === 'session/request_permission') {
+      if (message.method === 'session/request_permission' || PLAN_APPROVAL_METHODS.has(message.method)) {
         if (!isRequestId(message.id)) return;
+        const plan = message.method !== 'session/request_permission';
         const turn = this.active.get(params.sessionId);
-        const validOptions = Array.isArray(params.options) && params.options.length > 0
+        const validOptions = plan || (Array.isArray(params.options) && params.options.length > 0
           && params.options.every(option => isRecord(option) && typeof option.optionId === 'string'
             && ['allow_once', 'allow_always', 'reject_once', 'reject_always'].includes(option.kind))
-          && new Set(params.options.map(option => option.optionId)).size === params.options.length;
+          && new Set(params.options.map(option => option.optionId)).size === params.options.length);
         // Fail closed for stale, malformed, or unsolicited requests. A queued
         // renderer click must never approve a new request that reuses a wire ID.
         const duplicate = [...this.permissions.entries()].find(([, permission]) => permission.id === message.id);
@@ -348,14 +368,21 @@ class GrokAdapter extends EventEmitter {
           this.permissions.delete(duplicate[0]);
           this._event({ type: 'status', status: 'permission_resolved', sessionId: duplicate[1].sessionId, requestId: duplicate[0], cancelled: true });
         }
-        if (this.closed || !turn?.dispatched || turn.cancelled || !validOptions || !isRecord(params.toolCall) || duplicate) {
-          this._write({ jsonrpc: '2.0', id: message.id, result: { outcome: { outcome: 'cancelled' } } });
+        if (this.closed || !turn?.dispatched || turn.cancelled || !validOptions || (!plan && !isRecord(params.toolCall)) || duplicate) {
+          // Grok asks again for a plan left waiting when its conversation is
+          // restored, with no reply running here. Approving or revising would
+          // start a turn this window never shows, so the plan is set aside:
+          // the conversation leaves plan mode and works normally.
+          this._write({ jsonrpc: '2.0', id: message.id, result: plan ? { outcome: turn?.dispatched ? 'cancelled' : 'abandoned' } : { outcome: { outcome: 'cancelled' } } });
           return;
         }
         const requestId = randomUUID();
-        const permission = { id: message.id, sessionId: params.sessionId, toolCall: params.toolCall, options: params.options };
+        const toolCall = plan ? { toolCallId: String(params.toolCallId ?? ''), kind: 'plan', content: typeof params.planContent === 'string' ? params.planContent : '' } : params.toolCall;
+        const permission = { id: message.id, sessionId: params.sessionId, toolCall, options: plan ? PLAN_OPTIONS : params.options, ...(plan ? { plan: true } : {}) };
         this.permissions.set(requestId, permission);
-        this._event({ type: 'permission', requestId, sessionId: params.sessionId, toolCall: permission.toolCall, options: permission.options });
+        this._event({ type: 'permission', requestId, sessionId: params.sessionId, toolCall, options: permission.options, ...(plan ? { plan: true } : {}) });
+      } else if (DECLINED_REQUESTS.has(message.method)) {
+        this._write({ jsonrpc: '2.0', id: message.id, result: DECLINED_REQUESTS.get(message.method) });
       } else {
         this._write({ jsonrpc: '2.0', id: message.id, error: { code: -32601, message: `Client method not supported: ${message.method}` } });
       }
@@ -477,7 +504,7 @@ class GrokAdapter extends EventEmitter {
     try {
       await this.start();
       cwd = await this._validateCwd(cwd);
-      const result = await this._request('session/new', { cwd, mcpServers: [] });
+      const result = await this._request('session/new', { cwd, mcpServers: [], _meta: SESSION_META });
       if (!result.sessionId) throw failure(this.t('Grok 没有返回会话 ID。'), 'INVALID_RESPONSE');
       const session = this._rememberSession(result, result.sessionId, cwd);
       if (model && model !== session.model) await this.setModel({ sessionId: session.sessionId, model });
@@ -502,7 +529,7 @@ class GrokAdapter extends EventEmitter {
       // marked as replay, so it can never join a new reply in this conversation.
       if (this.active.has(sessionId) || this.loading.has(sessionId)) throw failure(this.t('这个会话正在处理请求，请先停止或等待完成。'), 'SESSION_BUSY');
       this.loading.add(sessionId);
-      const request = this._request('session/load', { sessionId, cwd, mcpServers: [] }, 0);
+      const request = this._request('session/load', { sessionId, cwd, mcpServers: [], _meta: SESSION_META }, 0);
       request.then(() => this.loading.delete(sessionId), () => this.loading.delete(sessionId));
       let timer;
       const timeout = new Promise((_, reject) => {
@@ -741,7 +768,7 @@ class GrokAdapter extends EventEmitter {
     for (const [requestId, permission] of this.permissions) {
       if (sessionId && permission.sessionId !== sessionId) continue;
       this.permissions.delete(requestId);
-      try { this._write({ jsonrpc: '2.0', id: permission.id, result: { outcome: { outcome: 'cancelled' } } }); }
+      try { this._write({ jsonrpc: '2.0', id: permission.id, result: permissionResult(permission) }); }
       catch { /* A disconnected agent already released its requests. */ }
       this._event({ type: 'status', status: 'permission_resolved', sessionId: permission.sessionId, requestId, cancelled: true });
     }
@@ -752,7 +779,7 @@ class GrokAdapter extends EventEmitter {
     const permission = this.permissions.get(requestId);
     if (!permission) throw failure(this.t('这条授权请求已经结束。'), 'PERMISSION_EXPIRED');
     if (!permission.options.some(option => option.optionId === optionId)) throw failure(this.t('无效的授权选项。'), 'INVALID_PERMISSION');
-    this._write({ jsonrpc: '2.0', id: permission.id, result: { outcome: { outcome: 'selected', optionId } } });
+    this._write({ jsonrpc: '2.0', id: permission.id, result: permissionResult(permission, optionId) });
     this.permissions.delete(requestId);
     this._event({ type: 'status', status: 'permission_resolved', sessionId: permission.sessionId, requestId, optionId });
     return { ok: true };

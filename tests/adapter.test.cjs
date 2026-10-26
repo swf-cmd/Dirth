@@ -294,7 +294,9 @@ test('legacy reasoning uses official metadata wire values and verifies engine st
   assert.equal(sent.some(m => m.method === 'session/set_mode'), false, 'session mode is not reasoning effort');
   assert.deepEqual(sent.filter(m => m.method === 'session/set_model').map(m => m.params._meta), [{ reasoningEffort: 'low' }, { reasoningEffort: 'high' }]);
   assert.equal(sent.filter(m => m.method === 'session/load').length, 2);
-  assert.equal(sent.find(m => m.method === 'session/new').params._meta, undefined, 'official permission defaults are not overwritten');
+  // Sessions only turn off the question tool, which this window cannot show.
+  // Permission defaults (yoloMode and the like) stay as the CLI configures them.
+  assert.deepEqual(sent.find(m => m.method === 'session/new').params._meta, { askUserQuestion: false }, 'official permission defaults are not overwritten');
 });
 
 test('a no-op success cannot masquerade as an applied reasoning change', async t => {
@@ -582,6 +584,46 @@ test('unsolicited, cancelled and malformed permission requests cannot reach the 
     assert.equal(f.events.length, 0);
     assert.equal(f.sent[0].result.outcome.outcome, 'cancelled');
   }
+});
+
+test('a plan Grok wants to start on becomes an approval card answered with its own outcomes', async () => {
+  const f = permissionFixture();
+  const plan = (id, sessionId = 'session') => f.adapter._message({ jsonrpc: '2.0', id, method: '_x.ai/exit_plan_mode', params: { sessionId, toolCallId: 'exit-1', planContent: '# Plan\n\n1. Edit app.js' } });
+  plan(7);
+  const card = f.events.find(event => event.type === 'permission');
+  assert.equal(card.plan, true);
+  assert.equal(card.toolCall.content, '# Plan\n\n1. Edit app.js');
+  assert.deepEqual(card.options.map(option => option.optionId), ['approved', 'cancelled', 'abandoned']);
+  await f.adapter.respondPermission({ requestId: card.requestId, optionId: 'approved' });
+  assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: 7, result: { outcome: 'approved' } });
+  // Stop, a lost engine or quitting answer an open card as "keep planning".
+  plan(8);
+  f.adapter._cancelPermissions('session');
+  assert.deepEqual(f.sent.at(-1).result, { outcome: 'cancelled' });
+  f.adapter.active.get('session').cancelled = true;
+  plan(9);
+  assert.deepEqual(f.sent.at(-1).result, { outcome: 'cancelled' });
+  // Restoring a conversation that was waiting for approval asks again with no
+  // reply running. The plan is set aside instead of starting an unseen turn.
+  const before = f.events.length;
+  plan(10, 'restored-session');
+  assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: 10, result: { outcome: 'abandoned' } });
+  assert.equal(f.events.length, before);
+});
+
+test('questions and MCP forms are declined the way Grok expects, and sessions start without the question tool', async t => {
+  const f = permissionFixture();
+  for (const [method, result] of [['_x.ai/ask_user_question', { outcome: 'cancelled' }], ['_x.ai/mcp/elicit', { outcome: 'cancel' }]]) {
+    f.adapter._message({ jsonrpc: '2.0', id: method, method, params: { sessionId: 'session' } });
+    assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: method, result });
+  }
+  f.adapter._message({ jsonrpc: '2.0', id: 'other', method: '_x.ai/unknown', params: {} });
+  assert.equal(f.sent.at(-1).error.code, -32601);
+  assert.equal(f.events.length, 0);
+  const { adapter, requests } = await fixture(t);
+  const session = await adapter.newSession();
+  await adapter.loadSession({ sessionId: session.sessionId, force: true });
+  for (const method of ['session/new', 'session/load']) assert.deepEqual((await requests()).find(message => message.method === method).params._meta, { askUserQuestion: false });
 });
 
 test('closing during cwd validation prevents any later CLI spawn', async () => {
