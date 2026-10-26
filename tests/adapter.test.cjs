@@ -652,6 +652,12 @@ test('a plan Grok wants to start on becomes an approval card answered with its o
   plan(10, 'restored-session');
   assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: 10, result: { outcome: 'abandoned' } });
   assert.equal(f.events.length, before);
+  // Grok can send that restored request late, after the next message is on
+  // its way. Its own tool call ID still marks it as the restored plan.
+  f.adapter.active.get('session').cancelled = false;
+  f.adapter._message({ jsonrpc: '2.0', id: 11, method: '_x.ai/exit_plan_mode', params: { sessionId: 'session', toolCallId: 'exit-plan-mode-resume-session', planContent: '# Old plan' } });
+  assert.deepEqual(f.sent.at(-1), { jsonrpc: '2.0', id: 11, result: { outcome: 'abandoned' } });
+  assert.equal(f.events.length, before);
 });
 
 test('questions and MCP forms are declined the way Grok expects, and sessions start without the question tool', async t => {

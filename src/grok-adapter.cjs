@@ -387,12 +387,15 @@ class GrokAdapter extends EventEmitter {
           this.permissions.delete(duplicate[0]);
           this._event({ type: 'status', status: 'permission_resolved', sessionId: duplicate[1].sessionId, requestId: duplicate[0], cancelled: true });
         }
-        if (this.closed || !turn?.dispatched || turn.cancelled || !validOptions || (!plan && !isRecord(params.toolCall)) || duplicate) {
-          // Grok asks again for a plan left waiting when its conversation is
-          // restored, with no reply running here. Approving or revising would
-          // start a turn this window never shows, so the plan is set aside:
-          // the conversation leaves plan mode and works normally.
-          this._write({ jsonrpc: '2.0', id: message.id, result: plan ? { outcome: turn?.dispatched ? 'cancelled' : 'abandoned' } : { outcome: { outcome: 'cancelled' } } });
+        // Grok asks again for a plan left waiting when its conversation is
+        // restored, under a tool call ID of its own. That request belongs to
+        // no reply here, even when it arrives after the next message was
+        // sent: approving or revising would start a turn this window never
+        // shows. The plan is set aside instead, and the conversation leaves
+        // plan mode and works normally.
+        const restoredPlan = plan && (!turn?.dispatched || String(params.toolCallId ?? '').startsWith('exit-plan-mode-resume-'));
+        if (this.closed || restoredPlan || !turn?.dispatched || turn.cancelled || !validOptions || (!plan && !isRecord(params.toolCall)) || duplicate) {
+          this._write({ jsonrpc: '2.0', id: message.id, result: plan ? { outcome: restoredPlan ? 'abandoned' : 'cancelled' } : { outcome: { outcome: 'cancelled' } } });
           return;
         }
         const requestId = randomUUID();
