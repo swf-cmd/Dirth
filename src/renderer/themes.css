@@ -33,7 +33,11 @@
  */
 :root[data-theme="kyoto"] {
   --accent2: #c8432b;
-  --mincho: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Noto Serif CJK JP", "Noto Serif JP", "Noto Serif CJK SC", "Songti SC", "SimSun", serif;
+  /* Yu Mincho is an optional Windows feature (Japanese Supplemental Fonts), so
+   * most Windows PCs reach SimSun, whose Latin letters are monospaced. A
+   * proportional serif before it sets Latin text; Chinese and Japanese
+   * characters, which it lacks, still fall through to SimSun. */
+  --mincho: "Yu Mincho", "YuMincho", "Hiragino Mincho ProN", "Hiragino Mincho Pro", "Noto Serif CJK JP", "Noto Serif JP", "Noto Serif CJK SC", "Songti SC", Georgia, "Times New Roman", "SimSun", serif;
   --washi: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='360' height='360'%3E%3Cfilter id='g' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='1' seed='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .34 0 0 0 0 .29 0 0 0 0 .21 0 0 0 .6 -.2'/%3E%3C/filter%3E%3Crect width='360' height='360' filter='url(%23g)' opacity='.5'/%3E%3Cpath d='M110 51Q120 45 130 42M20 173Q20 167 30 172M144 281Q152 285 156 278M196 135Q213 126 221 123M49 40Q53 43 64 45M217 127Q221 119 235 118M231 145Q239 144 247 147M270 238Q278 243 284 239M248 98Q260 96 274 88M52 166Q60 168 62 168M298 107Q310 107 320 109M286 321Q289 325 304 324M220 338Q231 337 244 332M8 157Q8 158 20 152M44 84Q47 87 60 90M187 300Q196 304 210 309' fill='none' stroke='%238a785a' stroke-opacity='.13' stroke-width='.7' stroke-linecap='round'/%3E%3C/svg%3E");
 }
 :root[data-theme="kyoto"] .main-panel {
