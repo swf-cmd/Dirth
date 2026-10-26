@@ -6,7 +6,7 @@ Dirth 是 Grok Build CLI 的非官方本地界面。安全修复以默认分支�
 
 ## 漏洞反馈
 
-若入口可用，请使用 [GitHub 私密漏洞报告](https://github.com/swf-cmd/dirth/security/advisories/new)。若无法访问，请先提交一个**不包含漏洞细节**的 issue，请维护者提供私密联系渠道。获得私密渠道后再提供概念验证代码或敏感日志。
+若入口可用，请使用 [GitHub 私密漏洞报告](https://github.com/swf-cmd/grokbuild-tokyo/security/advisories/new)。若无法访问，请先提交一个**不包含漏洞细节**的 issue，请维护者提供私密联系渠道。获得私密渠道后再提供概念验证代码或敏感日志。
 
 报告请包含受影响的应用与 CLI 版本、Windows 或 macOS 版本、CPU 架构、最小复现步骤、预期与实际行为，以及可能造成的影响。附件应去除凭据、个人聊天、账户标识及私人文件内容。请在公开披露前留出调查和修复时间；项目不承诺固定响应时限。
 

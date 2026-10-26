@@ -18,7 +18,7 @@
 Fork 仓库，克隆自己的分支仓库，然后创建用于修改的分支：
 
 ```sh
-git clone https://github.com/YOUR-USERNAME/dirth.git
+git clone https://github.com/YOUR-USERNAME/grokbuild-tokyo.git dirth
 cd dirth
 git switch -c describe-your-change
 npm ci

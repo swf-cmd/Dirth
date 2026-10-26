@@ -15,7 +15,7 @@ Mac 与 Windows Release 下载、校验文件及首次启动步骤见[下载说�
 从源码运行或构建还需要 Git、Node.js 22.13.0 或更高版本及 npm。开发与自动测试使用 Node.js 24。打包后的程序自带 Electron，无需另外安装 Node.js。
 
 ```sh
-git clone https://github.com/swf-cmd/dirth.git
+git clone https://github.com/swf-cmd/grokbuild-tokyo.git dirth
 cd dirth
 npm ci
 npm start
