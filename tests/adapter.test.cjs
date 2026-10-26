@@ -707,13 +707,18 @@ test('shutdown closes each session through Grok first, so it stops their tool pr
   const { adapter, requests } = await fixture(t, { sessionClose: true });
   const session = await adapter.newSession();
   const child = adapter.process;
-  let closedBeforeInputEnded;
+  // Ending Grok's input (POSIX) or killing its process tree (Windows) comes
+  // only after Grok has answered every close.
+  let closedBeforeStop;
+  const note = () => { closedBeforeStop ??= adapter.pending.size === 0; };
   const end = child.stdin.end.bind(child.stdin);
-  child.stdin.end = (...args) => { closedBeforeInputEnded = adapter.pending.size === 0; return end(...args); };
+  child.stdin.end = (...args) => { note(); return end(...args); };
+  const terminate = adapter._terminateProcess.bind(adapter);
+  adapter._terminateProcess = (...args) => { note(); return terminate(...args); };
   await adapter.close();
   const sent = await requests();
   assert.deepEqual(sent.filter(message => message.method === 'session/close').map(message => message.params), [{ sessionId: session.sessionId }]);
-  assert.equal(closedBeforeInputEnded, true, 'Grok answers every close before its input ends');
+  assert.equal(closedBeforeStop, true, 'Grok answers every close before it is stopped');
   // Only a CLI that advertises session/close is asked to close sessions.
   const plain = await fixture(t);
   await plain.adapter.newSession();

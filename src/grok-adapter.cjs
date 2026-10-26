@@ -939,13 +939,13 @@ class GrokAdapter extends EventEmitter {
     this._cancelPermissions();
     const child = this.process;
     if (!child) return;
+    await this._closeSessions(child);
     // Windows workers may retain the working directory after their parent exits.
     // Kill this owned tree before ending stdin so taskkill can still find descendants.
     if (process.platform === 'win32') {
       await this._terminateProcess(child);
       return;
     }
-    await this._closeSessions(child);
     try { child.stdin.end(); } catch { /* Escalate below if exit is not observed. */ }
     if (!await this._waitForExit(child, 1000)) await this._terminateProcess(child);
   }
@@ -953,8 +953,10 @@ class GrokAdapter extends EventEmitter {
   // Grok stops a session's tool processes (dev servers, watchers, long
   // builds, all started in sessions of their own) only when that session is
   // closed. Ending its input or sending SIGTERM leaves them running after the
-  // app quits, reconnects or switches accounts. Closed sessions stay on disk
-  // and are loaded again as usual.
+  // app quits, reconnects or switches accounts. On Windows, closing a session
+  // also ends its job object, which reaches processes whose parent already
+  // exited and that a process-tree kill can no longer find. Closed sessions
+  // stay on disk and are loaded again as usual.
   async _closeSessions(child) {
     if (!isRecord(this.info.capabilities?.sessionCapabilities?.close)) return;
     if (this.process !== child || this.disconnectedProcesses.has(child) || !this.ready) return;
