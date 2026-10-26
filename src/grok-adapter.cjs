@@ -413,6 +413,18 @@ class GrokAdapter extends EventEmitter {
   _receiveModelCatalog(state, notify = false) {
     const available = state?.availableModels || (Array.isArray(state) ? state : null);
     this._updateModels(state);
+    // Grok's pushes name its global default model, which moves when any
+    // conversation switches model. The reasoning levels offered for new
+    // conversations must then be that model's, not the levels of the last
+    // conversation restored, or a new chat pairs one model with another's
+    // level and Grok refuses it.
+    if (this.info.currentModelId !== this.modesModelId) {
+      const model = (Array.isArray(available) ? this.info.models : this.modelCatalogModels ?? this.info.models).find(item => item.id === this.info.currentModelId);
+      const efforts = Array.isArray(model?.reasoningEfforts) ? model.reasoningEfforts.filter(effort => typeof effort?.id === 'string' && effort.id) : [];
+      this.info.modes = efforts.map(effort => ({ id: effort.id, name: effort.label || effort.name || effort.id, description: effort.description || '', value: effort.value ?? effort.id }));
+      this.info.currentModeId = efforts.find(effort => effort.value === model?.reasoningEffort || effort.id === model?.reasoningEffort)?.id || '';
+      this.modesModelId = this.info.currentModelId;
+    }
     if (!Array.isArray(available)) return;
     this.modelCatalogModels = this.info.models;
     // Session menus can be narrower than the account catalog. Track only the
@@ -479,6 +491,7 @@ class GrokAdapter extends EventEmitter {
     this.info.modes = modes;
     this.info.currentModeId = currentModeId || '';
     this.info.currentModelId = model || '';
+    this.modesModelId = this.info.currentModelId;
     const session = {
       sessionId, cwd, loaded: true,
       model: model || '',
@@ -522,8 +535,15 @@ class GrokAdapter extends EventEmitter {
       const result = await this._request('session/new', { cwd, mcpServers: [], _meta: SESSION_META });
       if (!result.sessionId) throw failure(this.t('Grok 没有返回会话 ID。'), 'INVALID_RESPONSE');
       const session = this._rememberSession(result, result.sessionId, cwd);
-      if (model && model !== session.model) await this.setModel({ sessionId: session.sessionId, model });
-      if (mode && mode !== this.sessions.get(session.sessionId).mode) await this.setMode({ sessionId: session.sessionId, mode });
+      try {
+        if (model && model !== session.model) await this.setModel({ sessionId: session.sessionId, model });
+        if (mode && mode !== this.sessions.get(session.sessionId).mode) await this.setMode({ sessionId: session.sessionId, mode });
+      } catch (error) {
+        // The conversation is reported as not created, so Grok should not keep it open either.
+        this.sessions.delete(session.sessionId);
+        if (isRecord(this.info.capabilities?.sessionCapabilities?.close)) this._request('session/close', { sessionId: session.sessionId }, SESSION_CLOSE_TIMEOUT).catch(() => {});
+        throw error;
+      }
       this._event({ type: 'status', status: 'idle', sessionId: session.sessionId });
       return this.getSession(session.sessionId);
     } finally { this.creating--; }

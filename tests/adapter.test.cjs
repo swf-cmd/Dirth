@@ -111,6 +111,28 @@ test('a catalog notification beside initialize wins over the older initial catal
   assert.deepEqual(changes[0].info.models.map(model => model.id), ['grok-test', 'grok-plain']);
 });
 
+test("a pushed default model offers its own reasoning levels for new chats, not the last restored chat's", () => {
+  const adapter = new GrokAdapter();
+  const efforts = (...ids) => ids.map(id => ({ id, value: id, label: id.toUpperCase() }));
+  const catalog = [
+    { modelId: 'grok-a', name: 'A', _meta: { reasoningEfforts: efforts('low', 'high'), reasoningEffort: 'high' } },
+    { modelId: 'grok-b', name: 'B', _meta: { reasoningEfforts: efforts('fast'), reasoningEffort: 'fast' } },
+    { modelId: 'grok-c', name: 'C' },
+  ];
+  adapter._receiveModelCatalog({ currentModelId: 'grok-a', availableModels: catalog });
+  adapter._rememberSession({ models: { currentModelId: 'grok-a', availableModels: catalog } }, 'chat-a', process.cwd());
+  assert.deepEqual([adapter.getInfo().currentModelId, adapter.getInfo().modes.map(mode => mode.id), adapter.getInfo().currentModeId], ['grok-a', ['low', 'high'], 'high']);
+  // Another conversation switched to B, so Grok pushes B as its default with
+  // an identical catalog. A new chat must not offer B with A's levels.
+  adapter._message({ method: '_x.ai/models/update', params: { modelState: { currentModelId: 'grok-b', availableModels: catalog } } });
+  assert.deepEqual([adapter.getInfo().currentModelId, adapter.getInfo().modes.map(mode => mode.id), adapter.getInfo().currentModeId], ['grok-b', ['fast'], 'fast']);
+  // A model whose levels are unknown offers none rather than borrowing some.
+  adapter._message({ method: '_x.ai/models/update', params: { modelState: { currentModelId: 'grok-c' } } });
+  assert.deepEqual([adapter.getInfo().modes, adapter.getInfo().currentModeId], [[], '']);
+  // The chat itself keeps the levels Grok confirmed for it.
+  assert.deepEqual(adapter.getSession('chat-a').modes.map(mode => mode.id), ['low', 'high']);
+});
+
 test('late catalogs publish revisions without expanding a session menu or repeating identical updates', () => {
   const adapter = new GrokAdapter();
   const initial = [{ modelId: 'grok-4.6', name: 'Grok 4.6' }];
