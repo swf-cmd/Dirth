@@ -6,7 +6,7 @@ const fs = require('node:fs/promises');
 const path = require('node:path');
 const dns = require('node:dns');
 const http = require('node:http');
-const { resolveImage } = require('../src/media.cjs');
+const { resolveImage, imageMime } = require('../src/media.cjs');
 const { resolveAttachment } = require('../src/attachments.cjs');
 const { isPublicAddress } = require('../src/resource-download.cjs');
 
@@ -62,6 +62,19 @@ test('remote image bytes are MIME-sniffed and bounded before reaching the render
   assert.equal(result.src, `data:image/png;base64,${png.toString('base64')}`);
   await assert.rejects(resolveImage('https://public.example.test/a.png', '.', undefined, undefined, async () => new Response('<script>alert(1)</script>')), /image format/);
   await assert.rejects(resolveImage('https://public.example.test/a.png', '.', undefined, undefined, async () => new Response('x', { headers: { 'content-length': String(21 * 1024 * 1024) } })), /20 MB/);
+});
+
+test('SVG sniffing takes linear time on comment runs and still recognizes SVG', async () => {
+  const svg = text => imageMime(Buffer.from(text));
+  for (const text of ['<svg xmlns="http://www.w3.org/2000/svg"/>', '﻿\n<svg>', '<?xml version="1.0"?>\n<!-- a -- b -->\n<!-- c ---><svg viewBox="0 0 1 1">', `${'<!-- note -->\n'.repeat(50)}<svg>`]) assert.equal(svg(text), 'image/svg+xml');
+  // An XML or HTML file that opens with many comments is not an SVG. The
+  // earlier pattern backtracked over every way to split the comments: 30 of
+  // them took seconds and 40 minutes, freezing the main process.
+  const started = performance.now();
+  for (const text of [`${'<!---->'.repeat(580)}<html>`, `<?xml version="1.0"?>${'<!-- setting -->\n'.repeat(240)}<project/>`]) assert.throws(() => svg(text), /image format/);
+  assert.ok(performance.now() - started < 250, 'comment runs must be rejected quickly');
+  // A remote "image" with the same shape is refused just as quickly.
+  await assert.rejects(resolveImage('https://public.example.test/a.svg', '.', undefined, undefined, async () => new Response('<!-- x -->'.repeat(400))), /image format/);
 });
 
 test('unexpected compressed downloads fail instead of saving corrupt compressed file bytes', async () => {
