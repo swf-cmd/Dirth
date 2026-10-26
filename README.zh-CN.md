@@ -73,7 +73,7 @@ irm https://x.ai/cli/install.ps1 | iex
 
 ### 下载说明
 
-**[前往最新 Release](https://github.com/swf-cmd/dirth/releases/latest)**：公开下载，无需登录 GitHub。v1.2.5 发布于改名之前，文件名和应用名仍是 Grokbuild Tokyo。
+**[前往最新 Release](https://github.com/swf-cmd/dirth/releases/latest)**：公开下载，无需登录 GitHub。v1.2.5 发布于改名和城市主题之前：只有东京主题，文件名和应用名仍是 Grokbuild Tokyo。京都、冲绳、北海道将随下一个版本发布；想现在体验，可[从源码构建](#从源码构建)。
 
 | v1.2.5 下载 | 适用环境 | 校验文件 |
 | --- | --- | --- |

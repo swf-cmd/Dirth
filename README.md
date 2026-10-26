@@ -73,7 +73,7 @@ If you have already signed in to Grok Build in a terminal, the app reuses the si
 
 ### Downloads
 
-**[Get the latest release](https://github.com/swf-cmd/dirth/releases/latest)**: public downloads, with no GitHub sign-in required. v1.2.5 was published before the rename, so its files and app still carry the name Grokbuild Tokyo.
+**[Get the latest release](https://github.com/swf-cmd/dirth/releases/latest)**: public downloads, with no GitHub sign-in required. v1.2.5 predates the rename and the city editions: it has only the Tokyo edition, and its files and app still carry the name Grokbuild Tokyo. Kyoto, Okinawa and Hokkaido arrive with the next release; to try them now, [build from source](#build-from-source).
 
 | v1.2.5 download | Requirements | Checksum |
 | --- | --- | --- |
