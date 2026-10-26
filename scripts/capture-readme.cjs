@@ -156,7 +156,11 @@ async function captureView(desktop, page, locale, view, theme = 'tokyo') {
       const style = getComputedStyle(element, pseudo);
       return { animationName: style.animationName, backgroundImage: style.backgroundImage, opacity: style.opacity, transform: style.transform };
     };
-    const panel = element.getBoundingClientRect();
+    // The weather belongs to the main panel. Kyoto shows it in a round window
+    // only, but hiding the layer there still re-rasterizes the panel's text
+    // (Windows draws ClearType text only away from an animated layer), so the
+    // whole panel may change and nothing outside it may.
+    const panel = element.closest('.main-panel').getBoundingClientRect();
     return {
       hidden: element.hidden, opacity: layer.opacity, maskImage: layer.maskImage,
       reducedMotion: matchMedia('(prefers-reduced-motion: reduce)').matches,
