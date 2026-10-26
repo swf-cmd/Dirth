@@ -70,6 +70,18 @@ function safeMessage(value, fallback) {
     .slice(0, 8000);
 }
 
+// Grok's errors carry only a generic name ("Authentication required",
+// "Internal error") in `message`; the reason a person can act on (an expired
+// sign-in, a rate limit, an outage) is in `data`, as text or as
+// { message, http_status }.
+function errorText(error) {
+  const title = typeof error?.message === 'string' ? error.message.trim() : '';
+  const data = error?.data;
+  const detail = (typeof data === 'string' ? data : typeof data?.message === 'string' ? data.message : '').trim();
+  if (!detail || detail === title) return title;
+  return title ? `${title}: ${detail}` : detail;
+}
+
 function textFromContent(content) {
   if (typeof content === 'string') return content;
   if (Array.isArray(content)) return content.map(textFromContent).join('');
@@ -340,7 +352,7 @@ class GrokAdapter extends EventEmitter {
       if (!request) return;
       this.pending.delete(message.id);
       clearTimeout(request.timer);
-      if (message.error) request.reject(failure(this.safeMessage(message.error.message), message.error.code));
+      if (message.error) request.reject(failure(this.safeMessage(errorText(message.error)), message.error.code));
       else {
         // Consume the initial catalog in wire order. A newer notification can
         // follow this response in the same stdout chunk, before await resumes.

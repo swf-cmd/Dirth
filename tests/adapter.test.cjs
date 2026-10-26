@@ -262,6 +262,24 @@ test('CLI error text shown, saved and exported never carries a credential', () =
   for (const text of ['Unexpected token } in JSON at position 5', 'model key: grok-4 is unavailable']) assert.equal(safeMessage(text), text);
 });
 
+test("a CLI error shows Grok's reason from its data, still redacted", async () => {
+  const adapter = new GrokAdapter();
+  const reject = error => {
+    let rejection;
+    adapter.pending.set(1, { method: 'session/prompt', resolve() {}, reject: value => { rejection = value; }, timer: null });
+    adapter._message({ jsonrpc: '2.0', id: 1, error });
+    return rejection;
+  };
+  // Grok puts a generic name in `message` and the reason in `data`.
+  assert.equal(reject({ code: -32000, message: 'Authentication required', data: 'Your sign-in expired. Run grok login.' }).message, 'Authentication required: Your sign-in expired. Run grok login.');
+  const outage = reject({ code: -32603, message: 'Internal error', data: { message: 'Service unavailable, try again shortly', http_status: 503 } });
+  assert.equal(outage.message, 'Internal error: Service unavailable, try again shortly');
+  assert.equal(outage.code, -32603);
+  assert.equal(reject({ code: -32602, message: 'Invalid params' }).message, 'Invalid params');
+  assert.equal(reject({ code: -32602, message: 'Invalid params', data: 'Invalid params' }).message, 'Invalid params');
+  assert.equal(reject({ code: -32000, message: 'Authentication required', data: 'refresh failed: refresh_token=rt-secret-1' }).message.includes('rt-secret-1'), false);
+});
+
 test('process exit rejects an in-flight request and permits reconnect', async t => {
   const { adapter } = await fixture(t);
   const { sessionId } = await adapter.newSession();
