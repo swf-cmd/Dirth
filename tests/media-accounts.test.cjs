@@ -245,6 +245,25 @@ test('local account summaries honor inline and custom-store precedence without e
   withLocalAuthEnv({ GROK_AUTH_PATH: custom }, () => assert.equal(f.manager.summary(local).signedIn, false));
 });
 
+test('a sign-in is preferred to a stored API key and to the pre-OIDC scope, like the CLI', t => {
+  const f = accountFixture(t); const local = { id: 'local', name: 'Local' };
+  const store = path.join(f.manager.homeFor('local'), 'auth.json');
+  fs.mkdirSync(path.dirname(store), { recursive: true });
+  const write = entries => fs.writeFileSync(store, JSON.stringify(entries));
+  const signIn = { key: 'secret-oidc-token', auth_mode: 'oidc', email: 'person@example.test', create_time: '2026-09-01T00:00:00Z' };
+  // `grok login --api-key` stamps its entry with the time it was saved, so it
+  // is usually the newest. The CLI still uses the sign-in.
+  write({ 'https://auth.x.ai::grok-cli': signIn, 'xai::api_key': { key: 'secret-api-key', auth_mode: 'api_key', create_time: '2026-10-01T00:00:00Z' } });
+  assert.equal(f.manager.credential(local).credentialScope, 'https://auth.x.ai::grok-cli');
+  assert.equal(f.manager.summary(local).email, 'person@example.test');
+  write({ 'https://accounts.x.ai/sign-in': { ...signIn, email: 'legacy@example.test', create_time: '2026-10-01T00:00:00Z' }, 'https://auth.x.ai::grok-cli': signIn });
+  assert.equal(f.manager.summary(local).email, 'person@example.test');
+  // An API key alone still counts as signed in.
+  write({ 'xai::api_key': { key: 'secret-api-key', auth_mode: 'api_key' } });
+  assert.equal(f.manager.credential(local).credentialScope, 'xai::api_key');
+  assert.equal(f.manager.summary(local).signedIn, true);
+});
+
 test('local API key status follows primary and legacy precedence without authenticating isolated profiles', t => {
   const f = accountFixture(t); const local = { id: 'local', name: 'Local' };
   for (const key of ['XAI_API_KEY', 'GROK_CODE_XAI_API_KEY']) withLocalAuthEnv({ [key]: 'secret-fixture-key' }, () => {
@@ -282,7 +301,7 @@ test('account profiles use separate Grok homes and expose only safe display meta
 
 test('profile environments remove both API key names and login overrides while local accounts retain them', t => {
   const f = accountFixture(t);
-  const loginOverrides = ['XAI_API_KEY', 'GROK_CODE_XAI_API_KEY', 'GROK_AUTH', 'GROK_AUTH_PATH', 'GROK_DEPLOYMENT_KEY', 'GROK_EXTRA_AUTH_KEY', 'GROK_TRACE_UPLOAD_CREDENTIALS_FILE', 'OTEL_EXPORTER_OTLP_HEADERS', 'GROK_INTERNAL_OTLP_HEADERS', 'GROK_CONFIG', 'GROK_CONFIG_PATH', 'GROK_AUTH_PROVIDER_COMMAND', 'GROK_AUTH_TOKEN_TTL', 'GROK_OIDC_ISSUER', 'GROK_OAUTH2_CLIENT_ID', 'GROK_FORCE_LOGIN_TEAM_UUID'];
+  const loginOverrides = ['XAI_API_KEY', 'GROK_CODE_XAI_API_KEY', 'GROK_AUTH', 'GROK_AUTH_PATH', 'GROK_DEPLOYMENT_KEY', 'GROK_EXTRA_AUTH_KEY', 'GROK_TRACE_UPLOAD_CREDENTIALS_FILE', 'OTEL_EXPORTER_OTLP_HEADERS', 'GROK_INTERNAL_OTLP_HEADERS', 'GROK_CONFIG', 'GROK_CONFIG_PATH', 'GROK_AUTH_PROVIDER_COMMAND', 'GROK_AUTH_TOKEN_TTL', 'GROK_OIDC_ISSUER', 'GROK_OAUTH2_CLIENT_ID', 'GROK_LOCAL_AUTH', 'GROK_FORCE_LOGIN_TEAM_UUID'];
   const values = Object.fromEntries(loginOverrides.map(key => [key, process.env[key]]));
   try {
     for (const key of loginOverrides) process.env[key] = 'fixture-login-override';

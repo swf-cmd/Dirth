@@ -119,7 +119,7 @@ class AccountManager extends EventEmitter {
     if (id !== 'local') {
       // New profiles must not silently fall back to the original account's credentials.
       for (const key of Object.keys(env)) {
-        if (/^(?:XAI_API_KEY|GROK_CODE_XAI_API_KEY|OTEL_EXPORTER_OTLP_HEADERS|GROK_CONFIG(?:_PATH)?|GROK_(?:AUTH(?:_.*)?|OIDC_.*|OAUTH2_.*|FORCE_LOGIN_TEAM.*|DEPLOYMENT_KEY|EXTRA_AUTH_KEY|TRACE_UPLOAD_CREDENTIALS_FILE|INTERNAL_OTLP_HEADERS))$/i.test(key)) delete env[key];
+        if (/^(?:XAI_API_KEY|GROK_CODE_XAI_API_KEY|OTEL_EXPORTER_OTLP_HEADERS|GROK_CONFIG(?:_PATH)?|GROK_(?:AUTH(?:_.*)?|OIDC_.*|OAUTH2_.*|LOCAL_AUTH|FORCE_LOGIN_TEAM.*|DEPLOYMENT_KEY|EXTRA_AUTH_KEY|TRACE_UPLOAD_CREDENTIALS_FILE|INTERNAL_OTLP_HEADERS))$/i.test(key)) delete env[key];
       }
     }
     return env;
@@ -144,7 +144,12 @@ class AccountManager extends EventEmitter {
         if (stat.isFile() && stat.size <= 2 * 1024 * 1024) {
           const store = JSON.parse(fs.readFileSync(file, 'utf8'));
           const credentials = store && typeof store === 'object' && !Array.isArray(store) ? Object.entries(store).filter(([, item]) => usable(item)) : [];
-          const selected = credentials.sort(([, a], [, b]) => (Date.parse(b.create_time) || 0) - (Date.parse(a.create_time) || 0))[0];
+          // Like the CLI: a sign-in under an issuer's own scope first, then the
+          // pre-OIDC scope, and a stored API key only when there is no sign-in.
+          // Newest first within each. Picking the newest of all would let an
+          // API key saved after signing in hide the account's email and quota.
+          const rank = ([scope, item]) => scope === 'xai::api_key' || item.auth_mode === 'api_key' ? 2 : scope === 'https://accounts.x.ai/sign-in' ? 1 : 0;
+          const selected = credentials.sort((a, b) => rank(a) - rank(b) || (Date.parse(b[1].create_time) || 0) - (Date.parse(a[1].create_time) || 0))[0];
           if (selected) [credentialScope, current] = selected;
         }
       }
