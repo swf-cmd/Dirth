@@ -4,8 +4,9 @@
 <meta charset="utf-8">
 <!--
   Source for social-preview.png, the 1280 x 640 card GitHub shows when the repository
-  link is shared. It combines the real app-en.png capture with the app's background
-  and icon. See README.md in this folder for how to render it.
+  link is shared. It places the real welcome-screen captures of the four city
+  editions (the README's city gallery) beside the app's icon, over its Shibuya
+  background. See README.md in this folder for how to render it.
 -->
 <title>Dirth social preview</title>
 <style>
@@ -14,23 +15,20 @@
   html, body { width:1280px; height:640px; background:var(--bg); overflow:hidden; }
   body { position:relative; font-family:"Poppins", "Segoe UI", sans-serif; color:var(--text); }
 
-  /* City: right two thirds, fading into the solid left column like the app's backdrop */
-  .city { position:absolute; inset:0; background-image:url("../../src/renderer/assets/tokyo-rain.png"); background-size:cover; background-position:72% 30%; opacity:.92; }
+  /* City: right half, fading into the solid left column like the app's backdrop */
+  .city { position:absolute; inset:0; background-image:url("../../src/renderer/assets/tokyo-rain.png"); background-size:cover; background-position:72% 30%; opacity:.7; }
   .shade { position:absolute; inset:0;
     background:
-      linear-gradient(90deg, #0b1014 0%, #0b1014 34%, #0b1014d9 46%, #0b101470 66%, #0b101430 100%),
+      linear-gradient(90deg, #0b1014 0%, #0b1014 40%, #0b1014cc 54%, #0b101499 100%),
       linear-gradient(0deg, #0b1014e6 0%, #0b101400 38%),
       linear-gradient(180deg, #0b1014aa 0%, #0b101400 22%); }
-  .rain { position:absolute; inset:0; opacity:.22;
-    background-image: repeating-linear-gradient(103deg, transparent 0 22px, #cfe3ff22 22px 23px, transparent 23px 61px);
-    mask-image: linear-gradient(90deg, transparent 30%, #000 70%); }
 
-  /* App window */
-  .window { position:absolute; left:704px; top:128px; width:760px; border-radius:12px; overflow:hidden;
-    border:1px solid #ffffff1f; box-shadow: 0 30px 80px #000c, 0 0 0 1px #00000080, 0 0 60px #6fb7c418; }
-  .window img { display:block; width:100%; }
+  /* The four city editions, as real app windows */
+  .cities { position:absolute; left:626px; top:117px; display:grid; grid-template-columns:repeat(2, 300px); gap:14px; }
+  .cities img { display:block; width:300px; height:196px; border-radius:9px; border:1px solid #ffffff26;
+    box-shadow: 0 22px 50px #000b, 0 0 0 1px #00000080; }
 
-  .copy { position:absolute; left:76px; top:70px; width:600px; }
+  .copy { position:absolute; left:76px; top:70px; width:540px; }
   .eyebrow { display:flex; align-items:center; gap:14px; font-family:"Liberation Mono", Consolas, monospace; font-size:15px; letter-spacing:3.2px; color:#8fa29d; text-transform:uppercase; }
   .eyebrow img { width:44px; height:44px; }
   .title { margin-top:34px; font-family:"Liberation Sans", Arial, sans-serif; font-weight:700; line-height:.9; }
@@ -43,9 +41,13 @@
 </head>
 <body>
   <div class="city"></div>
-  <div class="rain"></div>
   <div class="shade"></div>
-  <div class="window"><img src="app-en.png" alt=""></div>
+  <div class="cities">
+    <img src="city-tokyo-en.webp" alt="">
+    <img src="city-kyoto-en.webp" alt="">
+    <img src="city-okinawa-en.webp" alt="">
+    <img src="city-hokkaido-en.webp" alt="">
+  </div>
   <div class="copy">
     <div class="eyebrow"><img src="../../src/renderer/assets/icon.png" alt="">Unofficial desktop app for Grok Build</div>
     <div class="title"><span class="solid">DIRTH</span></div>
