@@ -79,6 +79,11 @@
     const index = openDialogs.indexOf(event.target);
     if (index >= 0) openDialogs.splice(index, 1);
     if (event.newState === 'open') openDialogs.push(event.target);
+    // A dialog closed and reopened at once reports a single "open" and is back
+    // in the top layer above the notices inside it: show them again on top.
+    if (event.newState === 'open' && $('toast-container').parentElement === event.target) {
+      try { $('toast-container').hidePopover(); } catch { /* Not shown yet. */ }
+    }
     placeToasts();
   }, true);
 
