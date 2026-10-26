@@ -196,6 +196,7 @@
 :root[data-theme="okinawa"] .account-button,
 :root[data-theme="okinawa"] .quota-card { background: #fff; box-shadow: 0 6px 18px -12px #0b4a5a40; }
 :root[data-theme="okinawa"] .message-body pre { background: #0b3c55; border-color: transparent; border-radius: 14px; }
+:root[data-theme="okinawa"] .message-body pre,
 :root[data-theme="okinawa"] .message-body pre code { color: #d7f3f1; }
 :root[data-theme="okinawa"] .copy-code { background: #ffffff14; border-color: #ffffff22; color: #bfe6e4; }
 :root[data-theme="okinawa"] .message-avatar { border-radius: 50%; }
