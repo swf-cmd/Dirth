@@ -165,15 +165,22 @@ function attachmentsFromText(text) {
   const result = [];
   // Use the same bundled Markdown parser as the renderer: balanced parentheses,
   // reference links and escaped filenames must resolve to the link users see.
-  forEachToken(lexer(String(text || '')), token => {
-    if (token.type !== 'link') return;
-    const uri = token.href;
-    if (!uri || uri.startsWith('#')) return;
-    if (/\.(?:png|jpe?g|gif|webp|svg|avif|bmp|ico)(?:[?#]|$)/i.test(uri)) return;
-    if (/^https?:/i.test(uri) && !/\.(?:pdf|docx?|xlsx?|pptx?|zip|tar|gz|csv|tsv|txt|md|json|xml|html?|py|js|cjs|ts|mp3|wav|mp4)(?:[?#]|$)/i.test(uri)) return;
-    if (!/^https?:/i.test(uri) && /:/.test(uri) && !/^(?:file:|[a-z]:[\\/])/i.test(uri)) return;
-    result.push(...attachmentsFromContent({ type: 'resource_link', uri, name: token.text || undefined, mimeType: TYPES[path.extname(sourceName(uri)).toLowerCase()] }));
-  });
+  // The parser descends recursively into nested blocks, so a few thousand
+  // nested quotes or list levels (a model stuck repeating ">", a pasted
+  // thread) overflow the stack. The window then shows that text as plain
+  // text; here it names no files. Finding links must never fail a reply:
+  // it runs when a turn ends and whenever a conversation opens.
+  try {
+    forEachToken(lexer(String(text || '')), token => {
+      if (token.type !== 'link') return;
+      const uri = token.href;
+      if (!uri || uri.startsWith('#')) return;
+      if (/\.(?:png|jpe?g|gif|webp|svg|avif|bmp|ico)(?:[?#]|$)/i.test(uri)) return;
+      if (/^https?:/i.test(uri) && !/\.(?:pdf|docx?|xlsx?|pptx?|zip|tar|gz|csv|tsv|txt|md|json|xml|html?|py|js|cjs|ts|mp3|wav|mp4)(?:[?#]|$)/i.test(uri)) return;
+      if (!/^https?:/i.test(uri) && /:/.test(uri) && !/^(?:file:|[a-z]:[\\/])/i.test(uri)) return;
+      result.push(...attachmentsFromContent({ type: 'resource_link', uri, name: token.text || undefined, mimeType: TYPES[path.extname(sourceName(uri)).toLowerCase()] }));
+    });
+  } catch { return []; }
   return result;
 }
 

@@ -577,6 +577,33 @@ test('streamed assistant text and tool updates persist without echoing user or r
   assert.equal(controller.active, null);
 });
 
+test('a reply nested deeper than the Markdown parser can follow still ends, saves, reopens and deletes', async t => {
+  const { controller, session, adapter } = await started(t);
+  await controller.send({ sessionId: session.id, text: 'Quote the thread' });
+  // A model stuck repeating ">" overflows the parser's recursion. The final
+  // look for file links used to throw there, leaving the turn reserved: no
+  // Stop, no new message, no delete, and quitting failed.
+  const nested = '> '.repeat(4000) + 'end';
+  adapter.emit('event', { sessionId: session.id, type: 'text', text: nested });
+  adapter.prompts[0].gate.resolve({ stopReason: 'end_turn' });
+  await controller.turnPromise;
+  assert.equal(controller.turns.size, 0);
+  const saved = readHistory(controller);
+  assert.equal(saved.sessions[0].messages[1].text, nested);
+  assert.equal(saved.sessions[0].messages[1].status, 'complete');
+  await controller.send({ sessionId: session.id, text: 'Thanks' });
+  adapter.prompts[1].gate.resolve({ stopReason: 'end_turn' });
+  await controller.turnPromise;
+  // History saved before this fix has such a reply without its media version,
+  // so opening the conversation scans its links again.
+  delete saved.sessions[0].messages[1].mediaVersion;
+  const reloaded = fixture(t, saved).controller;
+  assert.equal(reloaded.readSession(session.id).messages[1].text, nested);
+  assert.match(reloaded.exportMarkdown(session.id), /> > > end/);
+  assert.equal(await reloaded.deleteSession(session.id), true);
+  assert.equal(reloaded.visibleSessions().length, 0);
+});
+
 test('response segments keep progress separate from the answer across streaming, persistence and export', async t => {
   const { controller, session, adapter } = await started(t);
   const events = [];

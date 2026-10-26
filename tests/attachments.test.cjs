@@ -72,6 +72,16 @@ test('Markdown file links become attachments while web pages and images remain o
   assert.equal(attachmentsFromText('[报告][result]\n\n[result]: report.csv')[0].src, 'report.csv');
 });
 
+test('text nested deeper than the Markdown parser can follow names no files instead of throwing', () => {
+  // marked recurses once per nested quote or list level and overflows the
+  // stack after a few thousand: a model repeating ">" produces exactly that.
+  for (const text of ['> '.repeat(4000) + '[report](report.pdf)', '>'.repeat(3000), '- '.repeat(3000) + 'item']) {
+    assert.deepEqual(attachmentsFromText(text), []);
+    assert.deepEqual(restoreMessageAttachments({ role: 'assistant', text, tools: [] }), []);
+  }
+  assert.equal(attachmentsFromText('> '.repeat(20) + '[report](report.pdf)')[0].src, 'report.pdf');
+});
+
 test('read-tool links, text resources and binary resources stay out of reply attachments', () => {
   const resources = [
     { type: 'resource_link', uri: 'file:///report.pdf', mimeType: 'application/pdf' },

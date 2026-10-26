@@ -830,7 +830,9 @@ class AppController extends EventEmitter {
         }
       } finally {
         turn.settled = true;
-        applyReplyUpdate(message, { type: 'scan-attachments' }, sessionId, nested => this.emitEvent(nested));
+        // Whatever this final look for file links meets, the turn must still
+        // be saved and released below, or its conversation stays busy for good.
+        try { applyReplyUpdate(message, { type: 'scan-attachments' }, sessionId, nested => this.emitEvent(nested)); } catch { /* The reply keeps the files found while it streamed. */ }
         message.mediaVersion = MEDIA_VERSION;
         // Other conversations keep their own pending permission requests.
         for (const [requestId, permission] of this.permissions) {
