@@ -6,7 +6,7 @@ Dirth is an unofficial local interface for Grok Build CLI. Security fixes target
 
 ## Report a vulnerability
 
-Use [GitHub private vulnerability reporting](https://github.com/swf-cmd/grokbuild-tokyo/security/advisories/new) when available. If that page is unavailable, open an issue asking for a private reporting channel **without disclosing vulnerability details**. Wait for a private channel before sharing a proof of concept or sensitive logs.
+Use [GitHub private vulnerability reporting](https://github.com/swf-cmd/dirth/security/advisories/new) when available. If that page is unavailable, open an issue asking for a private reporting channel **without disclosing vulnerability details**. Wait for a private channel before sharing a proof of concept or sensitive logs.
 
 Include the affected application and CLI versions, Windows or macOS version, CPU architecture, minimal reproduction steps, expected and actual behavior, and the potential impact. Remove credentials, personal conversations, account identifiers, and private file contents from all attachments. Please allow time to investigate and prepare a fix before public disclosure; no fixed response time is promised.
 

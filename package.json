@@ -9,11 +9,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/swf-cmd/grokbuild-tokyo.git"
+    "url": "git+https://github.com/swf-cmd/dirth.git"
   },
-  "homepage": "https://github.com/swf-cmd/grokbuild-tokyo#readme",
+  "homepage": "https://github.com/swf-cmd/dirth#readme",
   "bugs": {
-    "url": "https://github.com/swf-cmd/grokbuild-tokyo/issues"
+    "url": "https://github.com/swf-cmd/dirth/issues"
   },
   "engines": {
     "node": ">=22.13.0"
