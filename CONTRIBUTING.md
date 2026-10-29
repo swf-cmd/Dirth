@@ -18,7 +18,7 @@ Use Windows x64 or macOS 13+ on Intel or Apple Silicon, with Node.js 22.13.0 or 
 Fork this repository, clone your fork, and create a branch for your change:
 
 ```sh
-git clone https://github.com/YOUR-USERNAME/grokbuild-tokyo.git dirth
+git clone https://github.com/YOUR-USERNAME/dirth.git
 cd dirth
 git switch -c describe-your-change
 npm ci
