@@ -24,9 +24,9 @@ A desktop app for [Grok Build](https://x.ai/cli), SpaceXAI's terminal coding age
 
 </div>
 
-![Dirth English welcome screen with animated rain over Shibuya](docs/images/welcome-en.gif?v=20261020)
+![Dirth English welcome screen with animated rain over Shibuya](docs/images/welcome-en.gif?v=20261031)
 
-*Animated rain in the Windows interface, using an isolated demo profile. Mac uses native window controls and Command-key shortcuts. [Still image](docs/images/welcome-en.png?v=20261020) · [Capture details](docs/images/README.md).*
+*Animated rain in the Windows interface, using an isolated demo profile. Mac uses native window controls and Command-key shortcuts. [Still image](docs/images/welcome-en.png?v=20261031) · [Capture details](docs/images/README.md).*
 
 [Grok Build](https://x.ai/cli) is the terminal coding agent from SpaceXAI (formerly xAI). Dirth is an **unofficial, open-source desktop app** for it: it starts the Grok Build CLI you installed and talks to it over the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP), the same protocol editors use to embed it. Your sign-in, models, tools, permission rules, MCP servers and skills stay exactly as the CLI configures them. The app gives them a window worth keeping open.
 
@@ -78,7 +78,7 @@ The soundtrack is on by default: turn it off or set its volume in **Preferences*
 | **Controls from your CLI** | Model choices and reasoning levels come from the CLI and update automatically; choose subagent settings and a workspace. |
 | **Seven interface languages** | English, 简体中文, 日本語, 한국어, Español, Deutsch and Français. |
 
-![English demo conversation with the subtle rain effect in the real desktop interface](docs/images/app-en.png?v=20261020)
+![English demo conversation with the subtle rain effect in the real desktop interface](docs/images/app-en.png?v=20261031)
 
 *Screenshots use an isolated demo profile and a simulated engine. Conversation text and quota figures are illustrative; available models and tools depend on your installed CLI.*
 
