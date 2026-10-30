@@ -20,13 +20,13 @@ The focus-timer conversation is authored demo content, not a recorded model resp
 | `city-{tokyo,kyoto,okinawa,hokkaido}-zh-CN.webp` | Simplified Chinese welcome screen of each city edition / 各城市版简体中文欢迎页 |
 | `social-preview.png` | Link preview card for the repository, rendered from `social-preview.html` / 仓库链接分享卡片，由 `social-preview.html` 生成 |
 
-The Tokyo PNGs and GIFs were captured on 2026-10-20 with rain enabled. The README uses looping welcome-screen GIFs so the rain remains recognizable when the image is scaled down. Each GIF records three seconds of the two production rain animations at 20 frames per second. The PNGs retain a fixed frame of the same effect; rain is naturally subtler in conversations. No rain was painted onto the images and no production styles were changed for the captures.
+The Tokyo PNGs and GIFs were captured on 2026-10-31 with rain enabled. The README uses looping welcome-screen GIFs so the rain remains recognizable when the image is scaled down. Each GIF records three seconds of the two production rain animations at 20 frames per second. The PNGs retain a fixed frame of the same effect; rain is naturally subtler in conversations. No rain was painted onto the images and no production styles were changed for the captures.
 
-The city gallery was captured on 2026-10-26 with each city's weather enabled (rain, maple leaves, sea glitter or snow), paused mid-animation. Its images are the capture's lossless PNGs re-encoded as WebP at quality 92, which keeps them visually identical at a fraction of the size; nothing else was changed.
+The city gallery was captured on 2026-10-31 with each city's weather enabled (rain, maple leaves, sea glitter or snow), paused mid-animation. Its images are the capture's lossless PNGs re-encoded as WebP at quality 92, which keeps them visually identical at a fraction of the size; nothing else was changed.
 
-东京的 PNG 与 GIF 拍摄于 2026-10-20，开启了雨滴。介绍页使用循环播放的欢迎页 GIF，让缩小后的图片也能通过运动呈现下雨效果。每张 GIF 以每秒 20 帧记录应用原有的两层雨滴动画，共三秒。PNG 保留同一效果的固定帧，聊天界面中的雨滴按应用原本设计更淡。未在图片上后期添加雨滴，也未为拍摄修改应用样式。
+东京的 PNG 与 GIF 拍摄于 2026-10-31，开启了雨滴。介绍页使用循环播放的欢迎页 GIF，让缩小后的图片也能通过运动呈现下雨效果。每张 GIF 以每秒 20 帧记录应用原有的两层雨滴动画，共三秒。PNG 保留同一效果的固定帧，聊天界面中的雨滴按应用原本设计更淡。未在图片上后期添加雨滴，也未为拍摄修改应用样式。
 
-城市图集拍摄于 2026-10-26，开启了各城市的天气（雨、红叶、海面波光或飘雪），并停在动画中途。图集由拍摄得到的无损 PNG 以质量 92 重新编码为 WebP，视觉上与原图一致，体积大幅缩小；除此之外未作任何修改。
+城市图集拍摄于 2026-10-31，开启了各城市的天气（雨、红叶、海面波光或飘雪），并停在动画中途。图集由拍摄得到的无损 PNG 以质量 92 重新编码为 WebP，视觉上与原图一致，体积大幅缩小；除此之外未作任何修改。
 
 ## Reproduce / 重新拍摄
 

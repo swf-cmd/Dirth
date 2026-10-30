@@ -15,8 +15,8 @@ You need Windows x64 or **macOS 13 Ventura or newer on Intel or Apple Silicon**,
 Running from source or building also requires Git, Node.js 22.13.0 or newer, and npm. Development and automated tests use Node.js 24. The packaged app bundles Electron and does not need a separate Node.js installation.
 
 ```sh
-git clone https://github.com/swf-cmd/dirth.git
-cd dirth
+git clone https://github.com/swf-cmd/Dirth.git
+cd Dirth
 npm ci
 npm start
 ```

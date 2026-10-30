@@ -1,6 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { parseTarget, packageOptions } = require('../scripts/package-config.cjs');
 const { packagedArchive, packagedExecutable } = require('../scripts/package-paths.cjs');
@@ -28,6 +29,23 @@ test('Mac and Windows ship the same runtime and assets with platform-specific me
   assert.ok(mac.icon.endsWith('.icns'));
   assert.ok(win.icon.endsWith('.ico'));
   assert.deepEqual(mac.osxUniversal, { mergeASARs: true });
+});
+
+test('wherever people see the app name, it is spelled Dirth with a capital D', () => {
+  const { productName } = require('../package.json');
+  assert.equal(productName, 'Dirth');
+  const html = fs.readFileSync(path.join(root, 'src', 'renderer', 'index.html'), 'utf8');
+  assert.match(html, /<title>Dirth<\/title>/, 'window title');
+  assert.match(html, /<div class="brand-name">Dirth<span id="brand-edition"/, 'title-bar wordmark');
+  assert.match(fs.readFileSync(path.join(root, 'src', 'main.cjs'), 'utf8'), /app\.setName\('Dirth'\)/, 'menu and dialog name');
+  const mac = packageOptions(root, { platform: 'darwin', arch: 'universal' });
+  const win = packageOptions(root, { platform: 'win32', arch: 'x64' });
+  for (const options of [mac, win]) {
+    assert.equal(options.name, productName);
+    assert.equal(options.executableName, productName);
+  }
+  assert.equal(win.win32metadata.FileDescription, productName);
+  assert.equal(win.win32metadata.ProductName, productName);
 });
 
 test('packaged checks resolve the actual Windows and macOS bundle layouts', () => {

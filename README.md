@@ -10,23 +10,23 @@ A desktop app for [Grok Build](https://x.ai/cli), SpaceXAI's terminal coding age
 
 **English** · [简体中文](README.zh-CN.md)
 
-[![Tests](https://github.com/swf-cmd/dirth/actions/workflows/test.yml/badge.svg)](https://github.com/swf-cmd/dirth/actions/workflows/test.yml)
-[![Latest release](https://img.shields.io/github/v/release/swf-cmd/dirth?label=release&color=c1adff)](https://github.com/swf-cmd/dirth/releases/latest)
+[![Tests](https://github.com/swf-cmd/Dirth/actions/workflows/test.yml/badge.svg)](https://github.com/swf-cmd/Dirth/actions/workflows/test.yml)
+[![Latest release](https://img.shields.io/github/v/release/swf-cmd/Dirth?label=release&color=c1adff)](https://github.com/swf-cmd/Dirth/releases/latest)
 [![MIT License](https://img.shields.io/badge/license-MIT-71d6c6)](LICENSE)
 ![Windows x64](https://img.shields.io/badge/platform-Windows_x64-86b7f9)
 ![macOS 13+ · Intel + Apple Silicon](https://img.shields.io/badge/macOS-13%2B_Intel_%2B_Apple_Silicon-86b7f9)
 
-**[Download for Mac](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip) · [Download for Windows](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip) · [All releases](https://github.com/swf-cmd/dirth/releases)**
+**[Download for Mac](https://github.com/swf-cmd/Dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip) · [Download for Windows](https://github.com/swf-cmd/Dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip) · [All releases](https://github.com/swf-cmd/Dirth/releases)**
 
 <sub>Free and open source · Unofficial · Uses the official <a href="#install-grok-build">Grok Build CLI</a>, installed separately · Formerly Grokbuild Tokyo</sub>
 
-[Quick start](#quick-start) · [Four cities](#four-cities-one-workspace) · [Features](#made-for-long-evenings-of-building) · [FAQ](#faq) · [User guide](docs/guide.md) · [Contribute](CONTRIBUTING.md) · [Report a bug](https://github.com/swf-cmd/dirth/issues/new/choose)
+[Quick start](#quick-start) · [Four cities](#four-cities-one-workspace) · [Features](#made-for-long-evenings-of-building) · [FAQ](#faq) · [User guide](docs/guide.md) · [Contribute](CONTRIBUTING.md) · [Report a bug](https://github.com/swf-cmd/Dirth/issues/new/choose)
 
 </div>
 
-![Dirth English welcome screen with animated rain over Shibuya](docs/images/welcome-en.gif?v=20261020)
+![Dirth English welcome screen with animated rain over Shibuya](docs/images/welcome-en.gif?v=20261031)
 
-*Animated rain in the Windows interface, using an isolated demo profile. Mac uses native window controls and Command-key shortcuts. [Still image](docs/images/welcome-en.png?v=20261020) · [Capture details](docs/images/README.md).*
+*Animated rain in the Windows interface, using an isolated demo profile. Mac uses native window controls and Command-key shortcuts. [Still image](docs/images/welcome-en.png?v=20261031) · [Capture details](docs/images/README.md).*
 
 [Grok Build](https://x.ai/cli) is the terminal coding agent from SpaceXAI (formerly xAI). Dirth is an **unofficial, open-source desktop app** for it: it starts the Grok Build CLI you installed and talks to it over the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP), the same protocol editors use to embed it. Your sign-in, models, tools, permission rules, MCP servers and skills stay exactly as the CLI configures them. The app gives them a window worth keeping open.
 
@@ -78,7 +78,7 @@ The soundtrack is on by default: turn it off or set its volume in **Preferences*
 | **Controls from your CLI** | Model choices and reasoning levels come from the CLI and update automatically; choose subagent settings and a workspace. |
 | **Seven interface languages** | English, 简体中文, 日本語, 한국어, Español, Deutsch and Français. |
 
-![English demo conversation with the subtle rain effect in the real desktop interface](docs/images/app-en.png?v=20261020)
+![English demo conversation with the subtle rain effect in the real desktop interface](docs/images/app-en.png?v=20261031)
 
 *Screenshots use an isolated demo profile and a simulated engine. Conversation text and quota figures are illustrative; available models and tools depend on your installed CLI.*
 
@@ -104,12 +104,12 @@ If you have already signed in to Grok Build in a terminal, the app reuses the si
 
 ### Downloads
 
-**[Get the latest release](https://github.com/swf-cmd/dirth/releases/latest)**: public downloads, with no GitHub sign-in required. Coming from Grokbuild Tokyo (v1.2.5 or earlier)? Quit it first, then install as below; your chats and settings carry over (see [Your data](#your-data)).
+**[Get the latest release](https://github.com/swf-cmd/Dirth/releases/latest)**: public downloads, with no GitHub sign-in required. Coming from Grokbuild Tokyo (v1.2.5 or earlier)? Quit it first, then install as below; your chats and settings carry over (see [Your data](#your-data)).
 
 | v1.3.0 download | Requirements | Checksum |
 | --- | --- | --- |
-| **[Mac universal ZIP](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip)** | macOS 13 Ventura or later · Intel and Apple Silicon | [SHA-256](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip.sha256) |
-| **[Windows x64 portable ZIP](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip)** | Windows x64 · complete app folder, no installer | [SHA-256](https://github.com/swf-cmd/dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip.sha256) |
+| **[Mac universal ZIP](https://github.com/swf-cmd/Dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip)** | macOS 13 Ventura or later · Intel and Apple Silicon | [SHA-256](https://github.com/swf-cmd/Dirth/releases/download/v1.3.0/Dirth-1.3.0-mac-universal.zip.sha256) |
+| **[Windows x64 portable ZIP](https://github.com/swf-cmd/Dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip)** | Windows x64 · complete app folder, no installer | [SHA-256](https://github.com/swf-cmd/Dirth/releases/download/v1.3.0/Dirth-1.3.0-win-x64.zip.sha256) |
 
 - **Mac:** unzip once, then move **Dirth.app** to **Applications** (v1.2.5 and earlier are named **Grokbuild Tokyo.app**). The app uses an ad-hoc signature, without a Developer ID certificate or Apple notarization. If macOS blocks the first launch, verify that you downloaded it from this repository, then follow **System Settings → Privacy & Security → Open Anyway** ([Apple's instructions](https://support.apple.com/en-us/102445)).
 - **Windows:** extract the ZIP to a folder you can write to, then run **`App\Dirth.exe`** (**`App\Grokbuild Tokyo.exe`** in v1.2.5 and earlier). Keep the entire **`App`** folder together; this is a portable app, not an installer. To upgrade, replace the old **`App`** folder with the new one; `data` and `Workspace` beside it stay as they are. The app is not code-signed. If SmartScreen appears, verify the download source before using **More info → Run anyway**, if that option is available.
@@ -188,7 +188,7 @@ Yes: up to 10 files per message, 20 MB each and 50 MB in total. What the model c
 <details>
 <summary><b>Why does macOS or Windows warn me on first launch?</b></summary>
 
-The Mac app is ad-hoc signed and not notarized, and the Windows app is not code-signed. Make sure the download came from this repository's [releases](https://github.com/swf-cmd/dirth/releases), optionally verify its SHA-256 checksum, then follow the steps in [Downloads](#downloads).
+The Mac app is ad-hoc signed and not notarized, and the Windows app is not code-signed. Make sure the download came from this repository's [releases](https://github.com/swf-cmd/Dirth/releases), optionally verify its SHA-256 checksum, then follow the steps in [Downloads](#downloads).
 
 </details>
 
@@ -237,8 +237,8 @@ Remote images can contact public image hosts. Read the [security policy](SECURIT
 You need **Git**, **Node.js 22.13.0 or later** and npm; development and CI use Node.js 24. Installing dependencies and the first build download Electron, so they need internet access.
 
 ```sh
-git clone https://github.com/swf-cmd/dirth.git
-cd dirth
+git clone https://github.com/swf-cmd/Dirth.git
+cd Dirth
 npm ci
 npm start
 ```
@@ -286,7 +286,7 @@ npm run test:all
 
 `test:all` runs ESLint, the JavaScript type check, unit tests and every offline UI suite. Tests use isolated fixtures and a mock CLI, so they make no real model requests. CI also audits dependencies, builds the Windows and universal Mac apps, and repeats the UI suites against the packaged builds on Windows, Apple Silicon and Intel Mac. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete checks, contribution workflow and opt-in live tests.
 
-Bug reports, focused fixes, translations and documentation improvements are welcome. Please use [private vulnerability reporting](https://github.com/swf-cmd/dirth/security/advisories/new) for sensitive security findings.
+Bug reports, focused fixes, translations and documentation improvements are welcome. Please use [private vulnerability reporting](https://github.com/swf-cmd/Dirth/security/advisories/new) for sensitive security findings.
 
 If Dirth keeps you company on late-night builds, starring the repository helps other people find it.
 
