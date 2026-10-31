@@ -1982,8 +1982,10 @@
     });
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') closeSessionMenu({ returnFocus: true });
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); if (!document.querySelector('dialog[open]')) newChat(); }
-      if ((event.ctrlKey || event.metaKey) && event.key === ',') { event.preventDefault(); showSettings(); }
+      // ⌘ on Mac, where Control+N moves the caret down a line in a text field.
+      const command = isMac ? event.metaKey : event.ctrlKey;
+      if (command && event.key.toLowerCase() === 'n') { event.preventDefault(); if (!document.querySelector('dialog[open]')) newChat(); }
+      if (command && event.key === ',') { event.preventDefault(); showSettings(); }
     });
     unsubscribeMenu = api?.onMenuAction?.(action => {
       if (action === 'preferences') showSettings();

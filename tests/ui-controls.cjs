@@ -156,7 +156,9 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       await page.locator('#search-toggle').click(); await page.locator('#session-search').fill('no-such-chat'); assert.equal(await page.locator('.session-select').count(), 0);
       await page.locator('#session-search').fill('Renamed'); assert.equal(await page.locator('.session-select').count(), 1);
       await page.locator('#session-search').press('Escape'); assert.equal(await page.locator('#history-search').isHidden(), true);
-      await page.locator('#prompt').fill('Saved draft'); await page.keyboard.press(process.platform === 'darwin' ? 'Meta+n' : 'Control+n'); assert.equal(await page.locator('#prompt').inputValue(), '');
+      // Only the platform's command key starts a chat: on Mac, Control+N moves the caret down a line.
+      await page.locator('#prompt').fill('Saved draft'); await page.keyboard.press(process.platform === 'darwin' ? 'Control+n' : 'Meta+n'); assert.equal(await page.locator('#prompt').inputValue(), 'Saved draft');
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+n' : 'Control+n'); assert.equal(await page.locator('#prompt').inputValue(), '');
       await page.locator('#prompt').fill('New draft'); await page.locator('#new-session').click(); assert.equal(await page.locator('#prompt').inputValue(), 'New draft');
       await page.locator('.session-select').filter({ hasText: 'Renamed fixture' }).click(); await idle(); assert.equal(await page.locator('#prompt').inputValue(), 'Saved draft');
     });
