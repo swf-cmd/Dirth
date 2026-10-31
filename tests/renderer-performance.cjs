@@ -167,6 +167,15 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
     await page.waitForFunction(() => document.querySelectorAll('.session-select').length === 100);
     assert.deepEqual(await page.evaluate(() => ({ clears: window.__listClears, retained: document.querySelectorAll('.message').length, parses: window.__parseCount - window.__beforeBatchParses })), { clears: 1, retained: 62, parses: 0 });
 
+    // Opening the conversation again draws its replies from the HTML already
+    // parsed and sanitized for them, instead of reading the whole history again.
+    await page.locator('#new-session').click();
+    await page.waitForFunction(() => document.querySelectorAll('.message').length === 0);
+    await page.evaluate(() => { window.__beforeReopenParses = window.__parseCount + window.__blockParses; });
+    await page.locator('.session-item[data-session-id="history"] .session-select').click();
+    await page.waitForFunction(() => document.querySelectorAll('.message').length === 62);
+    assert.equal(await page.evaluate(() => window.__parseCount + window.__blockParses - window.__beforeReopenParses), 0, 'reopening parses no reply again');
+
     const imageFile = path.join(root, 'src', 'renderer', 'assets', 'icon.png');
     await desktop.evaluate((_, imageFile) => globalThis.__tokyoUITest.dialogs.push({ canceled: false, filePaths: [imageFile] }), imageFile);
     await page.locator('#attach-button').click();

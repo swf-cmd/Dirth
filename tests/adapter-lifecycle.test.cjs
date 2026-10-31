@@ -126,6 +126,26 @@ test('a read error on an output pipe ends the connection instead of throwing', a
   assert.ok(events.some(event => event.status === 'disconnected' && /ECONNRESET/.test(event.message)));
 });
 
+test('a deleted conversation has its session closed at once, so its tools stop', async () => {
+  const { adapter, writes, answer } = wired();
+  adapter.info.capabilities = { loadSession: true, sessionCapabilities: { close: {} } };
+  for (const sessionId of ['deleted', 'kept', 'replying']) adapter.sessions.set(sessionId, { sessionId, loaded: true });
+  const closing = adapter.closeSession('deleted');
+  answer('session/close', {});
+  assert.equal(await closing, true);
+  assert.deepEqual(writes.filter(item => item.method === 'session/close').map(item => item.params), [{ sessionId: 'deleted' }]);
+  assert.equal(adapter.getSession('deleted'), undefined);
+  assert.ok(adapter.getSession('kept'));
+  // A conversation still replying is never closed under it.
+  adapter.active.set('replying', {});
+  assert.equal(await adapter.closeSession('replying'), false);
+  assert.ok(adapter.getSession('replying'));
+  // Without Grok's close method there is nothing to send.
+  adapter.info.capabilities = { loadSession: true };
+  assert.equal(await adapter.closeSession('kept'), false);
+  assert.equal(writes.filter(item => item.method === 'session/close').length, 1);
+});
+
 test('a CLI without session restore keeps the conversation usable after a selection it cannot confirm', async () => {
   const { adapter, writes, answer } = wired();
   adapter.info.capabilities = { loadSession: false };
@@ -257,6 +277,93 @@ test('nothing new is sent to a CLI that an unanswered Stop is shutting down', as
   assert.equal(received.filter(item => item.method === 'session/prompt').length, 1, 'only the stopped prompt ever reached the old CLI');
   finishKill();
   assert.equal((await first).cancelled, true);
+});
+
+test('an unanswered Stop closes every session before it ends the CLI, so their tools stop too', async t => {
+  // Grok stops the commands a session's tools started only when the session
+  // closes; ending the CLI leaves them running, in every conversation.
+  for (const stuck of [false, true]) await t.test(stuck ? 'Grok does not answer the closes either' : 'Grok answers the closes', async t => {
+    const received = [];
+    const adapter = new GrokAdapter({ cwd: __dirname, spawnProcess: () => syntheticChild((message, child) => {
+      received.push(message.method);
+      if (message.method === 'initialize') child.send({ id: message.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, sessionCapabilities: { close: {} } } } });
+      else if (message.method === 'session/new') child.send({ id: message.id, result: { sessionId: `s${received.length}`, configOptions: [] } });
+      else if (message.method === 'session/close' && !stuck) child.send({ id: message.id, result: {} });
+      // Prompts and Stop go unanswered.
+    }) });
+    t.after(() => adapter.close().catch(() => {}));
+    const a = await adapter.newSession();
+    const b = await adapter.newSession();
+    let killStarted, finishKill;
+    const killing = new Promise(resolve => { killStarted = resolve; });
+    const graceOver = new Promise(resolve => { finishKill = resolve; });
+    adapter._kill = async child => { killStarted([...received]); await graceOver; child.kill(); };
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const first = adapter.prompt({ sessionId: a.sessionId, text: 'long task' });
+    await new Promise(setImmediate);
+    await adapter.cancel(a.sessionId);
+    t.mock.timers.tick(10000);
+    // Only the closes reach it now.
+    await assert.rejects(adapter.prompt({ sessionId: b.sessionId, text: 'task in another conversation' }), { code: 'NOT_CONNECTED' });
+    await new Promise(setImmediate);
+    if (stuck) t.mock.timers.tick(3000);
+    const sentBeforeKill = await killing;
+    t.mock.timers.reset();
+    assert.deepEqual(sentBeforeKill.filter(method => method === 'session/close').length, 2, 'both conversations close before the CLI is ended');
+    assert.equal(received.filter(method => method === 'session/prompt').length, 1, 'only the stopped prompt ever reached the old CLI');
+    finishKill();
+    assert.equal((await first).cancelled, true);
+  });
+});
+
+test('a CLI that exits after long stderr reports whole lines, never a cut credential', async t => {
+  const { adapter, children, events } = synthetic(t);
+  await adapter.start();
+  const child = children[0];
+  // The last 8000 characters begin inside the value, after its name.
+  child.stderr.write(`${'A'.repeat(100)} refresh_token=rt-${'S'.repeat(50)}\n`);
+  child.stderr.write(`${'B'.repeat(7960)}\n`);
+  await new Promise(setImmediate);
+  child.exit(3);
+  child.stdout.end();
+  child.emit('close', 3, null);
+  const disconnected = events.find(event => event.status === 'disconnected');
+  assert.ok(disconnected);
+  assert.equal(disconnected.message.includes('SSSS'), false, disconnected.message.slice(0, 120));
+  assert.match(disconnected.message, /B{100}/, 'the whole last line remains the reason');
+});
+
+test('a long stderr line is redacted whole, and a line cut at the start of the kept text is dropped whole', async t => {
+  const { adapter, children, events } = synthetic(t);
+  await adapter.start();
+  const child = children[0];
+  // One line of 9,000 characters in two reads, with a credential across them,
+  // ending in the reason for the exit.
+  child.stderr.write(`${'x'.repeat(7000)} "refresh_token":"FIRSTHALF`);
+  child.stderr.write(`SECONDHALF","error":"invalid_grant" ${'y'.repeat(1900)} the CLI's reason\n`);
+  // A 70 KB line whose start is dropped, in several reads, then a last line.
+  child.stderr.write(`"refresh_token":"${'S'.repeat(40000)}`);
+  child.stderr.write('S'.repeat(30000));
+  child.stderr.write(`${'S'.repeat(1000)}"\nlast line\n`);
+  await new Promise(setImmediate);
+  child.exit(101);
+  child.stdout.end();
+  child.emit('close', 101, null);
+  const message = events.find(event => event.status === 'disconnected').message;
+  assert.equal(/FIRSTHALF|SECONDHALF|SSSS/.test(message), false, message.slice(0, 200));
+  assert.match(message, /last line/);
+});
+
+test('the exit reason survives a last stderr line longer than the message', async t => {
+  const { adapter, children, events } = synthetic(t);
+  await adapter.start();
+  const child = children[0];
+  child.stderr.write(`panic: ${'context '.repeat(1500)}the CLI's reason\n`);
+  await new Promise(setImmediate);
+  child.exit(101);
+  child.stdout.end();
+  child.emit('close', 101, null);
+  assert.match(events.find(event => event.status === 'disconnected').message, /the CLI's reason/);
 });
 
 test('POSIX shutdown lets the CLI stop the tools it started in their own sessions', { skip: process.platform === 'win32' }, async t => {

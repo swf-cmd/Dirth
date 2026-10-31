@@ -53,7 +53,9 @@ function imageMime(bytes, t = defaultT) {
   if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return 'image/jpeg';
   if (/^GIF8[79]a/.test(bytes.subarray(0, 6).toString())) return 'image/gif';
   if (bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
-  if (bytes.toString('ascii', 0, 2) === 'BM') return 'image/bmp';
+  // "BM" alone also starts text ("BMI,Age", "BM25"): a bitmap's header size
+  // follows its 14-byte file header, and text has no zero bytes there.
+  if (bytes.toString('ascii', 0, 2) === 'BM' && bytes.length >= 26 && [12, 16, 40, 52, 56, 64, 108, 124].includes(bytes.readUInt32LE(14))) return 'image/bmp';
   if (bytes.toString('ascii', 4, 8) === 'ftyp' && /avif|avis/.test(bytes.toString('ascii', 8, 32))) return 'image/avif';
   if (bytes[0] === 0 && bytes[1] === 0 && bytes[2] === 1 && bytes[3] === 0) return 'image/x-icon';
   // A comment body may not contain "-->", so each comment can end in only one
@@ -71,15 +73,16 @@ function isWithin(root, target) {
 }
 
 // Whether a path named by a reply may be opened at all, before any file is
-// touched. A network path (\\server\share, //server/share) is opened only
-// inside one of the conversation's own folders, `roots` (resolved already):
+// touched. A network path (\\server\share, //server/share, or /\server\share:
+// Windows reads any two leading separators as one) is opened only inside one
+// of the conversation's own folders, `roots` (resolved already):
 // opening another one would connect to its server and offer it this
 // computer's credentials. That folder can itself be on a share, for an app
 // kept on a network drive. Windows allows a colon only after a drive letter
 // (elsewhere it names a data stream or a device); other systems allow it in
 // file names, so only a leading scheme ("smb:", "javascript:") is refused.
 function openablePath(file, roots, platform = process.platform) {
-  if (/^(?:\\\\|\/\/)/.test(file) && !roots.some(root => isWithin(root, path.resolve(file)))) return false;
+  if (/^[\\/]{2}/.test(file) && !roots.some(root => isWithin(root, path.resolve(file)))) return false;
   return platform === 'win32' ? !file.includes(':') || /^[a-z]:[\\/][^:]*$/i.test(file) : !/^[a-z][a-z0-9+.-]*:/i.test(file);
 }
 

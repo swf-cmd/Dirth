@@ -268,7 +268,7 @@ test('load labels replay events and allows session continuation', async t => {
 test('CLI error text shown, saved and exported never carries a credential', () => {
   const { safeMessage } = new GrokAdapter();
   const jwt = 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.c2lnbmF0dXJlLXZhbHVl';
-  const secrets = ['abc.def-123', 'dXNlcjpwYXNzd29yZA==', 'tok_live_123', 'rt-secret-1', 'it-secret-2', 'cs-secret-3', 'pw-secret-4', 'ks-secret-5', jwt, 'xai-abcdefghijklmnopqrstuvwx'];
+  const secrets = ['abc.def-123', 'dXNlcjpwYXNzd29yZA==', 'tok_live_123', 'rt-secret-1', 'it-secret-2', 'cs-secret-3', 'pw-secret-4', 'ks-secret-5', jwt, 'xai-abcdefghijklmnopqrstuvwx', 'esc-secret-6'];
   for (const text of [
     'request failed: Authorization: Bearer abc.def-123',
     'proxy answered: authorization: Basic dXNlcjpwYXNzd29yZA==',
@@ -278,6 +278,15 @@ test('CLI error text shown, saved and exported never carries a credential', () =
     'auth store: {"key":"ks-secret-5","auth_mode":"oidc"}',
     `panic while holding ${jwt}`,
     'api key xai-abcdefghijklmnopqrstuvwx was rejected',
+    // JSON quoted again by Rust's debug output, camel case and other spellings.
+    String.raw`body: "{\"refresh_token\":\"rt-secret-1\",\"key\":\"ks-secret-5\"}"`,
+    String.raw`header: {\"authorization\":\"Basic dXNlcjpwYXNzd29yZA==\"}`,
+    'state: {"accessToken":"tok_live_123","refreshToken":"rt-secret-1","idToken":"it-secret-2"}',
+    'request: x-api-key: abc.def-123 apiKey=cs-secret-3 callback?token=pw-secret-4',
+    '{"token":"ks-secret-5"}',
+    // A value runs on past escapes, and a token can follow a hyphen.
+    String.raw`{"key":"abc\/esc-secret-6"} password=abc\esc-secret-6 authorization: Basic abc\esc-secret-6`,
+    `id-token-${jwt}`,
   ]) {
     const shown = safeMessage(text);
     for (const secret of secrets) assert.equal(shown.includes(secret), false, `${secret} must not appear in: ${shown}`);
@@ -285,6 +294,15 @@ test('CLI error text shown, saved and exported never carries a credential', () =
   }
   // Ordinary diagnostics stay readable.
   for (const text of ['Unexpected token } in JSON at position 5', 'model key: grok-4 is unavailable']) assert.equal(safeMessage(text), text);
+});
+
+test('redacting a long CLI error takes linear time', () => {
+  const { safeMessage } = new GrokAdapter();
+  // Each "eyJ" inside one long run of token characters used to rescan the rest
+  // of the run: 64 KB took 3 s on the main thread, 128 KB 12 s.
+  const started = performance.now();
+  safeMessage('-eyJ'.repeat(32768));
+  assert.ok(performance.now() - started < 1000, `took ${Math.round(performance.now() - started)} ms`);
 });
 
 test("a CLI error shows Grok's reason from its data, still redacted", async () => {
@@ -812,6 +830,8 @@ test('an unanswered stop stays pending until other conversations finish', async 
   adapter._message({ id: request('second').id, result: { stopReason: 'end_turn' } });
   await second;
   t.mock.timers.tick(1000);
+  // Its sessions are closed first (none here can be), then the CLI is ended.
+  await new Promise(setImmediate);
   assert.equal(kills, 1, 'the unresponsive stop restarts the engine once other conversations finish');
   adapter._message({ id: request('first').id, result: { stopReason: 'cancelled' } });
   assert.equal((await first).cancelled, true);
@@ -839,6 +859,7 @@ test('an unanswered stop preserves another session that is being restored or cre
     adapter._message({ id: request.id, result: { sessionId: 'second', configOptions: [] } });
     await other;
     t.mock.timers.tick(1000);
+    await new Promise(setImmediate);
     assert.equal(kills, 1);
     adapter._message({ id: writes.find(item => item.method === 'session/prompt').id, result: { stopReason: 'cancelled' } });
     await first;

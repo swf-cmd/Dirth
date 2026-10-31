@@ -93,6 +93,25 @@ class HistoryStore {
     this.accountIds = new Set((data.accounts || []).map(account => account.id));
     return data;
   }
+  // Replacing the index is a delete then a rename on some disks (FAT32 and
+  // exFAT, as on a USB drive). Interrupted between the two, the new index is
+  // left only in its temporary file, complete (it was synced before the
+  // rename) and naming conversation files that are all in place.
+  adoptPendingIndex() {
+    if (fs.existsSync(this.file)) return false;
+    try {
+      const data = JSON.parse(fs.readFileSync(`${this.file}.tmp`, 'utf8'));
+      if (data?.version !== 3 || !Array.isArray(data.sessions)) return false;
+      if (!data.sessions.every(session => /^[a-f0-9-]{36}\.json$/.test(session?.contentFile) && fs.existsSync(path.join(this.directory, 'sessions', session.contentFile)))) return false;
+      fs.renameSync(`${this.file}.tmp`, this.file);
+      return true;
+    } catch { return false; }
+  }
+  // Whether conversation files are on disk, whatever names them.
+  hasContent() {
+    try { return fs.readdirSync(path.join(this.directory, 'sessions')).some(file => /^[a-f0-9-]{36}\.json$/.test(file)); }
+    catch { return false; }
+  }
   blobReferences() {
     const refs = new Set(this.legacyReferences);
     for (const group of [...this.references.values(), ...this.queuedReferences]) for (const ref of group) refs.add(ref);

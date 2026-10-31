@@ -16,7 +16,10 @@ const TYPES = { '.txt': 'text/plain', '.md': 'text/markdown', '.csv': 'text/csv'
 const within = (root, target) => { const rel = path.relative(root, target); return rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel); };
 
 function safeName(value) {
-  let name = String(value || 'attachment').split(/[\\/]/).pop().replace(/[<>:"|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 160) || 'attachment';
+  // Direction controls make "invoice‮fdp.exe" display as "invoiceexe.pdf"
+  // while the save dialog still proposes an .exe.
+  let name = String(value || 'attachment').split(/[\\/]/).pop().replace(/[؜‎‏‪-‮⁦-⁩]/g, '')
+    .replace(/[<>:"|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 160) || 'attachment';
   if (/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(name)) name = '_' + name;
   return name;
 }

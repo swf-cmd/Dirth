@@ -20,7 +20,7 @@ test('build defaults preserve Windows x64 and use the native Mac architecture', 
 test('Mac and Windows ship the same runtime and assets with platform-specific metadata', () => {
   const mac = packageOptions(root, { platform: 'darwin', arch: 'universal' });
   const win = packageOptions(root, { platform: 'win32', arch: 'x64' });
-  assert.equal(mac.electronVersion, '44.9.3');
+  assert.equal(mac.electronVersion, '44.10.1');
   assert.equal(win.electronVersion, mac.electronVersion);
   assert.equal(mac.ignore, win.ignore);
   assert.equal(mac.asar, true);

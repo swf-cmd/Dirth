@@ -20,6 +20,7 @@ fs.writeFileSync(executable, 'Offline fixture only'); fs.chmodSync(executable, 0
 fs.writeFileSync(path.join(workspace, 'report.csv'), 'a,b\n1,2\n');
 const reportURL = pathToFileURL(path.join(workspace, 'report.csv')).href;
 const now = Date.now();
+const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jlyUAAAAASUVORK5CYII=';
 const message = (id, role, text) => ({ id, role, text, status: 'complete', createdAt: new Date(now).toISOString(), tools: [] });
 const conversation = (id, title, age, messages) => ({ id, title, cwd: workspace, model: 'grok-4.6', mode: 'medium', createdAt: now - age, updatedAt: now - age, messages });
 const markup = [
@@ -36,6 +37,8 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
     conversation('cccccccc-0000-4000-8000-000000000003', 'Charlie', 3000, [message('c1', 'user', 'hi charlie')]),
     conversation('dddddddd-0000-4000-8000-000000000004', 'Markup', 4000, [message('m1', 'user', 'format it'), message('m2', 'assistant', markup)]),
     conversation('eeeeeeee-0000-4000-8000-000000000005', 'Files', 5000, [message('f1', 'user', 'make a report'), message('f2', 'assistant', `Saved [the report](${reportURL}).`)]),
+    conversation('99999999-0000-4000-8000-000000000007', 'Delta', 7000, [message('d1', 'user', 'hi delta')]),
+    conversation('ffffffff-0000-4000-8000-000000000006', 'Badge', 6000, [message('g1', 'user', 'show the build'), message('g2', 'assistant', `[![build status](data:image/png;base64,${pixel})](https://ci.example.test/run/42)\n\nSee [the run](https://ci.example.test/run/42).`)]),
   ],
 }));
 
@@ -115,6 +118,42 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       assert.match(await reply.locator('details').textContent(), /Hidden body text/);
       assert.deepEqual(await reply.locator('li').allTextContents(), ['☑ finished step', '☐ open step']);
       assert.deepEqual(await reply.locator('td').evaluateAll(cells => cells.map(cell => cell.getAttribute('align'))), ['left', 'center', 'right']);
+    });
+
+    await stage('an image inside a link opens its preview, never the link', async () => {
+      await select('Badge');
+      const external = () => desktop.evaluate(() => globalThis.__tokyoUITest.external.length);
+      const before = await external();
+      const thumbnail = page.locator('.message.assistant a .chat-image .image-thumbnail');
+      await page.waitForFunction(() => document.querySelector('.message.assistant a .chat-image .image-thumbnail:not([disabled])'));
+      await thumbnail.click();
+      await page.waitForFunction(() => document.querySelector('#image-dialog').open);
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('#image-dialog').open);
+      await page.waitForTimeout(300);
+      assert.equal(await external(), before, 'the link around the image stays closed');
+      // The link itself still opens.
+      await page.locator('.message.assistant a', { hasText: 'the run' }).click();
+      for (const deadline = Date.now() + 5000; await external() === before && Date.now() < deadline;) await page.waitForTimeout(50);
+      assert.equal(await external(), before + 1);
+    });
+
+    await stage('text typed while a conversation opens is saved as its draft', async () => {
+      await select('Bravo');
+      await page.locator('#prompt').fill('');
+      // Restoring Delta in the engine is held until the test releases it.
+      await desktop.evaluate(() => globalThis.__tokyoUITest.hold('loadSession'));
+      await page.locator('.session-select', { hasText: 'Delta' }).click();
+      for (const deadline = Date.now() + 10000; !await desktop.evaluate(() => globalThis.__tokyoUITest.gates.get('loadSession')?.entered) && Date.now() < deadline;) await page.waitForTimeout(20);
+      await page.locator('#prompt').fill('message meant for Delta');
+      await desktop.evaluate(() => globalThis.__tokyoUITest.release('loadSession'));
+      await page.waitForFunction(() => document.querySelector('#breadcrumb-title').textContent === 'Delta' && !document.querySelector('.session-select').disabled);
+      assert.equal(await page.locator('#prompt').inputValue(), 'message meant for Delta');
+      await select('Bravo');
+      assert.equal(await page.locator('#prompt').inputValue(), '', 'Bravo keeps its own draft');
+      await select('Delta');
+      assert.equal(await page.locator('#prompt').inputValue(), 'message meant for Delta');
+      await page.locator('#prompt').fill('');
     });
 
     await stage('a file: link in a reply saves the attachment it names', async () => {
@@ -258,17 +297,28 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
         assert.deepEqual((await content()).at(-1), streamed, 'the end of the reply leaves it as streamed');
       }
       const streamed = await content();
-      await page.evaluate(() => {
+      const countSanitizing = () => {
         window.__sanitized = 0;
-        const sanitize = window.DOMPurify.sanitize;
-        window.DOMPurify.sanitize = (...args) => { window.__sanitized++; return sanitize(...args); };
-      });
+        const wrap = purify => { const sanitize = purify.sanitize; purify.sanitize = (...args) => { window.__sanitized++; return sanitize(...args); }; return purify; };
+        if (window.DOMPurify) wrap(window.DOMPurify);
+        // After a reload, count from the first render on.
+        else { let purify; Object.defineProperty(window, 'DOMPurify', { configurable: true, get: () => purify, set: value => { purify = wrap(value); } }); }
+      };
+      // Opening the conversation again draws its replies from the HTML they already have.
+      await page.evaluate(countSanitizing);
       await select('Markup'); await select('Bravo');
+      assert.deepEqual(await content(), streamed);
+      assert.equal(await page.evaluate(() => window.__sanitized), 0, 'reopening sanitizes nothing again');
+      // After a restart the saved replies render fresh, exactly as they streamed.
+      await page.addInitScript(countSanitizing);
+      await page.reload();
+      await page.waitForFunction(() => !document.querySelector('#connection-button').disabled && !document.querySelector('#settings-button').disabled);
+      if (await page.locator('#breadcrumb-title').textContent() !== 'Bravo') { await page.evaluate(() => { window.__sanitized = 0; }); await select('Bravo'); }
       assert.deepEqual(await content(), streamed, 'a fresh render of the saved replies matches what was streamed');
       assert.deepEqual(streamed.map(reply => reply.images), [0, 1]);
       assert.match(await page.locator('.message.assistant details').first().textContent(), /Hidden text[\s\S]*Still hidden/);
-      // Markup holds one reply and Bravo two: each is sanitized once, not once per block.
-      assert.equal(await page.evaluate(() => window.__sanitized), 3);
+      // Bravo holds two replies: each is sanitized once, not once per block.
+      assert.equal(await page.evaluate(() => window.__sanitized), 2);
     });
 
     await stage('an image on its own line stays one figure while the text after it streams in', async () => {

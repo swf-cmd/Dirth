@@ -7,7 +7,7 @@ const vm = require('node:vm');
 const catalogs = require('../src/locales.js');
 const { createI18n } = require('../src/i18n.js');
 const { themes, ids, defaultTheme, normalizeTheme, textFields, previewSprite } = require('../src/themes.js');
-const { build, palettes, transformHex } = require('../scripts/build-theme-css.cjs');
+const { build, palettes, transformHex, parse } = require('../scripts/build-theme-css.cjs');
 const { packageFiles } = require('../scripts/package-policy.cjs');
 
 const root = path.resolve(__dirname, '..');
@@ -165,6 +165,14 @@ function contrast(a, b) {
   const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
   return (light + 0.05) / (dark + 0.05);
 }
+
+test('the theme generator reports an unterminated comment or string instead of hanging', () => {
+  // Chromium accepts both at the end of styles.css; the parser restarted its
+  // scan from the beginning and never returned.
+  assert.throws(() => parse('a{color:#fff}\n/* note'), /Unterminated comment/);
+  assert.throws(() => parse('a{content:"open}'), /Unterminated string/);
+  assert.equal(parse('a{content:"x;}"}/* done */').length, 1);
+});
 
 test('the daylight cities keep text, links and buttons readable', () => {
   // Tokyo's own pairs, as written in styles.css, mapped into each city.

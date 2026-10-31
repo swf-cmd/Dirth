@@ -151,12 +151,18 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
     await stage('rename save/cancel, search toggle/filter/Escape, per-chat drafts', async () => {
       await openMenu(); await page.locator('#menu-rename').click(); await page.locator('#rename-input').fill('Renamed fixture'); await page.locator('#rename-form button[type="submit"]').click();
       await page.locator('#rename-dialog').waitFor({ state: 'hidden' }); assert.equal(readState().sessions[0].title, 'Renamed fixture');
+      // Keyboard focus returns to the conversation's "···" button, not to the page.
+      const focusedRow = () => page.waitForFunction(() => document.activeElement?.matches('.session-item.active .session-more'));
+      await focusedRow();
       await openMenu(); await page.locator('#menu-rename').click(); await page.locator('#rename-input').fill('Discarded'); await page.locator('#rename-dialog .secondary-button').click();
-      assert.equal(readState().sessions[0].title, 'Renamed fixture');
+      assert.equal(readState().sessions[0].title, 'Renamed fixture'); await focusedRow();
       await page.locator('#search-toggle').click(); await page.locator('#session-search').fill('no-such-chat'); assert.equal(await page.locator('.session-select').count(), 0);
       await page.locator('#session-search').fill('Renamed'); assert.equal(await page.locator('.session-select').count(), 1);
       await page.locator('#session-search').press('Escape'); assert.equal(await page.locator('#history-search').isHidden(), true);
-      await page.locator('#prompt').fill('Saved draft'); await page.keyboard.press(process.platform === 'darwin' ? 'Meta+n' : 'Control+n'); assert.equal(await page.locator('#prompt').inputValue(), '');
+      assert.equal(await page.evaluate(() => document.activeElement?.id), 'search-toggle');
+      // Only the platform's command key starts a chat: on Mac, Control+N moves the caret down a line.
+      await page.locator('#prompt').fill('Saved draft'); await page.keyboard.press(process.platform === 'darwin' ? 'Control+n' : 'Meta+n'); assert.equal(await page.locator('#prompt').inputValue(), 'Saved draft');
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+n' : 'Control+n'); assert.equal(await page.locator('#prompt').inputValue(), '');
       await page.locator('#prompt').fill('New draft'); await page.locator('#new-session').click(); assert.equal(await page.locator('#prompt').inputValue(), 'New draft');
       await page.locator('.session-select').filter({ hasText: 'Renamed fixture' }).click(); await idle(); assert.equal(await page.locator('#prompt').inputValue(), 'Saved draft');
     });
@@ -202,7 +208,12 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
           await desktop.evaluate(() => { globalThis.__tokyoUITest.failPermission = true; }); await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click();
           await page.locator('.toast').filter({ hasText: 'permission rejected' }).waitFor(); assert.equal(await page.locator('#permission-panel button').first().isDisabled(), false);
         }
-        await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click(); await idle();
+        if (optionId === 'reject-always') {
+          // Answered with focus on the choice, focus goes back to the composer rather than to the page.
+          const choice = page.locator('#permission-panel').getByRole('button', { name, exact: true });
+          await choice.focus(); await choice.click(); await idle();
+          await page.waitForFunction(() => document.activeElement?.id === 'prompt');
+        } else { await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click(); await idle(); }
         assert.equal((await calls('respondPermission')).at(-1).optionId, optionId); assert.equal(await page.locator('#permission-panel').isHidden(), true);
       }
     });
@@ -227,8 +238,11 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
         const sessionId = [...test.adapter.pending.keys()][0];
         for (const requestId of ['queue-first', 'queue-second']) test.adapter.emit('event', { type: 'permission', sessionId, requestId, title: requestId, options: [{ optionId: 'allow-once', name: '允许一次', kind: 'allow_once' }] });
       });
-      await page.locator('#permission-panel').filter({ hasText: 'queue-first' }).waitFor(); await page.locator('#permission-panel button').click();
+      await page.locator('#permission-panel').filter({ hasText: 'queue-first' }).waitFor();
+      await page.locator('#permission-panel button').focus(); await page.locator('#permission-panel button').click();
       await page.locator('#permission-panel').filter({ hasText: 'queue-second' }).waitFor();
+      // Focus waits on the next request's heading, not on a choice a second key press would make.
+      await page.waitForFunction(() => document.activeElement?.matches('#permission-panel .permission-heading'));
       // An unrelated render (here, a notice) leaves the open prompt and its keyboard focus alone.
       await page.locator('#permission-panel button').focus();
       await desktop.evaluate(() => { const test = globalThis.__tokyoUITest; const sessionId = [...test.adapter.pending.keys()][0]; test.adapter.emit('event', { type: 'error', sessionId, message: 'Notice during a prompt' }); });

@@ -196,7 +196,11 @@ class AppController extends EventEmitter {
       await this.blobs.flush();
       try { await this.journal.flush(); } catch {}
     };
-    const hasSavedHistory = fs.existsSync(this.file);
+    // Without its index, conversation files still on disk are not a first run:
+    // the first save would delete them, and cleanup the uploads and images
+    // they name. Sync clients and antivirus programs can move the index away,
+    // and an interrupted replacement can leave it only in its temporary file.
+    const hasSavedHistory = this.store.adoptPendingIndex() || fs.existsSync(this.file);
     let hasAccountCommitMarker = false;
     let validatedV3 = false;
     let repointed = false;
@@ -269,6 +273,14 @@ class AppController extends EventEmitter {
         try { if (this.journal.exists) fs.copyFileSync(this.journal.file, `${this.journal.file}.unreadable-${stamp}`); } catch {}
         this.loadError = this.t('历史记录文件无法读取，已保留备份：{path}', { path: backup });
       }
+    } else if (this.store.hasContent()) {
+      // Kept as a backup of unreadable history, which keeps what they name.
+      const stamp = Date.now();
+      const backup = `${this.file}.unreadable-${stamp}`;
+      try { fs.copyFileSync(`${this.file}.tmp`, backup); } catch { /* No index to keep. */ }
+      fs.cpSync(path.join(this.dir, 'sessions'), `${backup}.sessions`, { recursive: true, dereference: false });
+      try { if (this.journal.exists) fs.copyFileSync(this.journal.file, `${this.journal.file}.unreadable-${stamp}`); } catch {}
+      this.loadError = this.t('历史记录文件无法读取，已保留备份：{path}', { path: `${backup}.sessions` });
     }
     // A readable saved account list is the commit marker for a staged deletion.
     // Unreadable history must permanently quarantine ambiguous staged data before
@@ -1031,6 +1043,7 @@ class AppController extends EventEmitter {
     this.sessions = this.sessions.filter(s => s.id !== id || (s.accountId || 'local') !== this.activeAccountId);
     try { await this.save(); } catch (error) { this.sessions = previous; throw error; }
     this.loaded.delete(id);
+    void this.adapter?.closeSession?.(id)?.catch(() => {});
     await this.cleanAttachments();
     return true;
   }
@@ -1078,6 +1091,7 @@ class AppController extends EventEmitter {
     // never written (save() refuses). Quitting must still work: the message asks
     // the user to restart after fixing the folder.
     if (!this.accountRecoveryError) {
+      await this.blobs.retryRefused();
       try { await this.historyOperation(() => this.save({ content: [...this.turns.keys()] })); } catch (error) { failure ||= error; }
     }
     try {
@@ -1093,7 +1107,13 @@ class AppController extends EventEmitter {
 }
 for (const name of ['renameSession', 'deleteSession']) {
   const method = AppController.prototype[name];
-  AppController.prototype[name] = function (...args) { return this.historyOperation(() => method.apply(this, args)); };
+  AppController.prototype[name] = async function (...args) {
+    // Like the other user actions, deleting waits for a catalog readback the
+    // person did not start. The readback saves through the history queue, so
+    // the wait happens before joining it.
+    while (name === 'deleteSession' && this.operation?.background && !this.closing) await this.operation.promise.catch(() => {});
+    return this.historyOperation(() => method.apply(this, args));
+  };
 }
 for (const group of [ControllerAccounts, ControllerQuota]) {
   const { constructor, ...methods } = Object.getOwnPropertyDescriptors(group.prototype);

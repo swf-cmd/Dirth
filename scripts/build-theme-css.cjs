@@ -164,9 +164,14 @@ function transformHex(hex, palette, property = '') {
 // --------------------------------------------------------------- CSS parsing
 function parse(css) {
   let index = 0;
+  // Chromium tolerates an unterminated comment or string at the end of a file;
+  // resuming the scan from the start would loop forever (and hang npm test).
+  const unterminated = (what, at) => new Error(`Unterminated ${what} at offset ${at} of styles.css`);
   function skipComment() {
-    if (css.startsWith('/*', index)) { index = css.indexOf('*/', index + 2) + 2; return true; }
-    return false;
+    if (!css.startsWith('/*', index)) return false;
+    const end = css.indexOf('*/', index + 2);
+    if (end < 0) throw unterminated('comment', index);
+    index = end + 2; return true;
   }
   // Read up to (not including) one of the stop characters at nesting depth 0.
   function readUntil(stops) {
@@ -176,6 +181,7 @@ function parse(css) {
       const char = css[index];
       if (char === '"' || char === "'") {
         const end = css.indexOf(char, index + 1);
+        if (end < 0) throw unterminated('string', index);
         text += css.slice(index, end + 1); index = end + 1; continue;
       }
       if (char === '(' || char === '[') depth++;

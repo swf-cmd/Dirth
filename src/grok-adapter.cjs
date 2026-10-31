@@ -63,18 +63,59 @@ function failure(message, code) {
   return error;
 }
 
-function safeMessage(value, fallback) {
-  return String(value || fallback)
-    .replace(/\b(?:xai|sk|sk-proj)-[A-Za-z0-9_-]{16,}\b/g, '[redacted]')
-    // JSON Web Tokens (OAuth access and ID tokens), wherever they appear.
-    .replace(/\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*/g, '[redacted]')
+// JSON Web Tokens (OAuth access and ID tokens): three base64url segments
+// joined by dots, the first beginning "eyJ" at a word boundary. Each run of
+// token characters is read once: trying a pattern from every "eyJ" inside a
+// long run rescanned the rest of the run each time, which took seconds on an
+// error of a few dozen kilobytes.
+function redactTokens(text) {
+  return text.replace(/[A-Za-z0-9_.-]+/g, run => {
+    if (!run.includes('eyJ')) return run;
+    const parts = run.split('.');
+    let out = '';
+    for (let index = 0; index < parts.length;) {
+      const part = parts[index];
+      let start = -1;
+      if (index + 2 < parts.length && parts[index + 1].length >= 4) {
+        for (let at = part.indexOf('eyJ'); at >= 0; at = part.indexOf('eyJ', at + 1)) {
+          if (at === 0 || part[at - 1] === '-') { start = at; break; }
+        }
+        if (start >= 0 && part.length - start - 3 < 4) start = -1;
+      }
+      out += `${index ? '.' : ''}${start < 0 ? part : `${part.slice(0, start)}[redacted]`}`;
+      index += start < 0 ? 1 : 3;
+    }
+    return out;
+  });
+}
+
+// Hides credentials in text from the CLI. Names are matched in snake or camel
+// case, and inside JSON that was quoted again (Rust's debug output), where each
+// quote has a backslash before it; a value runs on past other escapes (\/).
+function redact(text) {
+  return redactTokens(text.replace(/\b(?:xai|sk|sk-proj)-[A-Za-z0-9_-]{16,}\b/g, '[redacted]'))
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+/gi, '$1[redacted]')
     // An Authorization value is a credential whatever its scheme (Basic, Token…).
-    .replace(/(authorization["']?\s*[:=]\s*["']?)(?:[A-Za-z]+\s+)?[^\s,"'}]+/gi, '$1[redacted]')
-    .replace(/((?:access_token|refresh_token|id_token|api_key|client_secret|password)["']?\s*[:=]\s*["']?)[^\s,&"'}]+/gi, '$1[redacted]')
+    .replace(/(authorization\\?["']?\s*[:=]\s*\\?["']?)(?:[A-Za-z]+\s+)?(?:[^\s,"'}\\]|\\[^\s"'])+/gi, '$1[redacted]')
+    .replace(/((?:access_?token|refresh_?token|id_?token|api[_-]?key|client_?secret|password|(?<=[?&])token)\\?["']?\s*[:=]\s*\\?["']?)(?:[^\s,&"'}\\]|\\[^\s"'])+/gi, '$1[redacted]')
     // The CLI's auth store keeps each token under "key".
-    .replace(/("key"\s*:\s*")[^"]*/g, '$1[redacted]')
-    .slice(0, 8000);
+    .replace(/(\\?"(?:key|token)\\?"\s*:\s*\\?")(?:[^"\\]|\\[^"])*/g, '$1[redacted]');
+}
+
+function safeMessage(value, fallback) {
+  return redact(String(value || fallback)).slice(0, 8000);
+}
+
+// The end of what the CLI wrote to stderr, which explains an exit. The text is
+// redacted as a whole before its tail is taken, so the cut cannot leave a
+// credential's value behind without the name that marks it.
+const STDERR_LIMIT = 65536;
+function stderrTail(text) {
+  const shown = redact(text.trim());
+  if (shown.length <= 8000) return shown;
+  const tail = shown.slice(-8000);
+  const start = tail.indexOf('\n');
+  return start >= 0 ? tail.slice(start + 1) : tail;
 }
 
 // Grok's errors carry only a generic name ("Authentication required",
@@ -146,6 +187,9 @@ class GrokAdapter extends EventEmitter {
     this.processGroups = new WeakSet();
     // A disconnected CLI can outlive its pipes for a moment; nothing more is written to it.
     this.disconnectedProcesses = new WeakSet();
+    // A CLI that an unanswered Stop is about to end is asked to close its
+    // sessions, and nothing else, first.
+    this.stoppingProcesses = new WeakSet();
     this.pending = new Map();
     this.permissions = new Map();
     this.sessions = new Map();
@@ -212,7 +256,7 @@ class GrokAdapter extends EventEmitter {
     if (process.platform !== 'win32' && Number.isInteger(child.pid) && child.pid > 0) this.processGroups.add(child);
     const decoder = new StringDecoder('utf8');
     const framer = new LineFramer();
-    let stderr = '';
+    let stderr = '', droppingLine = false;
     let disconnected = false;
     // After it exits, the CLI is no longer this adapter's process, but what it
     // wrote before exiting is still read and answers what it was asked.
@@ -270,7 +314,7 @@ class GrokAdapter extends EventEmitter {
       if (owns() && !disconnected) receive(decoder.end() + '\n');
       const { code, signal } = exit || {};
       disconnect(failure(
-        this.closed ? this.t('Grok 连接已关闭。') : this.t('Grok 进程已退出 ({code}).{detail}', { code: signal || code, detail: stderr ? ` ${this.safeMessage(stderr.trim())}` : '' }),
+        this.closed ? this.t('Grok 连接已关闭。') : this.t('Grok 进程已退出 ({code}).{detail}', { code: signal || code, detail: stderr.trim() ? ` ${stderrTail(stderr)}` : '' }),
         'PROCESS_EXIT'), true);
       draining = false;
     };
@@ -288,7 +332,23 @@ class GrokAdapter extends EventEmitter {
     child.stdin.on('error', error => disconnect(failure(this.safeMessage(error.message), error.code)));
     // A read error on either output pipe (ECONNRESET on Windows) ends the connection too.
     for (const stream of [child.stdout, child.stderr]) stream.on('error', error => disconnect(failure(this.safeMessage(error.message), error.code)));
-    child.stderr.on('data', data => { stderr = (stderr + data.toString('utf8')).slice(-8000); });
+    child.stderr.on('data', data => {
+      let text = data.toString('utf8');
+      // Only whole lines are kept: a line whose start was dropped could begin
+      // inside a credential, after the name that marks it for redaction. Its
+      // rest is dropped too, however many reads it takes to arrive.
+      if (droppingLine) {
+        const end = text.indexOf('\n');
+        if (end < 0) return;
+        text = text.slice(end + 1); droppingLine = false;
+      }
+      stderr += text;
+      if (stderr.length <= STDERR_LIMIT) return;
+      const cut = stderr.length - STDERR_LIMIT;
+      if (stderr[cut - 1] === '\n') { stderr = stderr.slice(cut); return; }
+      const end = stderr.indexOf('\n', cut);
+      if (end < 0) { stderr = ''; droppingLine = true; } else stderr = stderr.slice(end + 1);
+    });
     child.stdout.on('data', data => {
       if (disconnected || !owns()) return;
       receive(decoder.write(data));
@@ -331,7 +391,8 @@ class GrokAdapter extends EventEmitter {
 
   _write(message) {
     const child = this.process;
-    if (!child || this.disconnectedProcesses.has(child) || child.stdin.destroyed || child.stdin.writableEnded) throw failure(this.t('Grok 尚未连接，请重新连接。'), 'NOT_CONNECTED');
+    if (!child || this.disconnectedProcesses.has(child) || child.stdin.destroyed || child.stdin.writableEnded
+      || (this.stoppingProcesses.has(child) && message.method !== 'session/close')) throw failure(this.t('Grok 尚未连接，请重新连接。'), 'NOT_CONNECTED');
     child.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
@@ -532,6 +593,18 @@ class GrokAdapter extends EventEmitter {
   getSession(sessionId) {
     const session = this.sessions.get(sessionId);
     return session ? JSON.parse(JSON.stringify(session)) : undefined;
+  }
+
+  // A deleted conversation's session is closed at once, which stops the
+  // commands its tools started (see _closeSessions), instead of when the app
+  // next quits, reconnects or switches accounts.
+  async closeSession(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session || this.active.has(sessionId) || this.preparing.has(sessionId)) return false;
+    this.sessions.delete(sessionId);
+    if (!session.loaded || !this.ready || !isRecord(this.info.capabilities?.sessionCapabilities?.close)) return false;
+    try { await this._request('session/close', { sessionId }, SESSION_CLOSE_TIMEOUT); return true; }
+    catch { return false; }
   }
 
   async newSession({ cwd = this.cwd, model, mode } = {}) {
@@ -851,7 +924,7 @@ class GrokAdapter extends EventEmitter {
     if (!turn.cancelTimer) {
       const child = this.process;
       const cancelWhenSafe = () => {
-        if (this.active.get(sessionId) !== turn || this.process !== child) return;
+        if (this.active.get(sessionId) !== turn || this.process !== child || this.stoppingProcesses.has(child)) return;
         // Keep an unanswered cancellation pending: releasing its turn would
         // falsely enable more sends while Grok still owns the old request.
         // Wait for other conversations and their configuration/restoration to
@@ -865,8 +938,13 @@ class GrokAdapter extends EventEmitter {
         }
         // The CLI may take a moment to stop its tools and exit. Work sent to it
         // meanwhile would start only to be killed, so it fails at once instead.
-        this.disconnectedProcesses.add(child);
-        this._kill(child);
+        // Ending it leaves the commands its tools started running, here and in
+        // every other conversation; closing the sessions first stops them.
+        this.stoppingProcesses.add(child);
+        void this._closeSessions(child).then(() => {
+          this.disconnectedProcesses.add(child);
+          return this._kill(child);
+        }).catch(() => {});
       };
       turn.cancelTimer = setTimeout(cancelWhenSafe, 10000);
       turn.cancelTimer.unref?.();

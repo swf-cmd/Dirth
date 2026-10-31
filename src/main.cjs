@@ -10,12 +10,18 @@ const { safeName } = require('./attachments.cjs');
 const { appRoot, adoptLegacyRoot, rootAliases } = require('./app-paths.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'tokyo-image', privileges: { secure: true, standard: true, stream: true } }]);
 const isMac = process.platform === 'darwin';
-const { root, movedFrom } = adoptLegacyRoot(
-  appRoot({ testRoot: process.env.TOKYO_TEST_ROOT, appData: app.getPath('appData'), isPackaged: app.isPackaged, executablePath: process.execPath, sourceRoot: path.resolve(__dirname, '..') }),
-  { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
-fs.mkdirSync(path.join(root, 'data', 'browser'), { recursive: true });
-const aliases = rootAliases(root, { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
-app.setPath('userData', path.join(root, 'data', 'browser'));
+// A portable copy unpacked where it cannot write (C:\Program Files) has no
+// data folder. Report that like any other startup failure, instead of
+// Electron's raw error dialog and a process left running without a window.
+let root, movedFrom, aliases, startupError = null;
+try {
+  ({ root, movedFrom } = adoptLegacyRoot(
+    appRoot({ testRoot: process.env.TOKYO_TEST_ROOT, appData: app.getPath('appData'), isPackaged: app.isPackaged, executablePath: process.execPath, sourceRoot: path.resolve(__dirname, '..') }),
+    { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT }));
+  fs.mkdirSync(path.join(root, 'data', 'browser'), { recursive: true });
+  aliases = rootAliases(root, { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
+  app.setPath('userData', path.join(root, 'data', 'browser'));
+} catch (error) { startupError = error; }
 app.setName('Dirth');
 if (process.platform === 'win32') app.setAppUserModelId('com.swf-cmd.dirth');
 let win, controller, quitPending = false, quitAllowed = false;
@@ -41,7 +47,8 @@ function installMenu() {
     { role: 'windowMenu' },
   ]));
 }
-if (!app.requestSingleInstanceLock()) app.quit();
+if (startupError) { dialog.showErrorBox(t('Dirth 启动失败'), startupError.message); app.exit(1); }
+else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', showWindow);
   app.on('activate', showWindow);
@@ -117,7 +124,9 @@ else {
     handle('copyText', async text => { if (typeof text !== 'string' || text.length > 2000000) throw new Error(t('无法复制这段内容')); await clipboard.writeText(text); return true; });
     win.once('ready-to-show', () => win.show());
     win.on('close', event => { if (!quitAllowed) { event.preventDefault(); if (isMac && !quitPending) win.hide(); else app.quit(); } });
-    win.loadFile(entry);
+    // Load the exact address IPC accepts. loadFile leaves [ ] % ~ in a folder
+    // name unencoded, so from "Tools [portable]" every message was refused.
+    win.loadURL(entryURL);
   }).catch(error => { dialog.showErrorBox(t('Dirth 启动失败'), error.message); app.exit(1); });
   app.on('window-all-closed', () => { if (!isMac) app.quit(); });
   app.on('before-quit', event => {
@@ -127,6 +136,12 @@ else {
     quitPending = true;
     controller.close()
       .then(() => { quitAllowed = true; app.quit(); })
-      .catch(error => { quitPending = false; dialog.showErrorBox(t('关闭 Dirth 时出错'), error.message); });
+      .catch(async error => {
+        // A save that keeps failing (a full disk, a removed drive) would refuse
+        // every later Quit too, while the half-closed app refuses all work.
+        // Replies still running stay in the reply log for the next launch.
+        const { response } = await dialog.showMessageBox({ type: 'error', message: t('关闭 Dirth 时出错'), detail: error.message, buttons: [t('取消'), t('仍然退出')], defaultId: 0, cancelId: 0 });
+        if (response === 1) { quitAllowed = true; app.quit(); } else quitPending = false;
+      });
   });
 }

@@ -6,6 +6,7 @@ const { _electron } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 const { createI18n } = require('../src/i18n.js');
 const root = path.resolve(__dirname, '..');
 const base = path.join(root, 'work', 'startup-qa');
@@ -14,7 +15,7 @@ const output = fs.mkdtempSync(path.join(base, 'run-'));
 const results = [], errors = [];
 const text = (language, source) => createI18n(language)(source);
 
-async function launch(name, { history = true, hold = 'start', musicEnabled = false, musicVolume = 31 } = {}) {
+async function launch(name, { history = true, hold = 'start', musicEnabled = false, musicVolume = 31, sourceRoot } = {}) {
   const profile = path.join(output, name);
   const workspace = path.join(profile, 'Workspace');
   const executable = path.join(profile, process.platform === 'win32' ? 'grok.exe' : 'grok');
@@ -29,6 +30,7 @@ async function launch(name, { history = true, hold = 'start', musicEnabled = fal
   ] : [] }));
   const env = { ...process.env, TOKYO_TEST_ROOT: profile, TOKYO_TEST_HOLD: hold };
   if (process.argv.includes('--packaged')) env.TOKYO_UI_SOURCE_ROOT = require('../scripts/package-paths.cjs').packagedArchive(root);
+  if (sourceRoot) env.TOKYO_UI_SOURCE_ROOT = sourceRoot;
   delete env.ELECTRON_RUN_AS_NODE;
   const launchedAt = Date.now();
   const desktop = await _electron.launch({ args: ['--mute-audio', path.join(__dirname, 'fixtures', 'ui-app.cjs')], env });
@@ -252,6 +254,48 @@ async function assertEngineBlocked(page) {
     assert.equal(await page.locator('#music-status').getAttribute('data-state'), 'paused');
     await test.timed('failed startup retains saved language, settings, history and editable drafts');
   });
+
+  // A portable copy can sit in a folder such as "Tools [portable]". The page's
+  // address must be the one the main process accepts messages from.
+  const folder = path.join(output, 'Dirth [portable] 100% ~2');
+  fs.mkdirSync(folder);
+  let sourceRoot = folder;
+  if (process.argv.includes('--packaged')) {
+    sourceRoot = path.join(folder, 'app.asar');
+    // Copied as a file, also when this script runs under Electron's Node.
+    const noAsar = process.noAsar; process.noAsar = true;
+    try { fs.copyFileSync(require('../scripts/package-paths.cjs').packagedArchive(root), sourceRoot); }
+    finally { process.noAsar = noAsar; }
+  } else {
+    fs.cpSync(path.join(root, 'src'), path.join(folder, 'src'), { recursive: true });
+    fs.copyFileSync(path.join(root, 'package.json'), path.join(folder, 'package.json'));
+  }
+  await run('unusual-app-folder', { hold: '', sourceRoot }, async test => {
+    await test.localReady(); await test.engineReady();
+    assert.equal(await test.page.locator('.session-select').count(), 2);
+    assert.equal(await test.page.locator('#connection-label').textContent(), text('ja', '引擎已连接'));
+    await test.timed('an app folder named with brackets, a percent sign and a tilde still talks to the main process');
+  });
+
+  // A data folder that cannot be created (a portable copy under C:\Program
+  // Files) is reported as a startup failure, and the process ends.
+  const unwritable = path.join(output, 'unwritable');
+  fs.mkdirSync(unwritable);
+  fs.writeFileSync(path.join(unwritable, 'data'), 'A file where the data folder belongs.');
+  const env = { ...process.env, TOKYO_TEST_ROOT: unwritable };
+  if (process.argv.includes('--packaged')) env.TOKYO_UI_SOURCE_ROOT = require('../scripts/package-paths.cjs').packagedArchive(root);
+  delete env.ELECTRON_RUN_AS_NODE;
+  const failed = spawn(require('electron'), ['--mute-audio', path.join(__dirname, 'fixtures', 'startup-error-app.cjs')], { env, stdio: 'ignore' });
+  const code = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { failed.kill(); reject(new Error('the app kept running after its data folder could not be created')); }, 15000);
+    failed.on('exit', exitCode => { clearTimeout(timer); resolve(exitCode); });
+  });
+  assert.equal(code, 1);
+  const box = JSON.parse(fs.readFileSync(path.join(unwritable, 'error-box.json'), 'utf8'));
+  assert.equal(box.title, text('en', 'Dirth 启动失败'));
+  assert.match(box.content, /data/);
+  results.push({ name: 'unwritable', stage: 'an unwritable data folder is reported and the app exits' });
+  console.log('PASS unwritable: an unwritable data folder is reported and the app exits');
   assert.deepEqual(errors, []);
 })().catch(error => { errors.push(error.stack || String(error)); console.error(error); process.exitCode = 1; }).finally(() => {
   fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ isolated: true, packagedResources: process.argv.includes('--packaged'), realGenerations: 0, results, errors }, null, 2));

@@ -59,4 +59,25 @@ function findGrokExecutable({ home = os.homedir(), platform = process.platform, 
   return fallback;
 }
 
-module.exports = { executableName, defaultExecutable, isExecutable, cliEnvironment, findGrokExecutable };
+// Antivirus scanners, search indexers and sync clients briefly hold a file
+// that was just written. On Windows, replacing or deleting it meanwhile fails
+// with EPERM, EACCES or EBUSY, and works a moment later (graceful-fs retries
+// the same way). Elsewhere those errors are real permission problems.
+const LOCKED = new Set(['EPERM', 'EACCES', 'EBUSY']);
+/**
+ * @template T
+ * @param {() => Promise<T>} operation
+ * @param {{ platform?: string, delays?: number[] }} [options]
+ * @returns {Promise<T>}
+ */
+async function retryLocked(operation, { platform = process.platform, delays = [20, 50, 100, 200, 400, 800] } = {}) {
+  for (let attempt = 0; ; attempt++) {
+    try { return await operation(); }
+    catch (error) {
+      if (platform !== 'win32' || !LOCKED.has(error?.code) || attempt >= delays.length) throw error;
+      await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+    }
+  }
+}
+
+module.exports = { executableName, defaultExecutable, isExecutable, cliEnvironment, findGrokExecutable, retryLocked };

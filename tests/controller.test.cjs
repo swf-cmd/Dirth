@@ -192,6 +192,32 @@ test('restoring a session confirms the existing catalog without an immediate sec
   assert.deepEqual(adapter.loads, [{ sessionId: session.id, cwd: session.cwd }]);
 });
 
+test('deleting a conversation closes its CLI session once the deletion is saved', async t => {
+  const { controller, adapter, session } = await started(t);
+  const other = await controller.createSession();
+  const closed = [];
+  adapter.closeSession = async id => { closed.push({ id, saved: !JSON.parse(fs.readFileSync(controller.file, 'utf8')).sessions.some(item => item.id === id) }); return true; };
+  await controller.deleteSession(other.id);
+  assert.deepEqual(closed, [{ id: other.id, saved: true }]);
+  assert.ok(controller.sessions.some(item => item.id === session.id));
+});
+
+test('deleting a conversation waits for a catalog readback instead of failing as busy', async t => {
+  const { controller, adapter, session } = await started(t);
+  const other = await controller.createSession();
+  adapter.loadGate = deferred();
+  adapter.emit('event', { type: 'status', status: 'models_changed', revision: 2 });
+  await new Promise(resolve => setTimeout(resolve, 5));
+  assert.equal(controller.operation?.background, true, 'the readback is running');
+  const deleting = controller.deleteSession(other.id);
+  const renaming = controller.renameSession({ sessionId: session.id, title: 'Renamed meanwhile' });
+  adapter.loadGate.resolve();
+  assert.equal(await deleting, true);
+  await renaming;
+  assert.deepEqual(controller.sessions.map(item => item.id), [session.id]);
+  assert.equal(session.title, 'Renamed meanwhile');
+});
+
 test('a catalog update during session restoration is still read back after restoration finishes', async t => {
   const { controller, adapter, session } = await started(t);
   controller.loaded.clear();

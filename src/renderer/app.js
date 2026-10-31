@@ -22,7 +22,7 @@
     settings: { executable: '', workspace: '', rainEnabled: true, subagentsEnabled: true, quotaEnabled: true, musicEnabled: true, musicVolume: 90, theme: cities.defaultTheme, language: 'en', ...api?.initialPreferences },
     info: { models: [], modes: [], version: '' },
     sessions: [], activeId: null, connected: false, connectionStatus: 'connecting', initializing: true, startingEngine: true,
-    sending: false, configuring: false, selecting: false, savingSettings: false, renaming: false, deleting: false,
+    sending: false, configuring: false, selecting: false, openingId: null, savingSettings: false, renaming: false, deleting: false,
     busy: new Set(), started: new Map(), permissions: new Map(),
     drafts: new Map(), selectedModel: '', selectedMode: '', menuId: null,
     renameId: null, deleteId: null, renderPending: false, lastError: '',
@@ -441,6 +441,15 @@
     ADD_URI_SAFE_ATTR: ['data-image-source', 'data-image-alt', 'data-href'],
     ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false,
   };
+  // A link shows where it goes before it is clicked: the window has no status
+  // bar, and a reply chooses both a link's text and its destination (and any
+  // title, which could claim another one). The tooltip comes from the
+  // innermost element with a title, so nothing inside a link keeps one.
+  window.DOMPurify?.addHook('afterSanitizeAttributes', node => {
+    if (node.nodeName !== 'A') { if (node.parentElement?.closest('a')) node.removeAttribute('title'); return; }
+    const target = node.getAttribute('href') ?? node.getAttribute('data-href');
+    if (target) node.setAttribute('title', target); else node.removeAttribute('title');
+  });
   let markdownRenderer = null;
   function markdownOptions() {
     if (!markdownRenderer) {
@@ -846,6 +855,10 @@
 
   const messageNodes = new Map();
   const messageRevisions = new WeakMap();
+  // Each reply's parsed and sanitized HTML, kept with the message itself.
+  // Opening a conversation again draws it from this instead of parsing its
+  // whole history once more: messages keep their objects while unchanged.
+  const renderedReplies = new WeakMap();
   let messageRenderContext = '';
   function touchMessage(message) { messageRevisions.set(message, (messageRevisions.get(message) || 0) + 1); }
 
@@ -917,7 +930,7 @@
         const segments = message.responseSegments?.length ? message.responseSegments : [{ text: message.text, kind: 'response' }];
         // Only the last segment of a streaming reply grows; earlier ones keep
         // their parsed Markdown, and the growing one its completed blocks.
-        const previousHtml = cached?.segmentHtml || [];
+        const previousHtml = cached?.segmentHtml || renderedReplies.get(message) || [];
         const hasContext = message.thought || message.tools?.length || segments.some(segment => segment.kind === 'commentary');
         const next = [];
         segments.forEach((segment, segmentIndex) => {
@@ -980,6 +993,7 @@
         });
       }
       messageNodes.set(message.id, { article, message, revision, streaming, displayContext, segmentHtml, plan: message.plan });
+      if (message.role !== 'user') renderedReplies.set(message, segmentHtml);
       if (!inPlace && previous?.parentNode === container) previous.replaceWith(article);
       if (container.children[index] !== article) container.insertBefore(article, container.children[index] || null);
     });
@@ -1012,7 +1026,8 @@
     $('stop-button').hidden = !busy;
     $('send-button').disabled = uiLocked({ engine: true }) || draft.pending > 0 || busy || full || (!$('prompt').value.trim() && !draft.attachments.length) || !state.connected || !newChatConfigReady();
     $('send-button').title = full ? t('最多同时运行 {count} 个任务，请等待其中一个完成。', { count: state.maxConcurrentTurns }) : '';
-    $('attach-button').disabled = uiLocked({ engine: true, busy: true }) || draft.pending > 0;
+    // Files can join the next message while this reply finishes, as its text can.
+    $('attach-button').disabled = uiLocked({ engine: true }) || draft.pending > 0;
     renderDraftAttachments();
     $('settings-button').disabled = locked;
     $('account-button').disabled = uiLocked({ login: false });
@@ -1051,7 +1066,7 @@
     if (!permission) return;
     // In plan mode Grok asks before it leaves the plan and starts changing files.
     const plan = permission.plan === true;
-    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.textContent = plan ? t('Grok 拟好了计划，要开始修改吗？') : permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
+    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.tabIndex = -1; heading.textContent = plan ? t('Grok 拟好了计划，要开始修改吗？') : permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
     const description = document.createElement('p'); description.className = `permission-description${plan ? ' plan' : ''}`;
     description.textContent = plan ? safeText(permission.toolCall?.content) || t('Grok 没有附上计划内容。')
       : safeText(permission.toolCall?.rawInput ?? permission.toolCall?.content ?? permission.description) || t('请确认是否允许此操作。你的选择会发送给本地引擎。');
@@ -1062,8 +1077,15 @@
       button.textContent = (plan ? planLabels[option.optionId] : ({ allow_once: t('允许一次'), allow_always: t('始终允许'), reject_once: t('拒绝一次'), reject_always: t('始终拒绝') })[option.kind]) || option.name || option.optionId;
       if ((option.kind || '').startsWith('allow')) button.className = 'allow';
       button.addEventListener('click', () => guarded(async () => {
+        const focused = actions.contains(document.activeElement);
         for (const other of actions.children) other.disabled = true;
-        try { await call('permission', { requestId: permission.requestId, optionId: option.optionId }); state.permissions.delete(String(permission.requestId)); renderPermissions(); updateActivity(); }
+        try {
+          await call('permission', { requestId: permission.requestId, optionId: option.optionId }); state.permissions.delete(String(permission.requestId)); renderPermissions(); updateActivity();
+          // The answered buttons are gone: keyboard focus moves to the next
+          // request's heading (never straight onto a choice, which a second
+          // key press would make unread), or back to the composer.
+          if (focused) ($('permission-panel').querySelector('.permission-heading') || $('prompt')).focus();
+        }
         catch (error) { for (const other of actions.children) other.disabled = false; throw error; }
       }));
       actions.append(button);
@@ -1072,7 +1094,8 @@
   }
 
   function currentDraft() {
-    const key = state.activeId || '__new__';
+    // Text typed while a conversation opens belongs to that conversation.
+    const key = state.openingId || state.activeId || '__new__';
     if (!state.drafts.has(key)) state.drafts.set(key, { text: '', attachments: [], pending: 0 });
     return state.drafts.get(key);
   }
@@ -1119,7 +1142,7 @@
   }
 
   async function addAttachments(files) {
-    if (uiLocked({ engine: true, busy: true })) return;
+    if (uiLocked({ engine: true })) return;
     const draft = currentDraft();
     if (draft.pending) return;
     const accountId = state.activeAccountId;
@@ -1177,15 +1200,22 @@
       finally { renderSessions(); renderSelects(); renderWorkspace(); renderMessages(true); closeSessionMenu(); $('prompt').focus(); }
       return;
     }
-    state.selecting = true; renderSelects(); renderComposerState();
+    // Restoring it can take a while: its draft shows at once, and what is typed
+    // meanwhile is saved as its draft, not the previous conversation's.
+    state.selecting = true; state.openingId = id; restoreDraft(); renderSelects(); renderComposerState();
+    let opened = false;
     try {
       const session = await call('selectSession', id);
       if (!session?.id) throw new Error(t('无法读取这段对话。'));
       upsertSession(session);
-      state.activeId = id;
+      state.activeId = id; opened = true;
       restoreDraft(); renderSessions(); renderWorkspace(); renderMessages(true);
       closeSessionMenu(); $('prompt').focus();
-    } finally { state.selecting = false; renderSelects(); renderComposerState(); }
+    } finally {
+      // A conversation that did not open keeps what was typed for it.
+      if (!opened) { rememberDraft(); state.openingId = null; restoreDraft(); }
+      state.openingId = null; state.selecting = false; renderSelects(); renderComposerState();
+    }
   }
 
   async function configureSession(patch) {
@@ -1520,7 +1550,7 @@
     const usage = quota.status === 'ok' ? quota.usage : null;
     const period = ({ weekly: t('本周额度'), monthly: t('本月额度'), daily: t('今日额度') })[usage?.periodType] || t('账户额度');
     const used = usage ? Math.max(0, usage.usedPercent) : 0;
-    const shown = usage ? `${used < 10 && used % 1 ? used.toFixed(1) : Math.round(used)}%` : '—';
+    const shown = usage ? i18n.formatPercent(used) : '—';
     let detail;
     if (quota.status === 'loading') detail = t('正在读取额度…');
     else if (!usage) detail = quotaReason(quota.reason);
@@ -1535,7 +1565,7 @@
     $('quota-fill').style.width = `${Math.min(100, used)}%`;
     $('quota-detail').textContent = detail;
     // Secondary figures stay in the tooltip; the sidebar keeps one clear number.
-    const lines = [`${period} · ${usage ? t('已用 {percent}%', { percent: shown.replace('%', '') }) : '—'}`, detail];
+    const lines = [`${period} · ${usage ? t('已用 {percent}%', { percent: i18n.formatPercent(used, { sign: false }) }) : '—'}`, detail];
     if (usage?.plan) lines.push(t('套餐：{plan}', { plan: usage.plan }));
     for (const product of usage?.products || []) lines.push(`${product.name} · ${t('已用 {percent}%', { percent: Math.round(product.usedPercent) })}`);
     if (Number.isFinite(usage?.prepaidBalanceCents) && usage.prepaidBalanceCents > 0) lines.push(t('预付余额 {amount}', { amount: quotaMoney(usage.prepaidBalanceCents) }));
@@ -1915,7 +1945,7 @@
       if (searchVisible) $('session-search').focus(); else { $('session-search').value = ''; renderSessions(); }
     });
     $('session-search').addEventListener('input', renderSessions);
-    $('session-search').addEventListener('keydown', event => { if (event.key === 'Escape') { $('session-search').value = ''; renderSessions(); searchVisible = false; $('history-search').hidden = true; } });
+    $('session-search').addEventListener('keydown', event => { if (event.key === 'Escape') { $('session-search').value = ''; renderSessions(); searchVisible = false; $('history-search').hidden = true; $('search-toggle').focus(); } });
     $('export-button').addEventListener('click', () => guarded(() => exportSession(state.activeId)));
     $('menu-export').addEventListener('click', () => { const id = state.menuId; closeSessionMenu(); void guarded(() => exportSession(id)); });
     $('menu-rename').addEventListener('click', () => {
@@ -1939,6 +1969,17 @@
         } finally { state.renaming = false; for (const element of $('rename-form').querySelectorAll('input, button')) element.disabled = false; }
       });
     });
+    // The menu item that opened these dialogs is hidden before they open, so
+    // closing them would leave keyboard focus nowhere: it returns to the
+    // conversation's "···" button, or to the composer once it is deleted.
+    const returnToRow = id => () => {
+      const row = [...$('session-list').querySelectorAll('.session-item')].find(item => item.dataset.sessionId === id());
+      if (!row) { $('prompt').focus(); return; }
+      // "···" shows only while its row is hovered or focused.
+      row.querySelector('.session-select')?.focus(); row.querySelector('.session-more')?.focus();
+    };
+    $('rename-dialog').addEventListener('close', returnToRow(() => state.renameId));
+    $('delete-dialog').addEventListener('close', returnToRow(() => state.deleteId));
     $('menu-delete').addEventListener('click', () => {
       state.deleteId = state.menuId; const session = state.sessions.find(item => item.id === state.deleteId); closeSessionMenu();
       if (!session) return;
@@ -1961,6 +2002,10 @@
       const anchor = event.target.closest('.message-body a');
       if (anchor) {
         event.preventDefault();
+        // An image inside a link (a badge, a linked screenshot) keeps its own
+        // controls: enlarging or reloading it must not also open the address
+        // the reply put around it.
+        if (event.target.closest('.chat-image')) return;
         // A target that is not a web address (a file: URL or a Windows path) is
         // kept only as data-href once sanitized.
         const url = anchor.getAttribute('href') ?? anchor.getAttribute('data-href');
@@ -1978,8 +2023,10 @@
     });
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') closeSessionMenu({ returnFocus: true });
-      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'n') { event.preventDefault(); if (!document.querySelector('dialog[open]')) newChat(); }
-      if ((event.ctrlKey || event.metaKey) && event.key === ',') { event.preventDefault(); showSettings(); }
+      // ⌘ on Mac, where Control+N moves the caret down a line in a text field.
+      const command = isMac ? event.metaKey : event.ctrlKey;
+      if (command && event.key.toLowerCase() === 'n') { event.preventDefault(); if (!document.querySelector('dialog[open]')) newChat(); }
+      if (command && event.key === ',') { event.preventDefault(); showSettings(); }
     });
     unsubscribeMenu = api?.onMenuAction?.(action => {
       if (action === 'preferences') showSettings();

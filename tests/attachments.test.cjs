@@ -24,6 +24,10 @@ test('selected image and document bytes are copied, names sanitized and MIME sni
   assert.deepEqual(await resolveAttachment(result[0].src, [root]), png);
   assert.equal((await resolveAttachment(result[1].src, [root])).toString(), '東京 rain');
   assert.equal(safeName('CON.txt'), '_CON.txt');
+  // A right-to-left override would show "invoiceexe.pdf" for an .exe.
+  assert.equal(safeName('invoice‮fdp.exe'), 'invoicefdp.exe');
+  assert.equal(attachmentsFromText('[Invoice](https://files.example.test/invoice%E2%80%AEfdp.exe?.pdf)')[0].fileName, 'invoicefdp.exe');
+  assert.equal(safeName('⁧report⁩‏.txt'), 'report.txt');
   const original = path.join(root, 'source.txt'); await fs.writeFile(original, 'original');
   const [copy] = await stageAttachments([original], root, { fromPaths: true });
   await fs.writeFile(original, 'edited');

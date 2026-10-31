@@ -15,6 +15,10 @@ const MAX_JOURNAL_BYTES = 4 * 1024 * 1024;
 class TurnJournal {
   constructor(file, { onError, beforeFlush, maxBytes = MAX_JOURNAL_BYTES } = {}) {
     this.file = file;
+    // Replacing the log is a delete then a rename on some disks (FAT32,
+    // exFAT); interrupted there, its latest snapshot is left only in the
+    // temporary file.
+    if (!fs.existsSync(file)) { try { fs.renameSync(`${file}.tmp`, file); } catch { /* Nothing to adopt. */ } }
     this.onError = onError;
     this.beforeFlush = beforeFlush;
     this.writing = null;

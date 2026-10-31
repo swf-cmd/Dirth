@@ -7,7 +7,7 @@ const path = require('node:path');
 const dns = require('node:dns');
 const http = require('node:http');
 const { resolveImage, imageMime } = require('../src/media.cjs');
-const { resolveAttachment } = require('../src/attachments.cjs');
+const { resolveAttachment, stageAttachments } = require('../src/attachments.cjs');
 const { isPublicAddress } = require('../src/resource-download.cjs');
 
 async function fixture(t) {
@@ -75,6 +75,21 @@ test('SVG sniffing takes linear time on comment runs and still recognizes SVG', 
   assert.ok(performance.now() - started < 250, 'comment runs must be rejected quickly');
   // A remote "image" with the same shape is refused just as quickly.
   await assert.rejects(resolveImage('https://public.example.test/a.svg', '.', undefined, undefined, async () => new Response('<!-- x -->'.repeat(400))), /image format/);
+});
+
+test('a bitmap needs its header, so text that begins with "BM" stays text', async t => {
+  // A 1×1, 24-bit bitmap: 14-byte file header, 40-byte info header, one padded row.
+  const bitmap = Buffer.alloc(58);
+  bitmap.write('BM'); bitmap.writeUInt32LE(58, 2); bitmap.writeUInt32LE(54, 10); bitmap.writeUInt32LE(40, 14);
+  bitmap.writeInt32LE(1, 18); bitmap.writeInt32LE(1, 22); bitmap.writeUInt16LE(1, 26); bitmap.writeUInt16LE(24, 28);
+  assert.equal(imageMime(bitmap), 'image/bmp');
+  for (const text of ['BMI,Age,Height\n24.1,30,180\n', 'BM25 ranks documents by term frequency.', 'BMW 3 Series service notes']) {
+    assert.throws(() => imageMime(Buffer.from(text)), /image format/, text);
+  }
+  const directory = path.join(await fixture(t), 'uploads');
+  await fs.mkdir(directory);
+  const [attachment] = await stageAttachments([{ name: 'bmi.csv', data: Buffer.from('BMI,Age\n24.1,30\n').toString('base64') }], directory);
+  assert.equal(attachment.mimeType, 'text/csv');
 });
 
 test('unexpected compressed downloads fail instead of saving corrupt compressed file bytes', async () => {

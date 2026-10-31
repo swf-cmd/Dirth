@@ -1,19 +1,24 @@
 name: Tests
 
 on:
+  # Documentation alone does not need a run. THIRD_PARTY_NOTICES.md ships in
+  # the app and is checked against the vendored libraries, so it does; a
+  # later positive pattern includes a path again.
   push:
     branches: [main]
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!docs/**'
+      - '!.github/ISSUE_TEMPLATE/**'
+      - 'THIRD_PARTY_NOTICES.md'
   pull_request:
-    paths-ignore:
-      - '**/*.md'
-      - 'docs/**'
-      - '.github/ISSUE_TEMPLATE/**'
-      - '.github/pull_request_template.md'
+    paths:
+      - '**'
+      - '!**/*.md'
+      - '!docs/**'
+      - '!.github/ISSUE_TEMPLATE/**'
+      - 'THIRD_PARTY_NOTICES.md'
   workflow_dispatch:
 
 concurrency:

@@ -16,32 +16,42 @@
   const t = createI18n(() => language);
   const setLanguage = value => (language = normalizeLanguage(value));
   const getLanguage = () => language;
+  // A share in the interface language's number format, with one decimal below
+  // 10: "7.5%" in English, "7,5 %" in German. Without the sign, for templates
+  // that place it themselves ("{percent} % verbraucht").
+  const formatPercent = (value, { sign = true } = {}) => new Intl.NumberFormat(language, { ...(sign ? { style: 'percent' } : {}), maximumFractionDigits: value < 10 ? 1 : 0 }).format(sign ? value / 100 : value);
   // Application diagnostics can be saved with a conversation or arrive from
   // the main process in the saved language while the renderer previews another.
   // Recognize only complete catalog messages, never scan authored chat content.
-  const diagnosticKeys = new Map();
-  const diagnosticPatterns = [];
+  // The lookup takes a few milliseconds to build, so it waits for the first
+  // diagnostic instead of delaying startup in both processes.
+  let diagnosticKeys, diagnosticPatterns;
   const escapePattern = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  for (const source of Object.keys(catalogs.en || {})) {
-    for (const template of new Set([source, ...Object.values(catalogs).map(catalog => catalog[source]).filter(Boolean)])) {
-      const parameters = [...template.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g)];
-      if (!parameters.length) { diagnosticKeys.set(template, source); continue; }
-      // A short label such as "Delete {name}" or "Plan: {plan}" would match any
-      // engine error that merely starts or ends with those words and rewrite it.
-      // Such labels are never diagnostics; only templates with enough fixed
-      // text to identify the message are recognized.
-      const literal = template.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, '').trim();
-      if (literal.length < (/[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(literal) ? 2 : 12)) continue;
-      let pattern = '', position = 0;
-      for (const parameter of parameters) {
-        pattern += escapePattern(template.slice(position, parameter.index)) + '([\\s\\S]*?)';
-        position = parameter.index + parameter[0].length;
+  function indexDiagnostics() {
+    diagnosticKeys = new Map();
+    diagnosticPatterns = [];
+    for (const source of Object.keys(catalogs.en || {})) {
+      for (const template of new Set([source, ...Object.values(catalogs).map(catalog => catalog[source]).filter(Boolean)])) {
+        const parameters = [...template.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/g)];
+        if (!parameters.length) { diagnosticKeys.set(template, source); continue; }
+        // A short label such as "Delete {name}" or "Plan: {plan}" would match any
+        // engine error that merely starts or ends with those words and rewrite it.
+        // Such labels are never diagnostics; only templates with enough fixed
+        // text to identify the message are recognized.
+        const literal = template.replace(/\{[A-Za-z][A-Za-z0-9_]*\}/g, '').trim();
+        if (literal.length < (/[\u3000-\u9fff\uac00-\ud7af\uff00-\uffef]/.test(literal) ? 2 : 12)) continue;
+        let pattern = '', position = 0;
+        for (const parameter of parameters) {
+          pattern += escapePattern(template.slice(position, parameter.index)) + '([\\s\\S]*?)';
+          position = parameter.index + parameter[0].length;
+        }
+        pattern += escapePattern(template.slice(position));
+        diagnosticPatterns.push({ source, parameters: parameters.map(parameter => parameter[1]), pattern: new RegExp(`^${pattern}$`) });
       }
-      pattern += escapePattern(template.slice(position));
-      diagnosticPatterns.push({ source, parameters: parameters.map(parameter => parameter[1]), pattern: new RegExp(`^${pattern}$`) });
     }
   }
   function localizeDiagnostic(value) {
+    if (!diagnosticKeys) indexDiagnostics();
     const message = String(value ?? '').replace(/^Error invoking remote method 'tokyo:[^']+': (?:Error: )?/, '');
     if (diagnosticKeys.has(message)) return t(diagnosticKeys.get(message));
     for (const { source, parameters, pattern } of diagnosticPatterns) {
@@ -71,5 +81,5 @@
       }
     }
   }
-  return Object.freeze({ languages, normalizeLanguage, createI18n, t, setLanguage, getLanguage, localizeDiagnostic, apply });
+  return Object.freeze({ languages, normalizeLanguage, createI18n, t, setLanguage, getLanguage, formatPercent, localizeDiagnostic, apply });
 });
