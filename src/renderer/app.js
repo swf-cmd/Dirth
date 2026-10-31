@@ -22,7 +22,7 @@
     settings: { executable: '', workspace: '', rainEnabled: true, subagentsEnabled: true, quotaEnabled: true, musicEnabled: true, musicVolume: 90, theme: cities.defaultTheme, language: 'en', ...api?.initialPreferences },
     info: { models: [], modes: [], version: '' },
     sessions: [], activeId: null, connected: false, connectionStatus: 'connecting', initializing: true, startingEngine: true,
-    sending: false, configuring: false, selecting: false, savingSettings: false, renaming: false, deleting: false,
+    sending: false, configuring: false, selecting: false, openingId: null, savingSettings: false, renaming: false, deleting: false,
     busy: new Set(), started: new Map(), permissions: new Map(),
     drafts: new Map(), selectedModel: '', selectedMode: '', menuId: null,
     renameId: null, deleteId: null, renderPending: false, lastError: '',
@@ -1085,7 +1085,8 @@
   }
 
   function currentDraft() {
-    const key = state.activeId || '__new__';
+    // Text typed while a conversation opens belongs to that conversation.
+    const key = state.openingId || state.activeId || '__new__';
     if (!state.drafts.has(key)) state.drafts.set(key, { text: '', attachments: [], pending: 0 });
     return state.drafts.get(key);
   }
@@ -1190,15 +1191,22 @@
       finally { renderSessions(); renderSelects(); renderWorkspace(); renderMessages(true); closeSessionMenu(); $('prompt').focus(); }
       return;
     }
-    state.selecting = true; renderSelects(); renderComposerState();
+    // Restoring it can take a while: its draft shows at once, and what is typed
+    // meanwhile is saved as its draft, not the previous conversation's.
+    state.selecting = true; state.openingId = id; restoreDraft(); renderSelects(); renderComposerState();
+    let opened = false;
     try {
       const session = await call('selectSession', id);
       if (!session?.id) throw new Error(t('无法读取这段对话。'));
       upsertSession(session);
-      state.activeId = id;
+      state.activeId = id; opened = true;
       restoreDraft(); renderSessions(); renderWorkspace(); renderMessages(true);
       closeSessionMenu(); $('prompt').focus();
-    } finally { state.selecting = false; renderSelects(); renderComposerState(); }
+    } finally {
+      // A conversation that did not open keeps what was typed for it.
+      if (!opened) { rememberDraft(); state.openingId = null; restoreDraft(); }
+      state.openingId = null; state.selecting = false; renderSelects(); renderComposerState();
+    }
   }
 
   async function configureSession(patch) {

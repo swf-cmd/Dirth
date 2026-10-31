@@ -37,6 +37,7 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
     conversation('cccccccc-0000-4000-8000-000000000003', 'Charlie', 3000, [message('c1', 'user', 'hi charlie')]),
     conversation('dddddddd-0000-4000-8000-000000000004', 'Markup', 4000, [message('m1', 'user', 'format it'), message('m2', 'assistant', markup)]),
     conversation('eeeeeeee-0000-4000-8000-000000000005', 'Files', 5000, [message('f1', 'user', 'make a report'), message('f2', 'assistant', `Saved [the report](${reportURL}).`)]),
+    conversation('99999999-0000-4000-8000-000000000007', 'Delta', 7000, [message('d1', 'user', 'hi delta')]),
     conversation('ffffffff-0000-4000-8000-000000000006', 'Badge', 6000, [message('g1', 'user', 'show the build'), message('g2', 'assistant', `[![build status](data:image/png;base64,${pixel})](https://ci.example.test/run/42)\n\nSee [the run](https://ci.example.test/run/42).`)]),
   ],
 }));
@@ -135,6 +136,24 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       await page.locator('.message.assistant a', { hasText: 'the run' }).click();
       for (const deadline = Date.now() + 5000; await external() === before && Date.now() < deadline;) await page.waitForTimeout(50);
       assert.equal(await external(), before + 1);
+    });
+
+    await stage('text typed while a conversation opens is saved as its draft', async () => {
+      await select('Bravo');
+      await page.locator('#prompt').fill('');
+      // Restoring Delta in the engine is held until the test releases it.
+      await desktop.evaluate(() => globalThis.__tokyoUITest.hold('loadSession'));
+      await page.locator('.session-select', { hasText: 'Delta' }).click();
+      for (const deadline = Date.now() + 10000; !await desktop.evaluate(() => globalThis.__tokyoUITest.gates.get('loadSession')?.entered) && Date.now() < deadline;) await page.waitForTimeout(20);
+      await page.locator('#prompt').fill('message meant for Delta');
+      await desktop.evaluate(() => globalThis.__tokyoUITest.release('loadSession'));
+      await page.waitForFunction(() => document.querySelector('#breadcrumb-title').textContent === 'Delta' && !document.querySelector('.session-select').disabled);
+      assert.equal(await page.locator('#prompt').inputValue(), 'message meant for Delta');
+      await select('Bravo');
+      assert.equal(await page.locator('#prompt').inputValue(), '', 'Bravo keeps its own draft');
+      await select('Delta');
+      assert.equal(await page.locator('#prompt').inputValue(), 'message meant for Delta');
+      await page.locator('#prompt').fill('');
     });
 
     await stage('a file: link in a reply saves the attachment it names', async () => {
