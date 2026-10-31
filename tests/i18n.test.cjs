@@ -5,7 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 const catalogs = require('../src/locales.js');
-const { languages, normalizeLanguage, createI18n, setLanguage, localizeDiagnostic } = require('../src/i18n.js');
+const { languages, normalizeLanguage, createI18n, setLanguage, formatPercent, localizeDiagnostic } = require('../src/i18n.js');
 const codes = ['zh-CN', 'ja', 'en', 'ko', 'es', 'de', 'fr'];
 const tokens = text => [...new Set(text.match(/\{[A-Za-z][A-Za-z0-9_]*\}/g) || [])].sort();
 
@@ -111,6 +111,22 @@ test('translations follow the current language, interpolate values and leave unk
       assert.deepEqual(tokens(localize(source, parameters)), [], `${language}: interpolate ${source}`);
     }
   }
+});
+
+test('quota percentages use the interface language decimal separator', () => {
+  try {
+    setLanguage('en');
+    assert.equal(formatPercent(7.5), '7.5%');
+    assert.equal(formatPercent(37.4), '37%');
+    assert.equal(formatPercent(7.5, { sign: false }), '7.5');
+    for (const language of ['de', 'fr', 'es']) {
+      setLanguage(language);
+      assert.match(formatPercent(7.5), /^7,5\s?%$/u, language);
+      assert.equal(formatPercent(7.5, { sign: false }), '7,5', language);
+      // The tooltip's template places the sign itself.
+      assert.equal(createI18n(language)('已用 {percent}%', { percent: formatPercent(7.5, { sign: false }) }).includes('7.5'), false, language);
+    }
+  } finally { setLanguage('en'); }
 });
 
 test('the same offline catalogs and localizer load as browser scripts without CommonJS', () => {

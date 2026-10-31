@@ -1520,7 +1520,7 @@
     const usage = quota.status === 'ok' ? quota.usage : null;
     const period = ({ weekly: t('本周额度'), monthly: t('本月额度'), daily: t('今日额度') })[usage?.periodType] || t('账户额度');
     const used = usage ? Math.max(0, usage.usedPercent) : 0;
-    const shown = usage ? `${used < 10 && used % 1 ? used.toFixed(1) : Math.round(used)}%` : '—';
+    const shown = usage ? i18n.formatPercent(used) : '—';
     let detail;
     if (quota.status === 'loading') detail = t('正在读取额度…');
     else if (!usage) detail = quotaReason(quota.reason);
@@ -1535,7 +1535,7 @@
     $('quota-fill').style.width = `${Math.min(100, used)}%`;
     $('quota-detail').textContent = detail;
     // Secondary figures stay in the tooltip; the sidebar keeps one clear number.
-    const lines = [`${period} · ${usage ? t('已用 {percent}%', { percent: shown.replace('%', '') }) : '—'}`, detail];
+    const lines = [`${period} · ${usage ? t('已用 {percent}%', { percent: i18n.formatPercent(used, { sign: false }) }) : '—'}`, detail];
     if (usage?.plan) lines.push(t('套餐：{plan}', { plan: usage.plan }));
     for (const product of usage?.products || []) lines.push(`${product.name} · ${t('已用 {percent}%', { percent: Math.round(product.usedPercent) })}`);
     if (Number.isFinite(usage?.prepaidBalanceCents) && usage.prepaidBalanceCents > 0) lines.push(t('预付余额 {amount}', { amount: quotaMoney(usage.prepaidBalanceCents) }));
