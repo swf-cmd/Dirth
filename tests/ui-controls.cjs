@@ -209,8 +209,9 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
           await page.locator('.toast').filter({ hasText: 'permission rejected' }).waitFor(); assert.equal(await page.locator('#permission-panel button').first().isDisabled(), false);
         }
         if (optionId === 'reject-always') {
-          // Answered from the keyboard, focus goes back to the composer rather than to the page.
-          await page.locator('#permission-panel').getByRole('button', { name, exact: true }).focus(); await page.keyboard.press('Enter'); await idle();
+          // Answered with focus on the choice, focus goes back to the composer rather than to the page.
+          const choice = page.locator('#permission-panel').getByRole('button', { name, exact: true });
+          await choice.focus(); await choice.click(); await idle();
           await page.waitForFunction(() => document.activeElement?.id === 'prompt');
         } else { await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click(); await idle(); }
         assert.equal((await calls('respondPermission')).at(-1).optionId, optionId); assert.equal(await page.locator('#permission-panel').isHidden(), true);
@@ -237,8 +238,11 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
         const sessionId = [...test.adapter.pending.keys()][0];
         for (const requestId of ['queue-first', 'queue-second']) test.adapter.emit('event', { type: 'permission', sessionId, requestId, title: requestId, options: [{ optionId: 'allow-once', name: '允许一次', kind: 'allow_once' }] });
       });
-      await page.locator('#permission-panel').filter({ hasText: 'queue-first' }).waitFor(); await page.locator('#permission-panel button').click();
+      await page.locator('#permission-panel').filter({ hasText: 'queue-first' }).waitFor();
+      await page.locator('#permission-panel button').focus(); await page.locator('#permission-panel button').click();
       await page.locator('#permission-panel').filter({ hasText: 'queue-second' }).waitFor();
+      // Focus waits on the next request's heading, not on a choice a second key press would make.
+      await page.waitForFunction(() => document.activeElement?.matches('#permission-panel .permission-heading'));
       // An unrelated render (here, a notice) leaves the open prompt and its keyboard focus alone.
       await page.locator('#permission-panel button').focus();
       await desktop.evaluate(() => { const test = globalThis.__tokyoUITest; const sessionId = [...test.adapter.pending.keys()][0]; test.adapter.emit('event', { type: 'error', sessionId, message: 'Notice during a prompt' }); });

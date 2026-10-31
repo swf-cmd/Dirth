@@ -443,10 +443,12 @@
   };
   // A link shows where it goes before it is clicked: the window has no status
   // bar, and a reply chooses both a link's text and its destination (and any
-  // title, which could claim another one).
+  // title, which could claim another one). The tooltip comes from the
+  // innermost element with a title, so nothing inside a link keeps one.
   window.DOMPurify?.addHook('afterSanitizeAttributes', node => {
-    const target = node.nodeName === 'A' ? node.getAttribute('href') ?? node.getAttribute('data-href') : null;
-    if (target) node.setAttribute('title', target); else if (node.nodeName === 'A') node.removeAttribute('title');
+    if (node.nodeName !== 'A') { if (node.parentElement?.closest('a')) node.removeAttribute('title'); return; }
+    const target = node.getAttribute('href') ?? node.getAttribute('data-href');
+    if (target) node.setAttribute('title', target); else node.removeAttribute('title');
   });
   let markdownRenderer = null;
   function markdownOptions() {
@@ -1064,7 +1066,7 @@
     if (!permission) return;
     // In plan mode Grok asks before it leaves the plan and starts changing files.
     const plan = permission.plan === true;
-    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.textContent = plan ? t('Grok 拟好了计划，要开始修改吗？') : permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
+    const heading = document.createElement('div'); heading.className = 'permission-heading'; heading.tabIndex = -1; heading.textContent = plan ? t('Grok 拟好了计划，要开始修改吗？') : permission.title || permission.toolCall?.title || t('Grok Build 请求执行操作');
     const description = document.createElement('p'); description.className = `permission-description${plan ? ' plan' : ''}`;
     description.textContent = plan ? safeText(permission.toolCall?.content) || t('Grok 没有附上计划内容。')
       : safeText(permission.toolCall?.rawInput ?? permission.toolCall?.content ?? permission.description) || t('请确认是否允许此操作。你的选择会发送给本地引擎。');
@@ -1079,8 +1081,10 @@
         for (const other of actions.children) other.disabled = true;
         try {
           await call('permission', { requestId: permission.requestId, optionId: option.optionId }); state.permissions.delete(String(permission.requestId)); renderPermissions(); updateActivity();
-          // The answered buttons are gone: keyboard focus moves to the next request, or back to the composer.
-          if (focused) ($('permission-panel').querySelector('.permission-actions button') || $('prompt')).focus();
+          // The answered buttons are gone: keyboard focus moves to the next
+          // request's heading (never straight onto a choice, which a second
+          // key press would make unread), or back to the composer.
+          if (focused) ($('permission-panel').querySelector('.permission-heading') || $('prompt')).focus();
         }
         catch (error) { for (const other of actions.children) other.disabled = false; throw error; }
       }));
