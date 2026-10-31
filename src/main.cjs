@@ -136,6 +136,12 @@ else {
     quitPending = true;
     controller.close()
       .then(() => { quitAllowed = true; app.quit(); })
-      .catch(error => { quitPending = false; dialog.showErrorBox(t('关闭 Dirth 时出错'), error.message); });
+      .catch(async error => {
+        // A save that keeps failing (a full disk, a removed drive) would refuse
+        // every later Quit too, while the half-closed app refuses all work.
+        // Replies still running stay in the reply log for the next launch.
+        const { response } = await dialog.showMessageBox({ type: 'error', message: t('关闭 Dirth 时出错'), detail: error.message, buttons: [t('取消'), t('仍然退出')], defaultId: 0, cancelId: 0 });
+        if (response === 1) { quitAllowed = true; app.quit(); } else quitPending = false;
+      });
   });
 }
