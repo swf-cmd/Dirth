@@ -53,7 +53,9 @@ function imageMime(bytes, t = defaultT) {
   if (bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255) return 'image/jpeg';
   if (/^GIF8[79]a/.test(bytes.subarray(0, 6).toString())) return 'image/gif';
   if (bytes.toString('ascii', 0, 4) === 'RIFF' && bytes.toString('ascii', 8, 12) === 'WEBP') return 'image/webp';
-  if (bytes.toString('ascii', 0, 2) === 'BM') return 'image/bmp';
+  // "BM" alone also starts text ("BMI,Age", "BM25"): a bitmap's header size
+  // follows its 14-byte file header, and text has no zero bytes there.
+  if (bytes.toString('ascii', 0, 2) === 'BM' && bytes.length >= 26 && [12, 16, 40, 52, 56, 64, 108, 124].includes(bytes.readUInt32LE(14))) return 'image/bmp';
   if (bytes.toString('ascii', 4, 8) === 'ftyp' && /avif|avis/.test(bytes.toString('ascii', 8, 32))) return 'image/avif';
   if (bytes[0] === 0 && bytes[1] === 0 && bytes[2] === 1 && bytes[3] === 0) return 'image/x-icon';
   // A comment body may not contain "-->", so each comment can end in only one
