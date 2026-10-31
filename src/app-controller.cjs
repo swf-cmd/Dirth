@@ -1105,7 +1105,13 @@ class AppController extends EventEmitter {
 }
 for (const name of ['renameSession', 'deleteSession']) {
   const method = AppController.prototype[name];
-  AppController.prototype[name] = function (...args) { return this.historyOperation(() => method.apply(this, args)); };
+  AppController.prototype[name] = async function (...args) {
+    // Like the other user actions, deleting waits for a catalog readback the
+    // person did not start. The readback saves through the history queue, so
+    // the wait happens before joining it.
+    while (name === 'deleteSession' && this.operation?.background && !this.closing) await this.operation.promise.catch(() => {});
+    return this.historyOperation(() => method.apply(this, args));
+  };
 }
 for (const group of [ControllerAccounts, ControllerQuota]) {
   const { constructor, ...methods } = Object.getOwnPropertyDescriptors(group.prototype);
