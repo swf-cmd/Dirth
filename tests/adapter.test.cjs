@@ -812,6 +812,8 @@ test('an unanswered stop stays pending until other conversations finish', async 
   adapter._message({ id: request('second').id, result: { stopReason: 'end_turn' } });
   await second;
   t.mock.timers.tick(1000);
+  // Its sessions are closed first (none here can be), then the CLI is ended.
+  await new Promise(setImmediate);
   assert.equal(kills, 1, 'the unresponsive stop restarts the engine once other conversations finish');
   adapter._message({ id: request('first').id, result: { stopReason: 'cancelled' } });
   assert.equal((await first).cancelled, true);
@@ -839,6 +841,7 @@ test('an unanswered stop preserves another session that is being restored or cre
     adapter._message({ id: request.id, result: { sessionId: 'second', configOptions: [] } });
     await other;
     t.mock.timers.tick(1000);
+    await new Promise(setImmediate);
     assert.equal(kills, 1);
     adapter._message({ id: writes.find(item => item.method === 'session/prompt').id, result: { stopReason: 'cancelled' } });
     await first;

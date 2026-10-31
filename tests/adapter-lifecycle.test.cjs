@@ -259,6 +259,43 @@ test('nothing new is sent to a CLI that an unanswered Stop is shutting down', as
   assert.equal((await first).cancelled, true);
 });
 
+test('an unanswered Stop closes every session before it ends the CLI, so their tools stop too', async t => {
+  // Grok stops the commands a session's tools started only when the session
+  // closes; ending the CLI leaves them running, in every conversation.
+  for (const stuck of [false, true]) await t.test(stuck ? 'Grok does not answer the closes either' : 'Grok answers the closes', async t => {
+    const received = [];
+    const adapter = new GrokAdapter({ cwd: __dirname, spawnProcess: () => syntheticChild((message, child) => {
+      received.push(message.method);
+      if (message.method === 'initialize') child.send({ id: message.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, sessionCapabilities: { close: {} } } } });
+      else if (message.method === 'session/new') child.send({ id: message.id, result: { sessionId: `s${received.length}`, configOptions: [] } });
+      else if (message.method === 'session/close' && !stuck) child.send({ id: message.id, result: {} });
+      // Prompts and Stop go unanswered.
+    }) });
+    t.after(() => adapter.close().catch(() => {}));
+    const a = await adapter.newSession();
+    const b = await adapter.newSession();
+    let killStarted, finishKill;
+    const killing = new Promise(resolve => { killStarted = resolve; });
+    const graceOver = new Promise(resolve => { finishKill = resolve; });
+    adapter._kill = async child => { killStarted([...received]); await graceOver; child.kill(); };
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const first = adapter.prompt({ sessionId: a.sessionId, text: 'long task' });
+    await new Promise(setImmediate);
+    await adapter.cancel(a.sessionId);
+    t.mock.timers.tick(10000);
+    // Only the closes reach it now.
+    await assert.rejects(adapter.prompt({ sessionId: b.sessionId, text: 'task in another conversation' }), { code: 'NOT_CONNECTED' });
+    await new Promise(setImmediate);
+    if (stuck) t.mock.timers.tick(3000);
+    const sentBeforeKill = await killing;
+    t.mock.timers.reset();
+    assert.deepEqual(sentBeforeKill.filter(method => method === 'session/close').length, 2, 'both conversations close before the CLI is ended');
+    assert.equal(received.filter(method => method === 'session/prompt').length, 1, 'only the stopped prompt ever reached the old CLI');
+    finishKill();
+    assert.equal((await first).cancelled, true);
+  });
+});
+
 test('POSIX shutdown lets the CLI stop the tools it started in their own sessions', { skip: process.platform === 'win32' }, async t => {
   const base = path.resolve(__dirname, '..', 'work', 'adapter-lifecycle-tests');
   await fs.mkdir(base, { recursive: true });

@@ -146,6 +146,9 @@ class GrokAdapter extends EventEmitter {
     this.processGroups = new WeakSet();
     // A disconnected CLI can outlive its pipes for a moment; nothing more is written to it.
     this.disconnectedProcesses = new WeakSet();
+    // A CLI that an unanswered Stop is about to end is asked to close its
+    // sessions, and nothing else, first.
+    this.stoppingProcesses = new WeakSet();
     this.pending = new Map();
     this.permissions = new Map();
     this.sessions = new Map();
@@ -331,7 +334,8 @@ class GrokAdapter extends EventEmitter {
 
   _write(message) {
     const child = this.process;
-    if (!child || this.disconnectedProcesses.has(child) || child.stdin.destroyed || child.stdin.writableEnded) throw failure(this.t('Grok 尚未连接，请重新连接。'), 'NOT_CONNECTED');
+    if (!child || this.disconnectedProcesses.has(child) || child.stdin.destroyed || child.stdin.writableEnded
+      || (this.stoppingProcesses.has(child) && message.method !== 'session/close')) throw failure(this.t('Grok 尚未连接，请重新连接。'), 'NOT_CONNECTED');
     child.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
@@ -851,7 +855,7 @@ class GrokAdapter extends EventEmitter {
     if (!turn.cancelTimer) {
       const child = this.process;
       const cancelWhenSafe = () => {
-        if (this.active.get(sessionId) !== turn || this.process !== child) return;
+        if (this.active.get(sessionId) !== turn || this.process !== child || this.stoppingProcesses.has(child)) return;
         // Keep an unanswered cancellation pending: releasing its turn would
         // falsely enable more sends while Grok still owns the old request.
         // Wait for other conversations and their configuration/restoration to
@@ -865,8 +869,13 @@ class GrokAdapter extends EventEmitter {
         }
         // The CLI may take a moment to stop its tools and exit. Work sent to it
         // meanwhile would start only to be killed, so it fails at once instead.
-        this.disconnectedProcesses.add(child);
-        this._kill(child);
+        // Ending it leaves the commands its tools started running, here and in
+        // every other conversation; closing the sessions first stops them.
+        this.stoppingProcesses.add(child);
+        void this._closeSessions(child).then(() => {
+          this.disconnectedProcesses.add(child);
+          return this._kill(child);
+        }).catch(() => {});
       };
       turn.cancelTimer = setTimeout(cancelWhenSafe, 10000);
       turn.cancelTimer.unref?.();
