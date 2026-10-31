@@ -278,17 +278,28 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
         assert.deepEqual((await content()).at(-1), streamed, 'the end of the reply leaves it as streamed');
       }
       const streamed = await content();
-      await page.evaluate(() => {
+      const countSanitizing = () => {
         window.__sanitized = 0;
-        const sanitize = window.DOMPurify.sanitize;
-        window.DOMPurify.sanitize = (...args) => { window.__sanitized++; return sanitize(...args); };
-      });
+        const wrap = purify => { const sanitize = purify.sanitize; purify.sanitize = (...args) => { window.__sanitized++; return sanitize(...args); }; return purify; };
+        if (window.DOMPurify) wrap(window.DOMPurify);
+        // After a reload, count from the first render on.
+        else { let purify; Object.defineProperty(window, 'DOMPurify', { configurable: true, get: () => purify, set: value => { purify = wrap(value); } }); }
+      };
+      // Opening the conversation again draws its replies from the HTML they already have.
+      await page.evaluate(countSanitizing);
       await select('Markup'); await select('Bravo');
+      assert.deepEqual(await content(), streamed);
+      assert.equal(await page.evaluate(() => window.__sanitized), 0, 'reopening sanitizes nothing again');
+      // After a restart the saved replies render fresh, exactly as they streamed.
+      await page.addInitScript(countSanitizing);
+      await page.reload();
+      await page.waitForFunction(() => !document.querySelector('#connection-button').disabled && !document.querySelector('#settings-button').disabled);
+      if (await page.locator('#breadcrumb-title').textContent() !== 'Bravo') { await page.evaluate(() => { window.__sanitized = 0; }); await select('Bravo'); }
       assert.deepEqual(await content(), streamed, 'a fresh render of the saved replies matches what was streamed');
       assert.deepEqual(streamed.map(reply => reply.images), [0, 1]);
       assert.match(await page.locator('.message.assistant details').first().textContent(), /Hidden text[\s\S]*Still hidden/);
-      // Markup holds one reply and Bravo two: each is sanitized once, not once per block.
-      assert.equal(await page.evaluate(() => window.__sanitized), 3);
+      // Bravo holds two replies: each is sanitized once, not once per block.
+      assert.equal(await page.evaluate(() => window.__sanitized), 2);
     });
 
     await stage('an image on its own line stays one figure while the text after it streams in', async () => {

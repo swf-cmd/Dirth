@@ -853,6 +853,10 @@
 
   const messageNodes = new Map();
   const messageRevisions = new WeakMap();
+  // Each reply's parsed and sanitized HTML, kept with the message itself.
+  // Opening a conversation again draws it from this instead of parsing its
+  // whole history once more: messages keep their objects while unchanged.
+  const renderedReplies = new WeakMap();
   let messageRenderContext = '';
   function touchMessage(message) { messageRevisions.set(message, (messageRevisions.get(message) || 0) + 1); }
 
@@ -924,7 +928,7 @@
         const segments = message.responseSegments?.length ? message.responseSegments : [{ text: message.text, kind: 'response' }];
         // Only the last segment of a streaming reply grows; earlier ones keep
         // their parsed Markdown, and the growing one its completed blocks.
-        const previousHtml = cached?.segmentHtml || [];
+        const previousHtml = cached?.segmentHtml || renderedReplies.get(message) || [];
         const hasContext = message.thought || message.tools?.length || segments.some(segment => segment.kind === 'commentary');
         const next = [];
         segments.forEach((segment, segmentIndex) => {
@@ -987,6 +991,7 @@
         });
       }
       messageNodes.set(message.id, { article, message, revision, streaming, displayContext, segmentHtml, plan: message.plan });
+      if (message.role !== 'user') renderedReplies.set(message, segmentHtml);
       if (!inPlace && previous?.parentNode === container) previous.replaceWith(article);
       if (container.children[index] !== article) container.insertBefore(article, container.children[index] || null);
     });
