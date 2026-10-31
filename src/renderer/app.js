@@ -1019,7 +1019,8 @@
     $('stop-button').hidden = !busy;
     $('send-button').disabled = uiLocked({ engine: true }) || draft.pending > 0 || busy || full || (!$('prompt').value.trim() && !draft.attachments.length) || !state.connected || !newChatConfigReady();
     $('send-button').title = full ? t('最多同时运行 {count} 个任务，请等待其中一个完成。', { count: state.maxConcurrentTurns }) : '';
-    $('attach-button').disabled = uiLocked({ engine: true, busy: true }) || draft.pending > 0;
+    // Files can join the next message while this reply finishes, as its text can.
+    $('attach-button').disabled = uiLocked({ engine: true }) || draft.pending > 0;
     renderDraftAttachments();
     $('settings-button').disabled = locked;
     $('account-button').disabled = uiLocked({ login: false });
@@ -1126,7 +1127,7 @@
   }
 
   async function addAttachments(files) {
-    if (uiLocked({ engine: true, busy: true })) return;
+    if (uiLocked({ engine: true })) return;
     const draft = currentDraft();
     if (draft.pending) return;
     const accountId = state.activeAccountId;

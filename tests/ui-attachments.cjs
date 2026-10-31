@@ -181,6 +181,27 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
       }
       await page.locator('#prompt').fill('');
     });
+    await stage('files chosen or pasted while the chat replies join the next message', async () => {
+      await page.locator('#prompt').fill('WAIT while files are added'); await page.locator('#send-button').click();
+      await page.waitForFunction(() => !document.querySelector('#stop-button').hidden);
+      // Once the message is on its way, the next one can gather files as it gathers text.
+      await page.waitForFunction(() => !document.querySelector('#attach-button').disabled);
+      await choose([documentFile], 1);
+      // A pasted file is added too, never dropped without a word.
+      await page.locator('#prompt').evaluate(prompt => {
+        const data = new DataTransfer(); data.items.add(new File(['pasted while replying'], 'pasted.txt', { type: 'text/plain' }));
+        prompt.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data, bubbles: true, cancelable: true }));
+      });
+      await drafts(2);
+      await desktop.evaluate(() => {
+        const adapter = globalThis.__tokyoUITest.adapter;
+        for (const [id, resolve] of adapter.pending) { resolve({ stopReason: 'end_turn' }); adapter.pending.delete(id); }
+      });
+      await idle(); await drafts(2);
+      await send('Here are the files'); await drafts(0);
+      const calls = await desktop.evaluate(() => globalThis.__tokyoUITest.calls.filter(item => item.method === 'prompt'));
+      assert.deepEqual(calls.at(-1).attachments.map(item => item.name), ['notes.txt', 'pasted.txt']);
+    });
     await stage('asynchronous chooser results stay with the original conversation', async () => {
       await desktop.evaluate(({ dialog }) => {
         const original = dialog.showOpenDialog;
