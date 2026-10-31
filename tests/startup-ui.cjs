@@ -262,7 +262,10 @@ async function assertEngineBlocked(page) {
   let sourceRoot = folder;
   if (process.argv.includes('--packaged')) {
     sourceRoot = path.join(folder, 'app.asar');
-    fs.copyFileSync(require('../scripts/package-paths.cjs').packagedArchive(root), sourceRoot);
+    // Copied as a file, also when this script runs under Electron's Node.
+    const noAsar = process.noAsar; process.noAsar = true;
+    try { fs.copyFileSync(require('../scripts/package-paths.cjs').packagedArchive(root), sourceRoot); }
+    finally { process.noAsar = noAsar; }
   } else {
     fs.cpSync(path.join(root, 'src'), path.join(folder, 'src'), { recursive: true });
     fs.copyFileSync(path.join(root, 'package.json'), path.join(folder, 'package.json'));
