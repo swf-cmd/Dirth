@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { randomUUID } = require('node:crypto');
+const { createHash, randomUUID } = require('node:crypto');
 const { AppController } = require('../src/app-controller.cjs');
 const { BlobStore } = require('../src/blob-store.cjs');
 
@@ -341,6 +341,49 @@ test('failed journal cleanup after deletion reports retained private data and re
   await controller.save();
   assert.equal(await exists(controller.journal.file), false);
   assert.equal(await exists(controller.blobs.resolve(reference)), false);
+});
+
+test('a stored file that cannot be written stops holding up saves after three attempts', async t => {
+  const base = path.resolve(__dirname, '../work/blob-retention-tests');
+  await fs.mkdir(base, { recursive: true });
+  const directory = await fs.mkdtemp(path.join(base, 'refused-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = new BlobStore(directory);
+  const refused = Buffer.from('content an antivirus program will not let anyone write');
+  const hash = createHash('sha256').update(refused).digest('hex');
+  // A folder where its file belongs makes every write of this one file fail.
+  await fs.mkdir(path.join(directory, hash, 'occupied'), { recursive: true });
+  const ref = store.store(refused);
+  for (let attempt = 1; attempt <= 3; attempt++) await assert.rejects(store.flush(), undefined, `attempt ${attempt} still blocks`);
+  // Saves, the reply log and showing other images go ahead from now on.
+  const other = store.store(Buffer.from('an image saved afterwards'));
+  await store.flush();
+  assert.ok(await exists(store.resolve(other)));
+  assert.ok(store.pending.has(hash), 'the refused bytes stay in memory');
+  // Once the obstacle is gone, a later retry writes it.
+  await fs.rm(path.join(directory, hash), { recursive: true });
+  store.pending.get(hash).retryAt = 0;
+  await store.flush();
+  await store.pending.get(hash)?.write?.catch(() => {});
+  assert.equal(store.pending.has(hash), false);
+  assert.ok((await fs.stat(store.resolve(ref))).isFile());
+});
+
+test('a full disk keeps blocking saves, so its files are never given up', async t => {
+  const base = path.resolve(__dirname, '../work/blob-retention-tests');
+  await fs.mkdir(base, { recursive: true });
+  const directory = await fs.mkdtemp(path.join(base, 'full-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = new BlobStore(directory);
+  const open = fs.open;
+  fs.open = async () => { throw Object.assign(new Error('no space left on device'), { code: 'ENOSPC' }); };
+  let ref;
+  try {
+    ref = store.store(Buffer.from('written once the disk has room'));
+    for (let attempt = 1; attempt <= 5; attempt++) await assert.rejects(store.flush(), { code: 'ENOSPC' });
+  } finally { fs.open = open; }
+  await store.flush();
+  assert.ok((await fs.stat(store.resolve(ref))).isFile());
 });
 
 test('collection removes owned temporary blob files abandoned by an interrupted write', async t => {

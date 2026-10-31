@@ -6,6 +6,15 @@ const { createHash, randomUUID } = require('node:crypto');
 const MAX_BLOB_BYTES = 20 * 1024 * 1024;
 const BLOB_REFERENCE = /^grok-blob:([a-f0-9]{64})$/;
 const PROSE_FIELDS = new Set(['text', 'thought']);
+// A write that keeps failing for one file (an antivirus program refusing that
+// content) must not hold up every save, the reply log and quitting. After this
+// many attempts, saves go ahead as for a stored file that was lost; its bytes
+// stay in memory and are tried again now and then. A full or read-only disk
+// fails the saves themselves, so its writes keep blocking and nothing is
+// given up there.
+const BLOCKING_ATTEMPTS = 3;
+const RETRY_DELAY = 60000;
+const DISK_ERRORS = new Set(['ENOSPC', 'EDQUOT', 'EROFS']);
 
 function collectBlobReferences(value, references = new Set()) {
   if (typeof value === 'string') {
@@ -78,7 +87,11 @@ class BlobStore {
     entry.write = operation;
     // Failed writes retain the source bytes. A later save retries them, so a
     // temporary full disk cannot permanently poison persistence for this app.
-    operation.catch(() => { entry.write = null; });
+    operation.catch(error => {
+      entry.write = null;
+      if (!DISK_ERRORS.has(error?.code)) entry.failures = (entry.failures || 0) + 1;
+      entry.retryAt = Date.now() + RETRY_DELAY;
+    });
     return operation;
   }
 
@@ -171,8 +184,13 @@ class BlobStore {
   }
 
   async flush() {
-    while (this.pending.size) {
-      const writes = [...this.pending].map(([hash, entry]) => entry.write || this.writeBlob(hash, entry));
+    for (;;) {
+      const writes = [];
+      for (const [hash, entry] of this.pending) {
+        if ((entry.failures || 0) < BLOCKING_ATTEMPTS) writes.push(entry.write || this.writeBlob(hash, entry));
+        else if (!entry.write && Date.now() >= entry.retryAt) this.writeBlob(hash, entry).catch(() => {});
+      }
+      if (!writes.length) return;
       await Promise.all(writes);
     }
   }
