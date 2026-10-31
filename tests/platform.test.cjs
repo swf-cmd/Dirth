@@ -5,7 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
-const { executableName, defaultExecutable, isExecutable, cliEnvironment, findGrokExecutable } = require('../src/platform.cjs');
+const { executableName, defaultExecutable, isExecutable, cliEnvironment, findGrokExecutable, retryLocked } = require('../src/platform.cjs');
 
 function fixture(t) {
   const base = path.resolve(__dirname, '..', 'work', 'platform-tests');
@@ -86,4 +86,24 @@ test('discovery prefers the native installer path, then executable PATH entries,
   // Linux has no machine-wide macOS fallbacks, making this independent of any
   // Grok installed on the computer running the test.
   assert.equal(findGrokExecutable({ home, platform: 'linux', env: { PATH: 'relative' } }), defaultBinary);
+});
+
+test('Windows retries a file that a scanner holds for a moment, and nothing else', async () => {
+  const failing = (code, times) => { let calls = 0; const operation = async () => { calls++; if (calls <= times) throw Object.assign(new Error(code), { code }); return 'saved'; }; return { operation, calls: () => calls }; };
+  for (const code of ['EPERM', 'EACCES', 'EBUSY']) {
+    const locked = failing(code, 2);
+    assert.equal(await retryLocked(locked.operation, { platform: 'win32', delays: [0, 0, 0] }), 'saved', code);
+    assert.equal(locked.calls(), 3);
+  }
+  // Elsewhere these are permission errors, and other errors are never retried.
+  const posix = failing('EPERM', 1);
+  await assert.rejects(retryLocked(posix.operation, { platform: 'darwin', delays: [0] }), { code: 'EPERM' });
+  assert.equal(posix.calls(), 1);
+  const full = failing('ENOSPC', 1);
+  await assert.rejects(retryLocked(full.operation, { platform: 'win32', delays: [0] }), { code: 'ENOSPC' });
+  assert.equal(full.calls(), 1);
+  // A lock that outlasts every delay is reported.
+  const held = failing('EBUSY', 10);
+  await assert.rejects(retryLocked(held.operation, { platform: 'win32', delays: [0, 0] }), { code: 'EBUSY' });
+  assert.equal(held.calls(), 3);
 });

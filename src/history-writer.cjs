@@ -2,6 +2,7 @@
 const { parentPort } = require('node:worker_threads');
 const fs = require('node:fs/promises');
 const path = require('node:path');
+const { retryLocked } = require('./platform.cjs');
 
 if (!parentPort) throw new Error('History writer requires a worker thread');
 const port = parentPort;
@@ -36,12 +37,12 @@ port.on('message', async ({ id, directory, index, updates, legacy }) => {
     for (const { file, messages } of updates) {
       const target = path.join(folder, file);
       await writeDurably(target + '.tmp', JSON.stringify({ messages }));
-      await fs.rename(target + '.tmp', target);
+      await retryLocked(() => fs.rename(target + '.tmp', target));
     }
     if (updates.length) await syncDirectory(folder);
     const target = path.join(directory, 'conversations.json');
     await writeDurably(target + '.tmp', JSON.stringify(index));
-    await fs.rename(target + '.tmp', target);
+    await retryLocked(() => fs.rename(target + '.tmp', target));
     await syncDirectory(directory);
     // Immutable content generations make the index replacement the commit point.
     // Files from interrupted writes are collected only after a successful commit.

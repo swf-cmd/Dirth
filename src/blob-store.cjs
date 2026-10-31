@@ -3,6 +3,7 @@
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { createHash, randomUUID } = require('node:crypto');
+const { retryLocked } = require('./platform.cjs');
 const MAX_BLOB_BYTES = 20 * 1024 * 1024;
 const BLOB_REFERENCE = /^grok-blob:([a-f0-9]{64})$/;
 const PROSE_FIELDS = new Set(['text', 'thought']);
@@ -78,7 +79,7 @@ class BlobStore {
           const handle = await fs.open(temporary, 'wx', 0o600);
           try { await handle.writeFile(bytes); await handle.sync(); }
           finally { await handle.close(); }
-          await fs.rename(temporary, target);
+          await retryLocked(() => fs.rename(temporary, target));
         }
         this.known.add(hash);
         this.pending.delete(hash);
