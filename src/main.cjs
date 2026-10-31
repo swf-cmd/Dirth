@@ -117,7 +117,9 @@ else {
     handle('copyText', async text => { if (typeof text !== 'string' || text.length > 2000000) throw new Error(t('无法复制这段内容')); await clipboard.writeText(text); return true; });
     win.once('ready-to-show', () => win.show());
     win.on('close', event => { if (!quitAllowed) { event.preventDefault(); if (isMac && !quitPending) win.hide(); else app.quit(); } });
-    win.loadFile(entry);
+    // Load the exact address IPC accepts. loadFile leaves [ ] % ~ in a folder
+    // name unencoded, so from "Tools [portable]" every message was refused.
+    win.loadURL(entryURL);
   }).catch(error => { dialog.showErrorBox(t('Dirth 启动失败'), error.message); app.exit(1); });
   app.on('window-all-closed', () => { if (!isMac) app.quit(); });
   app.on('before-quit', event => {

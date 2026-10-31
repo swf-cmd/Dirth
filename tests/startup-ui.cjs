@@ -14,7 +14,7 @@ const output = fs.mkdtempSync(path.join(base, 'run-'));
 const results = [], errors = [];
 const text = (language, source) => createI18n(language)(source);
 
-async function launch(name, { history = true, hold = 'start', musicEnabled = false, musicVolume = 31 } = {}) {
+async function launch(name, { history = true, hold = 'start', musicEnabled = false, musicVolume = 31, sourceRoot } = {}) {
   const profile = path.join(output, name);
   const workspace = path.join(profile, 'Workspace');
   const executable = path.join(profile, process.platform === 'win32' ? 'grok.exe' : 'grok');
@@ -29,6 +29,7 @@ async function launch(name, { history = true, hold = 'start', musicEnabled = fal
   ] : [] }));
   const env = { ...process.env, TOKYO_TEST_ROOT: profile, TOKYO_TEST_HOLD: hold };
   if (process.argv.includes('--packaged')) env.TOKYO_UI_SOURCE_ROOT = require('../scripts/package-paths.cjs').packagedArchive(root);
+  if (sourceRoot) env.TOKYO_UI_SOURCE_ROOT = sourceRoot;
   delete env.ELECTRON_RUN_AS_NODE;
   const launchedAt = Date.now();
   const desktop = await _electron.launch({ args: ['--mute-audio', path.join(__dirname, 'fixtures', 'ui-app.cjs')], env });
@@ -251,6 +252,25 @@ async function assertEngineBlocked(page) {
     assert.equal(await page.locator('#rain-layer').evaluate(element => element.hidden), true);
     assert.equal(await page.locator('#music-status').getAttribute('data-state'), 'paused');
     await test.timed('failed startup retains saved language, settings, history and editable drafts');
+  });
+
+  // A portable copy can sit in a folder such as "Tools [portable]". The page's
+  // address must be the one the main process accepts messages from.
+  const folder = path.join(output, 'Dirth [portable] 100% ~2');
+  fs.mkdirSync(folder);
+  let sourceRoot = folder;
+  if (process.argv.includes('--packaged')) {
+    sourceRoot = path.join(folder, 'app.asar');
+    fs.copyFileSync(require('../scripts/package-paths.cjs').packagedArchive(root), sourceRoot);
+  } else {
+    fs.cpSync(path.join(root, 'src'), path.join(folder, 'src'), { recursive: true });
+    fs.copyFileSync(path.join(root, 'package.json'), path.join(folder, 'package.json'));
+  }
+  await run('unusual-app-folder', { hold: '', sourceRoot }, async test => {
+    await test.localReady(); await test.engineReady();
+    assert.equal(await test.page.locator('.session-select').count(), 2);
+    assert.equal(await test.page.locator('#connection-label').textContent(), text('ja', '引擎已连接'));
+    await test.timed('an app folder named with brackets, a percent sign and a tilde still talks to the main process');
   });
   assert.deepEqual(errors, []);
 })().catch(error => { errors.push(error.stack || String(error)); console.error(error); process.exitCode = 1; }).finally(() => {
