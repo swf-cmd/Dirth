@@ -151,11 +151,15 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
     await stage('rename save/cancel, search toggle/filter/Escape, per-chat drafts', async () => {
       await openMenu(); await page.locator('#menu-rename').click(); await page.locator('#rename-input').fill('Renamed fixture'); await page.locator('#rename-form button[type="submit"]').click();
       await page.locator('#rename-dialog').waitFor({ state: 'hidden' }); assert.equal(readState().sessions[0].title, 'Renamed fixture');
+      // Keyboard focus returns to the conversation's "···" button, not to the page.
+      const focusedRow = () => page.waitForFunction(() => document.activeElement?.matches('.session-item.active .session-more'));
+      await focusedRow();
       await openMenu(); await page.locator('#menu-rename').click(); await page.locator('#rename-input').fill('Discarded'); await page.locator('#rename-dialog .secondary-button').click();
-      assert.equal(readState().sessions[0].title, 'Renamed fixture');
+      assert.equal(readState().sessions[0].title, 'Renamed fixture'); await focusedRow();
       await page.locator('#search-toggle').click(); await page.locator('#session-search').fill('no-such-chat'); assert.equal(await page.locator('.session-select').count(), 0);
       await page.locator('#session-search').fill('Renamed'); assert.equal(await page.locator('.session-select').count(), 1);
       await page.locator('#session-search').press('Escape'); assert.equal(await page.locator('#history-search').isHidden(), true);
+      assert.equal(await page.evaluate(() => document.activeElement?.id), 'search-toggle');
       // Only the platform's command key starts a chat: on Mac, Control+N moves the caret down a line.
       await page.locator('#prompt').fill('Saved draft'); await page.keyboard.press(process.platform === 'darwin' ? 'Control+n' : 'Meta+n'); assert.equal(await page.locator('#prompt').inputValue(), 'Saved draft');
       await page.keyboard.press(process.platform === 'darwin' ? 'Meta+n' : 'Control+n'); assert.equal(await page.locator('#prompt').inputValue(), '');
@@ -204,7 +208,11 @@ const readState = () => require('./fixtures/read-history.cjs')(path.join(testRoo
           await desktop.evaluate(() => { globalThis.__tokyoUITest.failPermission = true; }); await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click();
           await page.locator('.toast').filter({ hasText: 'permission rejected' }).waitFor(); assert.equal(await page.locator('#permission-panel button').first().isDisabled(), false);
         }
-        await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click(); await idle();
+        if (optionId === 'reject-always') {
+          // Answered from the keyboard, focus goes back to the composer rather than to the page.
+          await page.locator('#permission-panel').getByRole('button', { name, exact: true }).focus(); await page.keyboard.press('Enter'); await idle();
+          await page.waitForFunction(() => document.activeElement?.id === 'prompt');
+        } else { await page.locator('#permission-panel').getByRole('button', { name, exact: true }).click(); await idle(); }
         assert.equal((await calls('respondPermission')).at(-1).optionId, optionId); assert.equal(await page.locator('#permission-panel').isHidden(), true);
       }
     });

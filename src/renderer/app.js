@@ -1075,8 +1075,13 @@
       button.textContent = (plan ? planLabels[option.optionId] : ({ allow_once: t('允许一次'), allow_always: t('始终允许'), reject_once: t('拒绝一次'), reject_always: t('始终拒绝') })[option.kind]) || option.name || option.optionId;
       if ((option.kind || '').startsWith('allow')) button.className = 'allow';
       button.addEventListener('click', () => guarded(async () => {
+        const focused = actions.contains(document.activeElement);
         for (const other of actions.children) other.disabled = true;
-        try { await call('permission', { requestId: permission.requestId, optionId: option.optionId }); state.permissions.delete(String(permission.requestId)); renderPermissions(); updateActivity(); }
+        try {
+          await call('permission', { requestId: permission.requestId, optionId: option.optionId }); state.permissions.delete(String(permission.requestId)); renderPermissions(); updateActivity();
+          // The answered buttons are gone: keyboard focus moves to the next request, or back to the composer.
+          if (focused) ($('permission-panel').querySelector('.permission-actions button') || $('prompt')).focus();
+        }
         catch (error) { for (const other of actions.children) other.disabled = false; throw error; }
       }));
       actions.append(button);
@@ -1936,7 +1941,7 @@
       if (searchVisible) $('session-search').focus(); else { $('session-search').value = ''; renderSessions(); }
     });
     $('session-search').addEventListener('input', renderSessions);
-    $('session-search').addEventListener('keydown', event => { if (event.key === 'Escape') { $('session-search').value = ''; renderSessions(); searchVisible = false; $('history-search').hidden = true; } });
+    $('session-search').addEventListener('keydown', event => { if (event.key === 'Escape') { $('session-search').value = ''; renderSessions(); searchVisible = false; $('history-search').hidden = true; $('search-toggle').focus(); } });
     $('export-button').addEventListener('click', () => guarded(() => exportSession(state.activeId)));
     $('menu-export').addEventListener('click', () => { const id = state.menuId; closeSessionMenu(); void guarded(() => exportSession(id)); });
     $('menu-rename').addEventListener('click', () => {
@@ -1960,6 +1965,17 @@
         } finally { state.renaming = false; for (const element of $('rename-form').querySelectorAll('input, button')) element.disabled = false; }
       });
     });
+    // The menu item that opened these dialogs is hidden before they open, so
+    // closing them would leave keyboard focus nowhere: it returns to the
+    // conversation's "···" button, or to the composer once it is deleted.
+    const returnToRow = id => () => {
+      const row = [...$('session-list').querySelectorAll('.session-item')].find(item => item.dataset.sessionId === id());
+      if (!row) { $('prompt').focus(); return; }
+      // "···" shows only while its row is hovered or focused.
+      row.querySelector('.session-select')?.focus(); row.querySelector('.session-more')?.focus();
+    };
+    $('rename-dialog').addEventListener('close', returnToRow(() => state.renameId));
+    $('delete-dialog').addEventListener('close', returnToRow(() => state.deleteId));
     $('menu-delete').addEventListener('click', () => {
       state.deleteId = state.menuId; const session = state.sessions.find(item => item.id === state.deleteId); closeSessionMenu();
       if (!session) return;
