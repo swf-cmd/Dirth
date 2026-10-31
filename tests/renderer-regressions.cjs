@@ -20,6 +20,7 @@ fs.writeFileSync(executable, 'Offline fixture only'); fs.chmodSync(executable, 0
 fs.writeFileSync(path.join(workspace, 'report.csv'), 'a,b\n1,2\n');
 const reportURL = pathToFileURL(path.join(workspace, 'report.csv')).href;
 const now = Date.now();
+const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jlyUAAAAASUVORK5CYII=';
 const message = (id, role, text) => ({ id, role, text, status: 'complete', createdAt: new Date(now).toISOString(), tools: [] });
 const conversation = (id, title, age, messages) => ({ id, title, cwd: workspace, model: 'grok-4.6', mode: 'medium', createdAt: now - age, updatedAt: now - age, messages });
 const markup = [
@@ -36,6 +37,7 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
     conversation('cccccccc-0000-4000-8000-000000000003', 'Charlie', 3000, [message('c1', 'user', 'hi charlie')]),
     conversation('dddddddd-0000-4000-8000-000000000004', 'Markup', 4000, [message('m1', 'user', 'format it'), message('m2', 'assistant', markup)]),
     conversation('eeeeeeee-0000-4000-8000-000000000005', 'Files', 5000, [message('f1', 'user', 'make a report'), message('f2', 'assistant', `Saved [the report](${reportURL}).`)]),
+    conversation('ffffffff-0000-4000-8000-000000000006', 'Badge', 6000, [message('g1', 'user', 'show the build'), message('g2', 'assistant', `[![build status](data:image/png;base64,${pixel})](https://ci.example.test/run/42)\n\nSee [the run](https://ci.example.test/run/42).`)]),
   ],
 }));
 
@@ -115,6 +117,24 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
       assert.match(await reply.locator('details').textContent(), /Hidden body text/);
       assert.deepEqual(await reply.locator('li').allTextContents(), ['☑ finished step', '☐ open step']);
       assert.deepEqual(await reply.locator('td').evaluateAll(cells => cells.map(cell => cell.getAttribute('align'))), ['left', 'center', 'right']);
+    });
+
+    await stage('an image inside a link opens its preview, never the link', async () => {
+      await select('Badge');
+      const external = () => desktop.evaluate(() => globalThis.__tokyoUITest.external.length);
+      const before = await external();
+      const thumbnail = page.locator('.message.assistant a .chat-image .image-thumbnail');
+      await page.waitForFunction(() => document.querySelector('.message.assistant a .chat-image .image-thumbnail:not([disabled])'));
+      await thumbnail.click();
+      await page.waitForFunction(() => document.querySelector('#image-dialog').open);
+      await page.keyboard.press('Escape');
+      await page.waitForFunction(() => !document.querySelector('#image-dialog').open);
+      await page.waitForTimeout(300);
+      assert.equal(await external(), before, 'the link around the image stays closed');
+      // The link itself still opens.
+      await page.locator('.message.assistant a', { hasText: 'the run' }).click();
+      for (const deadline = Date.now() + 5000; await external() === before && Date.now() < deadline;) await page.waitForTimeout(50);
+      assert.equal(await external(), before + 1);
     });
 
     await stage('a file: link in a reply saves the attachment it names', async () => {

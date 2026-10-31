@@ -1961,6 +1961,10 @@
       const anchor = event.target.closest('.message-body a');
       if (anchor) {
         event.preventDefault();
+        // An image inside a link (a badge, a linked screenshot) keeps its own
+        // controls: enlarging or reloading it must not also open the address
+        // the reply put around it.
+        if (event.target.closest('.chat-image')) return;
         // A target that is not a web address (a file: URL or a Windows path) is
         // kept only as data-href once sanitized.
         const url = anchor.getAttribute('href') ?? anchor.getAttribute('data-href');
