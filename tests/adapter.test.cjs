@@ -278,6 +278,12 @@ test('CLI error text shown, saved and exported never carries a credential', () =
     'auth store: {"key":"ks-secret-5","auth_mode":"oidc"}',
     `panic while holding ${jwt}`,
     'api key xai-abcdefghijklmnopqrstuvwx was rejected',
+    // JSON quoted again by Rust's debug output, camel case and other spellings.
+    String.raw`body: "{\"refresh_token\":\"rt-secret-1\",\"key\":\"ks-secret-5\"}"`,
+    String.raw`header: {\"authorization\":\"Basic dXNlcjpwYXNzd29yZA==\"}`,
+    'state: {"accessToken":"tok_live_123","refreshToken":"rt-secret-1","idToken":"it-secret-2"}',
+    'request: x-api-key: abc.def-123 apiKey=cs-secret-3 callback?token=pw-secret-4',
+    '{"token":"ks-secret-5"}',
   ]) {
     const shown = safeMessage(text);
     for (const secret of secrets) assert.equal(shown.includes(secret), false, `${secret} must not appear in: ${shown}`);
@@ -285,6 +291,15 @@ test('CLI error text shown, saved and exported never carries a credential', () =
   }
   // Ordinary diagnostics stay readable.
   for (const text of ['Unexpected token } in JSON at position 5', 'model key: grok-4 is unavailable']) assert.equal(safeMessage(text), text);
+});
+
+test('redacting a long CLI error takes linear time', () => {
+  const { safeMessage } = new GrokAdapter();
+  // Each "eyJ" inside one long run of token characters used to rescan the rest
+  // of the run: 64 KB took 3 s on the main thread, 128 KB 12 s.
+  const started = performance.now();
+  safeMessage('-eyJ'.repeat(32768));
+  assert.ok(performance.now() - started < 1000, `took ${Math.round(performance.now() - started)} ms`);
 });
 
 test("a CLI error shows Grok's reason from its data, still redacted", async () => {

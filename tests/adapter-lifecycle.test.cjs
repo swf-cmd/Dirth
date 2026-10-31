@@ -296,6 +296,23 @@ test('an unanswered Stop closes every session before it ends the CLI, so their t
   });
 });
 
+test('a CLI that exits after long stderr reports whole lines, never a cut credential', async t => {
+  const { adapter, children, events } = synthetic(t);
+  await adapter.start();
+  const child = children[0];
+  // The last 8000 characters begin inside the value, after its name.
+  child.stderr.write(`${'A'.repeat(100)} refresh_token=rt-${'S'.repeat(50)}\n`);
+  child.stderr.write(`${'B'.repeat(7960)}\n`);
+  await new Promise(setImmediate);
+  child.exit(3);
+  child.stdout.end();
+  child.emit('close', 3, null);
+  const disconnected = events.find(event => event.status === 'disconnected');
+  assert.ok(disconnected);
+  assert.equal(disconnected.message.includes('SSSS'), false, disconnected.message.slice(0, 120));
+  assert.match(disconnected.message, /B{100}/, 'the whole last line remains the reason');
+});
+
 test('POSIX shutdown lets the CLI stop the tools it started in their own sessions', { skip: process.platform === 'win32' }, async t => {
   const base = path.resolve(__dirname, '..', 'work', 'adapter-lifecycle-tests');
   await fs.mkdir(base, { recursive: true });

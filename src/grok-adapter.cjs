@@ -66,14 +66,19 @@ function failure(message, code) {
 function safeMessage(value, fallback) {
   return String(value || fallback)
     .replace(/\b(?:xai|sk|sk-proj)-[A-Za-z0-9_-]{16,}\b/g, '[redacted]')
-    // JSON Web Tokens (OAuth access and ID tokens), wherever they appear.
-    .replace(/\beyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*/g, '[redacted]')
+    // JSON Web Tokens (OAuth access and ID tokens), wherever they appear. One
+    // starts where a run of token characters starts: trying every "eyJ" inside
+    // a long run would rescan the rest of the run each time, which takes
+    // seconds on an error of a few dozen kilobytes.
+    .replace(/(?<![\w-])eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]*/g, '[redacted]')
     .replace(/(Bearer\s+)[A-Za-z0-9._~+/-]+/gi, '$1[redacted]')
     // An Authorization value is a credential whatever its scheme (Basic, Token…).
-    .replace(/(authorization["']?\s*[:=]\s*["']?)(?:[A-Za-z]+\s+)?[^\s,"'}]+/gi, '$1[redacted]')
-    .replace(/((?:access_token|refresh_token|id_token|api_key|client_secret|password)["']?\s*[:=]\s*["']?)[^\s,&"'}]+/gi, '$1[redacted]')
+    // Names are matched in snake or camel case, and inside JSON that was quoted
+    // again (Rust's debug output), where each quote has a backslash before it.
+    .replace(/(authorization\\?["']?\s*[:=]\s*\\?["']?)(?:[A-Za-z]+\s+)?[^\s,"'}\\]+/gi, '$1[redacted]')
+    .replace(/((?:access_?token|refresh_?token|id_?token|api[_-]?key|client_?secret|password|(?<=[?&])token)\\?["']?\s*[:=]\s*\\?["']?)[^\s,&"'}\\]+/gi, '$1[redacted]')
     // The CLI's auth store keeps each token under "key".
-    .replace(/("key"\s*:\s*")[^"]*/g, '$1[redacted]')
+    .replace(/(\\?"(?:key|token)\\?"\s*:\s*\\?")[^"\\]*/g, '$1[redacted]')
     .slice(0, 8000);
 }
 
@@ -291,7 +296,12 @@ class GrokAdapter extends EventEmitter {
     child.stdin.on('error', error => disconnect(failure(this.safeMessage(error.message), error.code)));
     // A read error on either output pipe (ECONNRESET on Windows) ends the connection too.
     for (const stream of [child.stdout, child.stderr]) stream.on('error', error => disconnect(failure(this.safeMessage(error.message), error.code)));
-    child.stderr.on('data', data => { stderr = (stderr + data.toString('utf8')).slice(-8000); });
+    child.stderr.on('data', data => {
+      const text = stderr + data.toString('utf8');
+      // Keep whole lines: a tail cut mid-line can begin inside a credential,
+      // after the name that marks it for redaction.
+      stderr = text.length > 8000 ? text.slice(-8000).replace(/^[^\n]*\n?/, '') : text;
+    });
     child.stdout.on('data', data => {
       if (disconnected || !owns()) return;
       receive(decoder.write(data));
