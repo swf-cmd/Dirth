@@ -105,8 +105,19 @@ test('a network path opens only inside a folder the conversation already uses', 
   // An app kept on a network drive stages its uploads there (realpath gives \\server\share).
   const share = '\\\\fileserver\\home$\\alice\\Dirth\\data\\attachments\\local';
   assert.equal(openablePath(`${share}\\${randomUUID()}\\report.pdf`, [share]), true);
-  for (const file of ['\\\\attacker\\share\\x.png', `${share}\\..\\..\\..\\..\\other\\x.png`, '//attacker/share/x.png']) assert.equal(openablePath(file, [share]), false, file);
+  for (const file of ['\\\\attacker\\share\\x.png', `${share}\\..\\..\\..\\..\\other\\x.png`, '//attacker/share/x.png', '/\\attacker\\share\\x.png', '\\/attacker/share/x.png']) assert.equal(openablePath(file, [share]), false, file);
   assert.equal(openablePath('\\\\fileserver\\home$\\alice\\x.png', ['C:\\Users\\alice\\Workspace']), false);
+});
+
+test('any two leading separators count as a network path, as Windows reads them', () => {
+  // path.win32.resolve turns each of these into \\attacker\share\x.png, and
+  // opening that offers the server this computer's Windows sign-in.
+  for (const file of ['\\\\attacker\\share\\x.png', '//attacker/share/x.png', '/\\attacker\\share\\x.png', '\\/attacker/share/x.png', '/\\10.0.0.5\\c$\\x.png']) {
+    assert.equal(path.win32.resolve('C:\\Users\\me\\Workspace', file).startsWith('\\\\'), true, file);
+    for (const platform of ['win32', 'darwin']) assert.equal(openablePath(file, [], platform), false, `${platform}: ${file}`);
+  }
+  assert.equal(openablePath('/Users/me/Workspace/x.png', [], 'darwin'), true);
+  assert.equal(openablePath('C:\\Users\\me\\x.png', [], 'win32'), true);
 });
 
 test('symlink escape, missing images and oversize files report recoverable errors', async t => {

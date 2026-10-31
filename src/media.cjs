@@ -71,15 +71,16 @@ function isWithin(root, target) {
 }
 
 // Whether a path named by a reply may be opened at all, before any file is
-// touched. A network path (\\server\share, //server/share) is opened only
-// inside one of the conversation's own folders, `roots` (resolved already):
+// touched. A network path (\\server\share, //server/share, or /\server\share:
+// Windows reads any two leading separators as one) is opened only inside one
+// of the conversation's own folders, `roots` (resolved already):
 // opening another one would connect to its server and offer it this
 // computer's credentials. That folder can itself be on a share, for an app
 // kept on a network drive. Windows allows a colon only after a drive letter
 // (elsewhere it names a data stream or a device); other systems allow it in
 // file names, so only a leading scheme ("smb:", "javascript:") is refused.
 function openablePath(file, roots, platform = process.platform) {
-  if (/^(?:\\\\|\/\/)/.test(file) && !roots.some(root => isWithin(root, path.resolve(file)))) return false;
+  if (/^[\\/]{2}/.test(file) && !roots.some(root => isWithin(root, path.resolve(file)))) return false;
   return platform === 'win32' ? !file.includes(':') || /^[a-z]:[\\/][^:]*$/i.test(file) : !/^[a-z][a-z0-9+.-]*:/i.test(file);
 }
 
