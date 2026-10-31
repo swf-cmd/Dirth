@@ -441,6 +441,13 @@
     ADD_URI_SAFE_ATTR: ['data-image-source', 'data-image-alt', 'data-href'],
     ALLOW_DATA_ATTR: false, ALLOW_ARIA_ATTR: false,
   };
+  // A link shows where it goes before it is clicked: the window has no status
+  // bar, and a reply chooses both a link's text and its destination (and any
+  // title, which could claim another one).
+  window.DOMPurify?.addHook('afterSanitizeAttributes', node => {
+    const target = node.nodeName === 'A' ? node.getAttribute('href') ?? node.getAttribute('data-href') : null;
+    if (target) node.setAttribute('title', target); else if (node.nodeName === 'A') node.removeAttribute('title');
+  });
   let markdownRenderer = null;
   function markdownOptions() {
     if (!markdownRenderer) {

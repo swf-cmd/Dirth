@@ -32,7 +32,7 @@ fs.writeFileSync(path.join(testRoot, 'data/conversations.json'), JSON.stringify(
     await desktop.evaluate(() => {
       const adapter = globalThis.__tokyoUITest.adapter;
       const sessionId = [...adapter.pending.keys()][0];
-      adapter.emit('event', { type: 'text', sessionId, text: '<textarea id="prompt">attacker command</textarea>\n<div id="settings-dialog" class="titlebar window-close" data-window="close" data-i18n="Send">FORGED CONTROL</div>\n<script>window.__unsafe = true</script>\n<iframe src="https://evil.invalid/"></iframe><video src="https://evil.invalid/tracker"></video>\n<a href="javascript:alert(1)" onclick="window.__unsafe=true">bad link</a>\n<svg onload="window.__unsafe=true"></svg>\n\n**Safe formatting** and [a normal link](https://example.com/safe)\n\n<img src="https://127.0.0.1:9/private.png" alt="blocked private image" onerror="window.__unsafe=true">' });
+      adapter.emit('event', { type: 'text', sessionId, text: '<textarea id="prompt">attacker command</textarea>\n<div id="settings-dialog" class="titlebar window-close" data-window="close" data-i18n="Send">FORGED CONTROL</div>\n<script>window.__unsafe = true</script>\n<iframe src="https://evil.invalid/"></iframe><video src="https://evil.invalid/tracker"></video>\n<a href="javascript:alert(1)" onclick="window.__unsafe=true">bad link</a>\n<svg onload="window.__unsafe=true"></svg>\n\n**Safe formatting** and [a normal link](https://example.com/safe) and [https://github.com/x](https://phish.example.test/login "https://github.com/x")\n\n<img src="https://127.0.0.1:9/private.png" alt="blocked private image" onerror="window.__unsafe=true">' });
     });
     await page.locator('.message-body').filter({ hasText: 'Safe formatting' }).waitFor();
     assert.equal(await page.evaluate(() => document.getElementById('prompt') === window.__trustedPrompt), true, 'reply must not replace the real composer');
@@ -42,6 +42,9 @@ fs.writeFileSync(path.join(testRoot, 'data/conversations.json'), JSON.stringify(
     assert.equal(await page.locator('.message-body strong').last().textContent(), 'Safe formatting');
     await page.locator('.chat-image .image-retry').waitFor({ state: 'visible' });
     assert.equal(await page.locator('.chat-image img').getAttribute('src'), null);
+    // Each link names its real destination on hover, whatever title the reply gave it.
+    assert.equal(await page.getByRole('link', { name: 'a normal link', exact: true }).getAttribute('title'), 'https://example.com/safe');
+    assert.equal(await page.getByRole('link', { name: 'https://github.com/x', exact: true }).getAttribute('title'), 'https://phish.example.test/login');
     await page.getByRole('link', { name: 'a normal link', exact: true }).click();
     assert.deepEqual(await desktop.evaluate(() => globalThis.__tokyoUITest.external), ['https://example.com/safe']);
     for (const url of ['file:///C:/Windows/System32/calc.exe', 'javascript:alert(1)', 'ms-settings:']) {
