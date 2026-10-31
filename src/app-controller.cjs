@@ -1043,6 +1043,7 @@ class AppController extends EventEmitter {
     this.sessions = this.sessions.filter(s => s.id !== id || (s.accountId || 'local') !== this.activeAccountId);
     try { await this.save(); } catch (error) { this.sessions = previous; throw error; }
     this.loaded.delete(id);
+    void this.adapter?.closeSession?.(id)?.catch(() => {});
     await this.cleanAttachments();
     return true;
   }

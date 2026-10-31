@@ -126,6 +126,26 @@ test('a read error on an output pipe ends the connection instead of throwing', a
   assert.ok(events.some(event => event.status === 'disconnected' && /ECONNRESET/.test(event.message)));
 });
 
+test('a deleted conversation has its session closed at once, so its tools stop', async () => {
+  const { adapter, writes, answer } = wired();
+  adapter.info.capabilities = { loadSession: true, sessionCapabilities: { close: {} } };
+  for (const sessionId of ['deleted', 'kept', 'replying']) adapter.sessions.set(sessionId, { sessionId, loaded: true });
+  const closing = adapter.closeSession('deleted');
+  answer('session/close', {});
+  assert.equal(await closing, true);
+  assert.deepEqual(writes.filter(item => item.method === 'session/close').map(item => item.params), [{ sessionId: 'deleted' }]);
+  assert.equal(adapter.getSession('deleted'), undefined);
+  assert.ok(adapter.getSession('kept'));
+  // A conversation still replying is never closed under it.
+  adapter.active.set('replying', {});
+  assert.equal(await adapter.closeSession('replying'), false);
+  assert.ok(adapter.getSession('replying'));
+  // Without Grok's close method there is nothing to send.
+  adapter.info.capabilities = { loadSession: true };
+  assert.equal(await adapter.closeSession('kept'), false);
+  assert.equal(writes.filter(item => item.method === 'session/close').length, 1);
+});
+
 test('a CLI without session restore keeps the conversation usable after a selection it cannot confirm', async () => {
   const { adapter, writes, answer } = wired();
   adapter.info.capabilities = { loadSession: false };

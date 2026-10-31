@@ -548,6 +548,18 @@ class GrokAdapter extends EventEmitter {
     return session ? JSON.parse(JSON.stringify(session)) : undefined;
   }
 
+  // A deleted conversation's session is closed at once, which stops the
+  // commands its tools started (see _closeSessions), instead of when the app
+  // next quits, reconnects or switches accounts.
+  async closeSession(sessionId) {
+    const session = this.sessions.get(sessionId);
+    if (!session || this.active.has(sessionId) || this.preparing.has(sessionId)) return false;
+    this.sessions.delete(sessionId);
+    if (!session.loaded || !this.ready || !isRecord(this.info.capabilities?.sessionCapabilities?.close)) return false;
+    try { await this._request('session/close', { sessionId }, SESSION_CLOSE_TIMEOUT); return true; }
+    catch { return false; }
+  }
+
   async newSession({ cwd = this.cwd, model, mode } = {}) {
     this.creating++;
     try {
