@@ -268,7 +268,7 @@ test('load labels replay events and allows session continuation', async t => {
 test('CLI error text shown, saved and exported never carries a credential', () => {
   const { safeMessage } = new GrokAdapter();
   const jwt = 'eyJhbGciOiJSUzI1NiJ9.eyJzdWIiOiJ1c2VyIn0.c2lnbmF0dXJlLXZhbHVl';
-  const secrets = ['abc.def-123', 'dXNlcjpwYXNzd29yZA==', 'tok_live_123', 'rt-secret-1', 'it-secret-2', 'cs-secret-3', 'pw-secret-4', 'ks-secret-5', jwt, 'xai-abcdefghijklmnopqrstuvwx'];
+  const secrets = ['abc.def-123', 'dXNlcjpwYXNzd29yZA==', 'tok_live_123', 'rt-secret-1', 'it-secret-2', 'cs-secret-3', 'pw-secret-4', 'ks-secret-5', jwt, 'xai-abcdefghijklmnopqrstuvwx', 'esc-secret-6'];
   for (const text of [
     'request failed: Authorization: Bearer abc.def-123',
     'proxy answered: authorization: Basic dXNlcjpwYXNzd29yZA==',
@@ -284,6 +284,9 @@ test('CLI error text shown, saved and exported never carries a credential', () =
     'state: {"accessToken":"tok_live_123","refreshToken":"rt-secret-1","idToken":"it-secret-2"}',
     'request: x-api-key: abc.def-123 apiKey=cs-secret-3 callback?token=pw-secret-4',
     '{"token":"ks-secret-5"}',
+    // A value runs on past escapes, and a token can follow a hyphen.
+    String.raw`{"key":"abc\/esc-secret-6"} password=abc\esc-secret-6 authorization: Basic abc\esc-secret-6`,
+    `id-token-${jwt}`,
   ]) {
     const shown = safeMessage(text);
     for (const secret of secrets) assert.equal(shown.includes(secret), false, `${secret} must not appear in: ${shown}`);

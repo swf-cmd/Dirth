@@ -333,6 +333,39 @@ test('a CLI that exits after long stderr reports whole lines, never a cut creden
   assert.match(disconnected.message, /B{100}/, 'the whole last line remains the reason');
 });
 
+test('a long stderr line is redacted whole, and a line cut at the start of the kept text is dropped whole', async t => {
+  const { adapter, children, events } = synthetic(t);
+  await adapter.start();
+  const child = children[0];
+  // One line of 9,000 characters in two reads, with a credential across them,
+  // ending in the reason for the exit.
+  child.stderr.write(`${'x'.repeat(7000)} "refresh_token":"FIRSTHALF`);
+  child.stderr.write(`SECONDHALF","error":"invalid_grant" ${'y'.repeat(1900)} the CLI's reason\n`);
+  // A 70 KB line whose start is dropped, in several reads, then a last line.
+  child.stderr.write(`"refresh_token":"${'S'.repeat(40000)}`);
+  child.stderr.write('S'.repeat(30000));
+  child.stderr.write(`${'S'.repeat(1000)}"\nlast line\n`);
+  await new Promise(setImmediate);
+  child.exit(101);
+  child.stdout.end();
+  child.emit('close', 101, null);
+  const message = events.find(event => event.status === 'disconnected').message;
+  assert.equal(/FIRSTHALF|SECONDHALF|SSSS/.test(message), false, message.slice(0, 200));
+  assert.match(message, /last line/);
+});
+
+test('the exit reason survives a last stderr line longer than the message', async t => {
+  const { adapter, children, events } = synthetic(t);
+  await adapter.start();
+  const child = children[0];
+  child.stderr.write(`panic: ${'context '.repeat(1500)}the CLI's reason\n`);
+  await new Promise(setImmediate);
+  child.exit(101);
+  child.stdout.end();
+  child.emit('close', 101, null);
+  assert.match(events.find(event => event.status === 'disconnected').message, /the CLI's reason/);
+});
+
 test('POSIX shutdown lets the CLI stop the tools it started in their own sessions', { skip: process.platform === 'win32' }, async t => {
   const base = path.resolve(__dirname, '..', 'work', 'adapter-lifecycle-tests');
   await fs.mkdir(base, { recursive: true });
