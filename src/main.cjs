@@ -10,12 +10,18 @@ const { safeName } = require('./attachments.cjs');
 const { appRoot, adoptLegacyRoot, rootAliases } = require('./app-paths.cjs');
 protocol.registerSchemesAsPrivileged([{ scheme: 'tokyo-image', privileges: { secure: true, standard: true, stream: true } }]);
 const isMac = process.platform === 'darwin';
-const { root, movedFrom } = adoptLegacyRoot(
-  appRoot({ testRoot: process.env.TOKYO_TEST_ROOT, appData: app.getPath('appData'), isPackaged: app.isPackaged, executablePath: process.execPath, sourceRoot: path.resolve(__dirname, '..') }),
-  { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
-fs.mkdirSync(path.join(root, 'data', 'browser'), { recursive: true });
-const aliases = rootAliases(root, { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
-app.setPath('userData', path.join(root, 'data', 'browser'));
+// A portable copy unpacked where it cannot write (C:\Program Files) has no
+// data folder. Report that like any other startup failure, instead of
+// Electron's raw error dialog and a process left running without a window.
+let root, movedFrom, aliases, startupError = null;
+try {
+  ({ root, movedFrom } = adoptLegacyRoot(
+    appRoot({ testRoot: process.env.TOKYO_TEST_ROOT, appData: app.getPath('appData'), isPackaged: app.isPackaged, executablePath: process.execPath, sourceRoot: path.resolve(__dirname, '..') }),
+    { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT }));
+  fs.mkdirSync(path.join(root, 'data', 'browser'), { recursive: true });
+  aliases = rootAliases(root, { appData: app.getPath('appData'), testRoot: process.env.TOKYO_TEST_ROOT });
+  app.setPath('userData', path.join(root, 'data', 'browser'));
+} catch (error) { startupError = error; }
 app.setName('Dirth');
 if (process.platform === 'win32') app.setAppUserModelId('com.swf-cmd.dirth');
 let win, controller, quitPending = false, quitAllowed = false;
@@ -41,7 +47,8 @@ function installMenu() {
     { role: 'windowMenu' },
   ]));
 }
-if (!app.requestSingleInstanceLock()) app.quit();
+if (startupError) { dialog.showErrorBox(t('Dirth 启动失败'), startupError.message); app.exit(1); }
+else if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on('second-instance', showWindow);
   app.on('activate', showWindow);

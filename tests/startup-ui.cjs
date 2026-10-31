@@ -6,6 +6,7 @@ const { _electron } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const { spawn } = require('node:child_process');
 const { createI18n } = require('../src/i18n.js');
 const root = path.resolve(__dirname, '..');
 const base = path.join(root, 'work', 'startup-qa');
@@ -272,6 +273,26 @@ async function assertEngineBlocked(page) {
     assert.equal(await test.page.locator('#connection-label').textContent(), text('ja', '引擎已连接'));
     await test.timed('an app folder named with brackets, a percent sign and a tilde still talks to the main process');
   });
+
+  // A data folder that cannot be created (a portable copy under C:\Program
+  // Files) is reported as a startup failure, and the process ends.
+  const unwritable = path.join(output, 'unwritable');
+  fs.mkdirSync(unwritable);
+  fs.writeFileSync(path.join(unwritable, 'data'), 'A file where the data folder belongs.');
+  const env = { ...process.env, TOKYO_TEST_ROOT: unwritable };
+  if (process.argv.includes('--packaged')) env.TOKYO_UI_SOURCE_ROOT = require('../scripts/package-paths.cjs').packagedArchive(root);
+  delete env.ELECTRON_RUN_AS_NODE;
+  const failed = spawn(require('electron'), ['--mute-audio', path.join(__dirname, 'fixtures', 'startup-error-app.cjs')], { env, stdio: 'ignore' });
+  const code = await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => { failed.kill(); reject(new Error('the app kept running after its data folder could not be created')); }, 15000);
+    failed.on('exit', exitCode => { clearTimeout(timer); resolve(exitCode); });
+  });
+  assert.equal(code, 1);
+  const box = JSON.parse(fs.readFileSync(path.join(unwritable, 'error-box.json'), 'utf8'));
+  assert.equal(box.title, text('en', 'Dirth 启动失败'));
+  assert.match(box.content, /data/);
+  results.push({ name: 'unwritable', stage: 'an unwritable data folder is reported and the app exits' });
+  console.log('PASS unwritable: an unwritable data folder is reported and the app exits');
   assert.deepEqual(errors, []);
 })().catch(error => { errors.push(error.stack || String(error)); console.error(error); process.exitCode = 1; }).finally(() => {
   fs.writeFileSync(path.join(output, 'results.json'), JSON.stringify({ isolated: true, packagedResources: process.argv.includes('--packaged'), realGenerations: 0, results, errors }, null, 2));
