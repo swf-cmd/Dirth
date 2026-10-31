@@ -9,6 +9,7 @@ const path = require('node:path');
 const { AppController } = require('../src/app-controller.cjs');
 const { HistoryStore } = require('../src/history-store.cjs');
 const { attachmentsFromText } = require('../src/attachments.cjs');
+const { TurnJournal, readTurnJournal } = require('../src/turn-journal.cjs');
 const { executableName } = require('../src/platform.cjs');
 
 for (const key of ['GROK_AUTH', 'GROK_AUTH_PATH', 'XAI_API_KEY', 'GROK_CODE_XAI_API_KEY']) delete process.env[key];
@@ -207,6 +208,59 @@ test('uploads named by a backup of unreadable history are kept until it is dealt
   const [stray] = await third.importAttachments({ files: [{ name: 'draft.txt', data: Buffer.from('draft').toString('base64') }] });
   await third.releaseAttachments({ ids: [stray.id] });
   assert.equal(exists(stray.src), false);
+});
+
+test('history whose index replacement was interrupted opens from the complete new index', async t => {
+  const root = makeRoot(t);
+  const first = open(t, root);
+  await first.cleanupQueue;
+  first.sessions.push({ id: 'kept', title: 'kept', titleIsDefault: false, accountId: 'local', cwd: path.join(root, 'Workspace'), messages: [{ id: 'm', role: 'user', text: 'hello', attachments: [], images: [], mediaVersion: 1, status: 'complete' }] });
+  await first.save({ content: ['kept'] });
+  await settle(first);
+  // FAT32 and exFAT replace a file by deleting it, then renaming the new copy:
+  // interrupted between the two, only the temporary file is left.
+  fs.renameSync(first.file, `${first.file}.tmp`);
+  const second = open(t, root);
+  await second.cleanupQueue;
+  assert.equal(second.loadError, null);
+  assert.equal(second.sessions.find(session => session.id === 'kept')?.messages[0].text, 'hello');
+  assert.ok(exists(second.file));
+});
+
+test('conversation files without their index are backed up and reported, never deleted', async t => {
+  const root = makeRoot(t);
+  const first = open(t, root);
+  await first.cleanupQueue;
+  const [upload] = await first.importAttachments({ files: [{ name: 'contract.pdf', data: Buffer.from('%PDF private').toString('base64') }] });
+  first.pendingAttachments.delete(upload.id);
+  first.sessions.push({ id: 'kept', title: 'kept', titleIsDefault: false, accountId: 'local', cwd: path.join(root, 'Workspace'), messages: [{ id: 'm', role: 'user', text: 'see attached', attachments: [upload], images: [{ src: `data:image/png;base64,${png}` }], status: 'complete' }] });
+  const image = first.readSession('kept').messages[0].images[0].src;
+  await first.save({ content: ['kept'] });
+  await settle(first);
+  const contentFile = JSON.parse(fs.readFileSync(first.file, 'utf8')).sessions[0].contentFile;
+  // A sync client or antivirus program moved the index away.
+  fs.rmSync(first.file);
+
+  const second = open(t, root);
+  await second.cleanupQueue;
+  assert.match(second.loadError || '', /conversations\.json\.unreadable-\d+\.sessions/);
+  // The next save commits an index without them and collects what it no longer names.
+  await second.save();
+  await second.cleanAttachments();
+  await settle(second);
+  const [backup] = fs.readdirSync(second.dir).filter(name => /^conversations\.json\.unreadable-\d+\.sessions$/.test(name));
+  assert.ok(backup && exists(path.join(second.dir, backup, contentFile)), 'the conversation is kept in the backup');
+  assert.ok(exists(upload.src), 'its upload is kept');
+  assert.ok(exists(second.blobs.resolve(image)), 'its image is kept');
+});
+
+test('a reply log left only in its temporary file still restores the reply', t => {
+  const root = makeRoot(t);
+  const file = path.join(root, 'conversations.journal');
+  fs.writeFileSync(`${file}.tmp`, `${JSON.stringify({ sessionId: 's', messageId: 'r', base: { id: 'r', role: 'assistant', text: 'half a reply', status: 'working' } })}\n`);
+  const journal = new TurnJournal(file);
+  assert.equal(journal.exists, true);
+  assert.equal(readTurnJournal(file).get('r')?.base.text, 'half a reply');
 });
 
 test('text that begins with a data URL stays text, in messages and in streamed replies', async t => {

@@ -196,7 +196,11 @@ class AppController extends EventEmitter {
       await this.blobs.flush();
       try { await this.journal.flush(); } catch {}
     };
-    const hasSavedHistory = fs.existsSync(this.file);
+    // Without its index, conversation files still on disk are not a first run:
+    // the first save would delete them, and cleanup the uploads and images
+    // they name. Sync clients and antivirus programs can move the index away,
+    // and an interrupted replacement can leave it only in its temporary file.
+    const hasSavedHistory = this.store.adoptPendingIndex() || fs.existsSync(this.file);
     let hasAccountCommitMarker = false;
     let validatedV3 = false;
     let repointed = false;
@@ -269,6 +273,14 @@ class AppController extends EventEmitter {
         try { if (this.journal.exists) fs.copyFileSync(this.journal.file, `${this.journal.file}.unreadable-${stamp}`); } catch {}
         this.loadError = this.t('历史记录文件无法读取，已保留备份：{path}', { path: backup });
       }
+    } else if (this.store.hasContent()) {
+      // Kept as a backup of unreadable history, which keeps what they name.
+      const stamp = Date.now();
+      const backup = `${this.file}.unreadable-${stamp}`;
+      try { fs.copyFileSync(`${this.file}.tmp`, backup); } catch { /* No index to keep. */ }
+      fs.cpSync(path.join(this.dir, 'sessions'), `${backup}.sessions`, { recursive: true, dereference: false });
+      try { if (this.journal.exists) fs.copyFileSync(this.journal.file, `${this.journal.file}.unreadable-${stamp}`); } catch {}
+      this.loadError = this.t('历史记录文件无法读取，已保留备份：{path}', { path: `${backup}.sessions` });
     }
     // A readable saved account list is the commit marker for a staged deletion.
     // Unreadable history must permanently quarantine ambiguous staged data before
