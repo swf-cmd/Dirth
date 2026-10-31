@@ -1091,6 +1091,7 @@ class AppController extends EventEmitter {
     // never written (save() refuses). Quitting must still work: the message asks
     // the user to restart after fixing the folder.
     if (!this.accountRecoveryError) {
+      await this.blobs.retryRefused();
       try { await this.historyOperation(() => this.save({ content: [...this.turns.keys()] })); } catch (error) { failure ||= error; }
     }
     try {

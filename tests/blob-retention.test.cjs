@@ -354,8 +354,10 @@ test('a stored file that cannot be written stops holding up saves after three at
   // A folder where its file belongs makes every write of this one file fail.
   await fs.mkdir(path.join(directory, hash, 'occupied'), { recursive: true });
   const ref = store.store(refused);
-  for (let attempt = 1; attempt <= 3; attempt++) await assert.rejects(store.flush(), undefined, `attempt ${attempt} still blocks`);
-  // Saves, the reply log and showing other images go ahead from now on.
+  for (let attempt = 1; attempt <= 2; attempt++) await assert.rejects(store.flush(), undefined, `attempt ${attempt} still blocks`);
+  // The third failure, while the folder takes other files, lets saves, the
+  // reply log and other images go ahead.
+  await store.flush();
   const other = store.store(Buffer.from('an image saved afterwards'));
   await store.flush();
   assert.ok(await exists(store.resolve(other)));
@@ -367,6 +369,37 @@ test('a stored file that cannot be written stops holding up saves after three at
   await store.pending.get(hash)?.write?.catch(() => {});
   assert.equal(store.pending.has(hash), false);
   assert.ok((await fs.stat(store.resolve(ref))).isFile());
+});
+
+test('quitting makes one last attempt at a refused file', async t => {
+  const base = path.resolve(__dirname, '../work/blob-retention-tests');
+  await fs.mkdir(base, { recursive: true });
+  const directory = await fs.mkdtemp(path.join(base, 'last-'));
+  t.after(() => fs.rm(directory, { recursive: true, force: true }));
+  const store = new BlobStore(directory);
+  const bytes = Buffer.from('refused until just before quitting');
+  const hash = createHash('sha256').update(bytes).digest('hex');
+  await fs.mkdir(path.join(directory, hash, 'occupied'), { recursive: true });
+  const ref = store.store(bytes);
+  for (let attempt = 1; attempt <= 2; attempt++) await assert.rejects(store.flush());
+  await store.flush();
+  await fs.rm(path.join(directory, hash), { recursive: true });
+  await store.retryRefused();
+  assert.ok((await fs.stat(store.resolve(ref))).isFile());
+});
+
+test('a folder that takes no file at all keeps every save waiting', async t => {
+  // A drive or share that went away fails every file: nothing is given up.
+  const base = path.resolve(__dirname, '../work/blob-retention-tests');
+  await fs.mkdir(base, { recursive: true });
+  const parent = await fs.mkdtemp(path.join(base, 'gone-'));
+  t.after(() => fs.rm(parent, { recursive: true, force: true }));
+  const directory = path.join(parent, 'blobs');
+  await fs.writeFile(directory, 'a file where the folder belongs');
+  const store = new BlobStore(directory);
+  store.store(Buffer.from('waits for its folder'));
+  for (let attempt = 1; attempt <= 5; attempt++) await assert.rejects(store.flush(), undefined, `attempt ${attempt}`);
+  assert.equal([...store.pending.values()].some(entry => entry.refused), false);
 });
 
 test('a full disk keeps blocking saves, so its files are never given up', async t => {

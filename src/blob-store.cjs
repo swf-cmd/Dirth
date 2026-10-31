@@ -9,10 +9,11 @@ const BLOB_REFERENCE = /^grok-blob:([a-f0-9]{64})$/;
 const PROSE_FIELDS = new Set(['text', 'thought']);
 // A write that keeps failing for one file (an antivirus program refusing that
 // content) must not hold up every save, the reply log and quitting. After this
-// many attempts, saves go ahead as for a stored file that was lost; its bytes
-// stay in memory and are tried again now and then. A full or read-only disk
-// fails the saves themselves, so its writes keep blocking and nothing is
-// given up there.
+// many attempts, if the folder still takes other files, saves go ahead as for
+// a stored file that was lost; its bytes stay in memory, are tried again now
+// and then, and once more before the app quits. A full disk, or a drive or
+// share that went away, fails every file, so those writes keep blocking and
+// nothing is given up.
 const BLOCKING_ATTEMPTS = 3;
 const RETRY_DELAY = 60000;
 const DISK_ERRORS = new Set(['ENOSPC', 'EDQUOT', 'EROFS']);
@@ -188,12 +189,37 @@ class BlobStore {
     for (;;) {
       const writes = [];
       for (const [hash, entry] of this.pending) {
-        if ((entry.failures || 0) < BLOCKING_ATTEMPTS) writes.push(entry.write || this.writeBlob(hash, entry));
+        if (!entry.refused) writes.push(entry.write || this.writeBlob(hash, entry));
         else if (!entry.write && Date.now() >= entry.retryAt) this.writeBlob(hash, entry).catch(() => {});
       }
       if (!writes.length) return;
-      await Promise.all(writes);
+      try { await Promise.all(writes); }
+      catch (error) {
+        const stuck = [...this.pending.values()].filter(entry => !entry.refused && (entry.failures || 0) >= BLOCKING_ATTEMPTS);
+        if (!stuck.length || !await this.writable()) throw error;
+        for (const entry of stuck) entry.refused = true;
+      }
     }
+  }
+
+  // Whether the folder takes a new file at all. When it does, a file that
+  // keeps failing is refused for its own content.
+  async writable() {
+    const probe = path.join(this.directory, `.probe-${randomUUID()}.tmp`);
+    try {
+      await fs.mkdir(this.directory, { recursive: true, mode: 0o700 });
+      const handle = await fs.open(probe, 'wx', 0o600);
+      try { await handle.writeFile('probe'); await handle.sync(); }
+      finally { await handle.close(); }
+      return true;
+    } catch { return false; }
+    finally { await fs.rm(probe, { force: true }).catch(() => {}); }
+  }
+
+  // One last awaited try for files that stopped holding up saves, before the
+  // app exits with their bytes.
+  async retryRefused() {
+    await Promise.allSettled([...this.pending].filter(([, entry]) => entry.refused).map(([hash, entry]) => entry.write || this.writeBlob(hash, entry)));
   }
 }
 
