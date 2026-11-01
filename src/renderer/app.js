@@ -302,7 +302,7 @@
   const themeText = {
     'brand-edition': 'edition', 'breadcrumb-subtitle': 'subtitle', 'hero-subtitle': 'subtitle', 'edition-number': 'volume', 'edition-tagline': 'tagline',
     'hero-headline': 'headline', 'location-name': 'location', 'rain-label': 'weather', 'rain-help': 'weatherHelp',
-    'music-label': 'station', 'music-help': 'musicHelp',
+    'music-label': 'station', 'music-help': 'musicHelp', 'shutdown-farewell': 'farewell',
   };
   function applyTheme(id) {
     const theme = themeOf(id);
@@ -1303,8 +1303,84 @@
     return message;
   }
 
+  // Quitting stops replies, saves and shuts Grok down before the window goes.
+  // Each event lists every step: show them, the one under way and why the
+  // wait, so a slow quit reads as work being finished, not a hung window.
+  let shutdownStatus = null;
+  let shutdownTimer = null;
+  // A quit that finishes at once closes the window before this would show.
+  const SHUTDOWN_DELAY = 300;
+  function openShutdown() {
+    clearTimeout(shutdownTimer); shutdownTimer = null;
+    if (shutdownStatus && !$('shutdown-dialog').open) { try { $('shutdown-dialog').showModal(); } catch { /* The window is already closing. */ } }
+  }
+  // A step's label in the list, and what it is doing while under way.
+  function shutdownCopy(step) {
+    const engine = { sessions: t('正在结束 Grok 会话，并停止工具启动的命令…'), process: t('正在停止 Grok 进程…'), force: t('Grok 没有及时退出，正在强制停止…') };
+    const copy = {
+      replies: [t('停止进行中的回复'), t('正在停止进行中的回复，已写出的内容会保留…')],
+      login: [t('取消账户登录'), t('正在取消尚未完成的账户登录…')],
+      operation: [t('等待当前操作完成'), step.name ? t('正在等待“{name}”完成…', { name: diagnostic(safeText(step.name)) }) : t('正在等待当前操作完成…')],
+      save: [t('保存对话记录'), t('正在保存对话记录…')],
+      engine: [t('关闭 Grok 引擎'), Object.hasOwn(engine, step.stage ?? '') ? engine[step.stage] : t('正在关闭 Grok 引擎…')],
+    };
+    return Object.hasOwn(copy, step.id ?? '') ? copy[step.id] : null;
+  }
+  function renderShutdown(event) {
+    const dialog = $('shutdown-dialog');
+    // Quitting failed and the person chose to stay.
+    if (event.status === 'cancelled') { shutdownStatus = null; clearTimeout(shutdownTimer); shutdownTimer = null; if (dialog.open) dialog.close(); return; }
+    if (!['running', 'done', 'failed'].includes(event.status)) return;
+    const list = $('shutdown-steps');
+    if (!shutdownStatus) list.replaceChildren();
+    shutdownStatus = event.status;
+    const steps = (Array.isArray(event.steps) ? event.steps : []).filter(step => step && shutdownCopy(step));
+    // Once quitting has ended, a step still under way has stopped where it was.
+    const stateOf = step => ['done', 'failed'].includes(step.state) || (step.state === 'active' && event.status === 'running') ? step.state : 'pending';
+    const ended = steps.filter(step => ['done', 'failed'].includes(stateOf(step))).length;
+    const active = steps.filter(step => stateOf(step) === 'active');
+    const current = active.at(-1) || steps.find(step => stateOf(step) === 'pending');
+    // Steps are only ever added, in order, so existing rows keep their animation.
+    const rows = new Map([...list.children].map(row => [row.dataset.step, row]));
+    let previous = null;
+    for (const step of steps) {
+      let row = rows.get(step.id);
+      if (!row) {
+        row = document.createElement('li'); row.dataset.step = step.id;
+        const mark = document.createElement('span'); mark.className = 'shutdown-mark'; mark.setAttribute('aria-hidden', 'true');
+        const label = document.createElement('span'); label.className = 'shutdown-label';
+        const status = document.createElement('span'); status.className = 'sr-only';
+        row.append(mark, label, status);
+        list.insertBefore(row, previous ? previous.nextSibling : list.firstChild);
+      }
+      previous = row;
+      row.dataset.state = stateOf(step);
+      row.querySelector('.shutdown-label').textContent = shutdownCopy(step)[0];
+      row.querySelector('.sr-only').textContent = { pending: t('等待中'), active: t('执行中'), done: t('已完成'), failed: t('失败') }[stateOf(step)];
+    }
+    const meter = $('shutdown-meter');
+    const done = event.status === 'done' || !steps.length ? 1 : ended / steps.length;
+    meter.style.setProperty('--done', done);
+    meter.style.setProperty('--next', event.status === 'running' && active.length ? 1 / steps.length : 0);
+    meter.setAttribute('aria-valuenow', String(Math.round(done * 100)));
+    // The step in progress creeps across its share of the bar; a new one starts over.
+    const working = $('shutdown-working');
+    if (working.dataset.ended !== String(ended)) { const fresh = working.cloneNode(); fresh.dataset.ended = String(ended); working.replaceWith(fresh); }
+    const failed = event.status === 'failed';
+    $('shutdown-title').dataset.i18n = failed ? '退出未完成' : '正在退出 Dirth';
+    $('shutdown-title').textContent = failed ? t('退出未完成') : t('正在退出 Dirth');
+    $('shutdown-now').textContent = failed ? (event.error ? diagnostic(safeText(event.error)) : t('有一步没有完成。'))
+      : event.status === 'done' || !current ? t('全部完成，Dirth 即将关闭。') : shutdownCopy(current)[1];
+    dialog.dataset.status = event.status;
+    if (dialog.open) return;
+    if (event.status === 'failed') openShutdown();
+    else if (event.status === 'done') { clearTimeout(shutdownTimer); shutdownTimer = null; }
+    else shutdownTimer ??= setTimeout(openShutdown, SHUTDOWN_DELAY);
+  }
+
   function onEvent(event) {
     if (!event || typeof event !== 'object') return;
+    if (event.type === 'shutdown') { renderShutdown(event); return; }
     if (event.type === 'account-changed') { applyAccountSnapshot(event.state); return; }
     if (event.type === 'account-login') {
       state.accounts = event.accounts || state.accounts;
@@ -1933,12 +2009,15 @@
       dialog.addEventListener('click', event => {
         const close = pressedBackdrop && onBackdrop(event);
         pressedBackdrop = false;
-        if (close && !(state.savingSettings || state.renaming || state.deleting || state.accountAction)) dialog.close();
+        if (close && dialog.id !== 'shutdown-dialog' && !(state.savingSettings || state.renaming || state.deleting || state.accountAction)) dialog.close();
       });
     });
     document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('cancel', event => {
-      if (state.savingSettings || state.renaming || state.deleting || state.accountAction) event.preventDefault();
+      if (dialog.id === 'shutdown-dialog' || state.savingSettings || state.renaming || state.deleting || state.accountAction) event.preventDefault();
     }));
+    // Quitting cannot be dismissed. Chromium closes a dialog on a second Escape
+    // without a cancelable cancel event, so one closed early opens again.
+    $('shutdown-dialog').addEventListener('close', () => { if (shutdownStatus) openShutdown(); });
     document.querySelectorAll('[data-window]').forEach(button => button.addEventListener('click', () => guarded(() => call('windowControl', button.dataset.window))));
     $('search-toggle').addEventListener('click', () => {
       searchVisible = !searchVisible; $('history-search').hidden = !searchVisible;

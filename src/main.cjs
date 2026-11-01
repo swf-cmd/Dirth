@@ -25,6 +25,8 @@ try {
 app.setName('Dirth');
 if (process.platform === 'win32') app.setAppUserModelId('com.swf-cmd.dirth');
 let win, controller, quitPending = false, quitAllowed = false;
+// A window that is reloading or closing can refuse a message; the controller carries on.
+const sendEvent = payload => { if (win && !win.isDestroyed()) { try { win.webContents.send('tokyo:event', payload); } catch { /* No frame to receive it. */ } } };
 const t = createI18n(() => controller?.settings.language);
 const entry = path.join(__dirname, 'renderer', 'index.html');
 const entryURL = pathToFileURL(entry).href;
@@ -69,8 +71,7 @@ else {
     win.webContents.on('will-navigate', (event, url) => { if (url !== entryURL) event.preventDefault(); });
     win.webContents.session.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
     win.webContents.session.setPermissionCheckHandler(() => false);
-    // A window that is reloading or closing can refuse a message; the controller carries on.
-    controller.on('event', payload => { if (win && !win.isDestroyed()) { try { win.webContents.send('tokyo:event', payload); } catch { /* No frame to receive it. */ } } });
+    controller.on('event', sendEvent);
     const handle = (name, fn) => ipcMain.handle(`tokyo:${name}`, (event, ...args) => {
       if (event.sender !== win.webContents || event.senderFrame !== win.webContents.mainFrame || event.senderFrame?.url !== entryURL) throw new Error('Invalid IPC sender');
       return fn(...args);
@@ -141,7 +142,8 @@ else {
         // every later Quit too, while the half-closed app refuses all work.
         // Replies still running stay in the reply log for the next launch.
         const { response } = await dialog.showMessageBox({ type: 'error', message: t('关闭 Dirth 时出错'), detail: error.message, buttons: [t('取消'), t('仍然退出')], defaultId: 0, cancelId: 0 });
-        if (response === 1) { quitAllowed = true; app.quit(); } else quitPending = false;
+        if (response === 1) { quitAllowed = true; app.quit(); }
+        else { quitPending = false; sendEvent({ type: 'shutdown', status: 'cancelled' }); }
       });
   });
 }

@@ -4,6 +4,8 @@ const assert = require('node:assert/strict');
 const { isDeepStrictEqual } = require('node:util');
 const fs = require('node:fs');
 const path = require('node:path');
+const { createI18n } = require('../src/i18n.js');
+const t = createI18n('en');
 const root = path.resolve(__dirname, '..');
 fs.mkdirSync(path.join(root, 'work/security-ui'), { recursive: true });
 const testRoot = fs.mkdtempSync(path.join(root, 'work/security-ui/run-'));
@@ -91,6 +93,21 @@ fs.writeFileSync(path.join(testRoot, 'data/conversations.json'), JSON.stringify(
       assert.deepEqual(value, expected, message);
     };
     await settled(() => desktop.evaluate(() => globalThis.__tokyoUITest.shutdownCalls), 1);
+    // The window says what quitting is waiting for, and cannot be dismissed.
+    const progress = () => page.evaluate(() => ({
+      open: document.querySelector('#shutdown-dialog').open,
+      title: document.querySelector('#shutdown-title').textContent,
+      now: document.querySelector('#shutdown-now').textContent,
+      steps: [...document.querySelectorAll('#shutdown-steps li')].map(item => `${item.dataset.state}:${item.querySelector('.shutdown-label').textContent}`),
+    }));
+    const waiting = { open: true, title: t('正在退出 Dirth'), now: t('正在关闭 Grok 引擎…'), steps: [`done:${t('保存对话记录')}`, `active:${t('关闭 Grok 引擎')}`] };
+    await page.locator('#shutdown-dialog').waitFor({ state: 'visible' });
+    await settled(progress, waiting, 'quitting shows the steps it waits for');
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await page.locator('#shutdown-dialog').click({ position: { x: 2, y: 2 } }).catch(() => {});
+    await page.mouse.click(5, 5);
+    assert.deepEqual(await progress(), waiting, 'Escape and clicks outside leave the quit progress up');
     const stillClosing = await desktop.evaluate(({ app, BrowserWindow }) => {
       BrowserWindow.getAllWindows()[0].close(); app.quit();
       return { windows: BrowserWindow.getAllWindows().length, closeCalls: globalThis.__tokyoUITest.shutdownCalls };
@@ -99,14 +116,18 @@ fs.writeFileSync(path.join(testRoot, 'data/conversations.json'), JSON.stringify(
     await desktop.evaluate(() => { globalThis.__tokyoUITest.rejectClose(new Error('UI fixture: process did not stop')); });
     await settled(() => desktop.evaluate(() => globalThis.__tokyoUITest.shutdownErrors.map(error => error.message)), ['UI fixture: process did not stop']);
     assert.equal(page.isClosed(), false, 'failed shutdown must preserve a window for retry');
+    await page.locator('#shutdown-dialog').waitFor({ state: 'hidden' });
+    assert.equal(await page.evaluate(() => document.querySelector('#shutdown-dialog').dataset.status), 'failed', 'the step that failed was shown until Cancel');
     if (process.platform === 'darwin') await desktop.evaluate(({ app }) => { app.quit(); });
     else await page.evaluate(() => window.tokyo.windowControl('close'));
     await settled(() => desktop.evaluate(() => globalThis.__tokyoUITest.shutdownCalls), 2, 'a failed shutdown permits retry');
+    await page.locator('#shutdown-dialog').waitFor({ state: 'visible' });
+    await settled(progress, { ...waiting, steps: [`done:${t('保存对话记录')}`, `active:${t('关闭 Grok 引擎')}`] }, 'a retry shows its own steps');
     // When it fails again (a full disk fails every save), Quit Anyway ends the app.
     const closed = page.waitForEvent('close');
     await desktop.evaluate(() => { const test = globalThis.__tokyoUITest; test.quitAnyway = true; setImmediate(() => test.rejectClose(new Error('UI fixture: save failed again'))); });
     await closed;
-    console.log('PASS shutdown coalesces repeated close requests, preserves a retry after failure and can quit anyway');
+    console.log('PASS shutdown shows its progress, coalesces repeated close requests, preserves a retry after failure and can quit anyway');
   } finally {
     // After a failed step the stubbed engine shutdown may still be pending;
     // let it finish so the app can quit and the failure is reported. The
