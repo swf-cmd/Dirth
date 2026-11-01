@@ -1666,6 +1666,90 @@ test('closing still stops the engine and releases an active turn when the final 
   assert.equal(controller.closing, true);
 });
 
+// The window shows these reports while quitting waits, so a slow quit says why.
+function shutdownReports(controller) {
+  const reports = [];
+  controller.on('event', event => { if (event.type === 'shutdown') reports.push(structuredClone(event)); });
+  return reports;
+}
+const shutdownSteps = report => report.steps.map(step => `${step.id}:${step.state}`);
+async function untilReported(reports, check) {
+  for (let i = 0; i < 2000 && !(reports.length && check(reports.at(-1))); i++) await new Promise(resolve => setTimeout(resolve, 2));
+  assert.ok(reports.length && check(reports.at(-1)), `unexpected shutdown report: ${JSON.stringify(reports.at(-1))}`);
+}
+
+test('quitting reports each step it waits for, and what the engine is doing, until it is done', async t => {
+  const { controller, adapter, session } = await started(t);
+  await controller.send({ sessionId: session.id, text: 'run the long build' });
+  // This CLI ends the reply only when its engine closes.
+  adapter.cancel = async sessionId => { adapter.cancels.push(sessionId); };
+  const gate = deferred();
+  adapter.close = async ({ onProgress } = {}) => {
+    adapter.closeCount++;
+    onProgress?.('sessions');
+    await gate.promise;
+    onProgress?.('process');
+    for (const prompt of adapter.prompts) prompt.gate.resolve({ stopReason: 'cancelled' });
+  };
+  const reports = shutdownReports(controller);
+  const closing = controller.close();
+  assert.deepEqual(shutdownSteps(reports[0]), ['replies:pending', 'save:pending', 'engine:pending'], 'every step is listed before the first one starts');
+  assert.equal(reports[0].status, 'running');
+  await untilReported(reports, report => report.steps.at(-1).stage === 'sessions');
+  assert.deepEqual(shutdownSteps(reports.at(-1)), ['replies:active', 'save:done', 'engine:active'], 'the reply is still stopping while its sessions close');
+  gate.resolve();
+  await closing;
+  assert.ok(reports.some(report => report.steps.some(step => step.id === 'engine' && step.state === 'active' && step.stage === 'process')));
+  assert.deepEqual(shutdownSteps(reports.at(-1)), ['replies:done', 'save:done', 'engine:done']);
+  assert.deepEqual([...new Set(reports.map(report => report.status))], ['running', 'done']);
+  assert.equal(reports.filter(report => report.status === 'done').length, 1, 'nothing is reported after quitting is done');
+});
+
+test('quitting during another task names the task it waits for', async t => {
+  const { controller, adapter } = await started(t);
+  controller.accountManager.spawnProcess = () => { throw new Error('login should not spawn'); };
+  adapter.closeGate = deferred();
+  const login = controller.loginAccount('local');
+  await new Promise(resolve => setImmediate(resolve));
+  const reports = shutdownReports(controller);
+  const closing = controller.close();
+  const rejected = assert.rejects(login, /应用正在关闭/);
+  assert.deepEqual(shutdownSteps(reports[0]), ['operation:pending', 'save:pending', 'engine:pending']);
+  assert.equal(reports[0].steps[0].name, '启动账户登录', 'in the language the app runs in; the window translates it');
+  await untilReported(reports, report => report.steps[0].state === 'active');
+  adapter.closeGate.resolve();
+  await rejected;
+  await closing;
+  assert.deepEqual(shutdownSteps(reports.at(-1)), ['operation:done', 'save:done', 'engine:done']);
+  assert.equal(reports.at(-1).status, 'done');
+});
+
+test('a quit that fails marks the step that failed and says why, after closing the engine anyway', async t => {
+  const { controller, adapter } = await started(t);
+  const reports = shutdownReports(controller);
+  const save = controller.save.bind(controller);
+  controller.save = () => { throw new Error('disk unavailable'); };
+  await assert.rejects(controller.close(), /disk unavailable/);
+  controller.save = save;
+  assert.equal(adapter.closeCount, 1);
+  assert.deepEqual(shutdownSteps(reports[0]), ['save:pending', 'engine:pending'], 'with no reply running, there is none to stop');
+  assert.deepEqual(shutdownSteps(reports.at(-1)), ['save:failed', 'engine:done']);
+  assert.deepEqual([reports.at(-1).status, reports.at(-1).error], ['failed', 'disk unavailable']);
+  // Quitting again (after Cancel) reports a fresh set of steps.
+  const retry = shutdownReports(controller);
+  await controller.close();
+  assert.deepEqual(shutdownSteps(retry.at(-1)), ['save:done']);
+  assert.equal(retry.at(-1).status, 'done');
+});
+
+test('a shutdown report that cannot be shown never stops quitting', async t => {
+  const { controller, adapter } = await started(t);
+  controller.on('event', event => { if (event.type === 'shutdown') throw new Error('the window is gone'); });
+  await controller.close();
+  assert.equal(adapter.closeCount, 1);
+  assert.equal(controller.adapter, null);
+});
+
 test('account switching isolates sessions, credentials and stale engine events across restart', async t => {
   const { controller, session, adapter, root } = await started(t);
   await controller.renameSession({ sessionId: session.id, title: 'Local history' });

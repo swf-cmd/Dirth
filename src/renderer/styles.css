@@ -269,3 +269,39 @@ dialog{color:var(--text);background:#121b1e;border:1px solid #a8b29a28;border-ra
 .theme-name > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .theme-option input:checked ~ .theme-name { color: #dce9bd; }
 .theme-field .field-help { margin: 10px 0 18px; }
+
+/* Quitting: what Dirth still finishes before it closes, and the step under way.
+ * The bar fills step by step; the step in progress creeps on and moves, so a
+ * long wait never looks frozen. Each city restyles the bar in themes.css. */
+.shutdown-dialog { width: 440px; max-width: calc(100vw - 40px); padding: 30px 32px 26px; overflow: hidden; }
+.shutdown-dialog[open] { animation: fade-in .2s ease-out; }
+.shutdown-dialog::backdrop { background: #030809d9; backdrop-filter: blur(10px); }
+.shutdown-farewell { display: block; font-family: var(--mono); font-size: 8px; letter-spacing: 1.8px; color: var(--lime); }
+.shutdown-heading h2 { margin: 10px 0 0; font-size: 20px; font-weight: 400; letter-spacing: .5px; overflow-wrap: anywhere; }
+.shutdown-heading p { margin: 10px 0 22px; font-size: 11px; line-height: 1.75; color: #8d9d94; }
+.shutdown-meter { --done: 0; --next: 0; position: relative; height: 4px; border-radius: 2px; background: #ffffff12; overflow: hidden; }
+.shutdown-fill { position: absolute; inset: 0 auto 0 0; width: calc(var(--done) * 100%); border-radius: inherit; background: var(--lime); box-shadow: 0 0 9px #d4eb8999; transition: width .45s ease; }
+.shutdown-working { position: absolute; top: 0; bottom: 0; left: calc(var(--done) * 100%); width: calc(var(--next) * 100%); overflow: hidden; transition: left .45s ease, width .45s ease; }
+.shutdown-working::before { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, #d4eb8933, #d4eb89a6); transform-origin: 0 50%; animation: shutdown-creep 8s cubic-bezier(.1, .7, .25, 1) both; }
+/* Tokyo: rain streaks running along the line. */
+.shutdown-working::after { content: ""; position: absolute; inset: 0 -24px; background: repeating-linear-gradient(-78deg, transparent 0 9px, #f2ffd2 9px 10px); opacity: .5; animation: shutdown-streaks .6s linear infinite; }
+/* Room for two lines, so the list stays put as the text changes. */
+.shutdown-now { min-height: 3.3em; margin: 14px 0 16px; font-size: 12px; line-height: 1.65; color: #d0dfc4; overflow-wrap: anywhere; }
+.shutdown-steps { display: grid; gap: 10px; margin: 0; padding: 16px 0 0; list-style: none; border-top: 1px solid var(--line); }
+.shutdown-steps li { display: flex; align-items: center; gap: 11px; min-width: 0; font-size: 11px; color: #5f6f6c; transition: color .2s; }
+.shutdown-label { min-width: 0; overflow-wrap: anywhere; }
+.shutdown-mark { position: relative; display: grid; place-items: center; width: 9px; height: 9px; flex: none; border: 1px solid #ffffff2a; border-radius: 1px; transition: background-color .2s, border-color .2s, box-shadow .2s; }
+.shutdown-steps li[data-state="active"] { color: var(--text); }
+.shutdown-steps li[data-state="active"] .shutdown-mark { border-color: var(--lime); background: var(--lime); box-shadow: 0 0 9px #d4eb89b3; animation: pulse 1s ease-in-out infinite; }
+.shutdown-steps li[data-state="done"] { color: #8d9d94; }
+.shutdown-steps li[data-state="done"] .shutdown-mark { border-color: #d4eb8980; background: #d4eb8926; }
+.shutdown-steps li[data-state="done"] .shutdown-mark::after { content: ""; width: 2px; height: 5px; margin-top: -2px; border: solid var(--lime); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+.shutdown-steps li[data-state="failed"] { color: var(--coral); }
+.shutdown-steps li[data-state="failed"] .shutdown-mark { border-color: var(--coral); background: #dc927c33; }
+.shutdown-steps li[data-state="failed"] .shutdown-mark::after { content: "×"; color: var(--coral); font-size: 10px; line-height: 1; }
+.shutdown-dialog[data-status="failed"] .shutdown-fill { background: var(--coral); box-shadow: none; }
+.shutdown-dialog[data-status="failed"] .shutdown-farewell { color: var(--coral); }
+.shutdown-dialog[data-status="failed"] .shutdown-now { color: #e8bbaa; }
+@keyframes shutdown-creep { from { transform: scaleX(0); } to { transform: scaleX(.9); } }
+@keyframes shutdown-streaks { from { transform: translateX(0); } to { transform: translateX(10.22px); } }
+@media (prefers-reduced-motion: reduce) { .shutdown-working::before, .shutdown-working::after { animation: none; } }

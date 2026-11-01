@@ -27,6 +27,9 @@ const t = (locale, source, params) => createI18n(() => locale)(source, params);
 const rgb = hex => `rgb(${parseInt(hex.slice(1, 3), 16)}, ${parseInt(hex.slice(3, 5), 16)}, ${parseInt(hex.slice(5, 7), 16)})`;
 // The primary accent each city's generated palette gives --lime.
 const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkaido: '#336197' };
+// Each city draws the quit progress bar in its own material: a neon line, an
+// ink stroke, a pebble-round channel of sea and a frosted glass tube.
+const quitBars = { tokyo: '4px/2px', kyoto: '11px/0px', okinawa: '12px/999px', hokkaido: '10px/999px' };
 
 (async () => {
   const env = { ...process.env, TOKYO_TEST_ROOT: testRoot };
@@ -58,7 +61,8 @@ const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkai
         theme: document.documentElement.dataset.theme, city: text('hero-city'), edition: text('brand-edition'), subtitle: text('hero-subtitle'), tagline: text('edition-tagline'),
         breadcrumb: text('breadcrumb-subtitle'), volume: text('edition-number'), headline: text('hero-headline'), location: text('location-name'),
         coordinates: text('location-coordinates'), star: text('hero-star'), orbit: text('model-orbit'), weather: text('rain-label'), station: text('music-label'),
-        placeholder: document.querySelector('#prompt').placeholder, footer: text('session-path'), accent: style.backgroundColor,
+        placeholder: document.querySelector('#prompt').placeholder, footer: text('session-path'), accent: style.backgroundColor, farewell: text('shutdown-farewell'),
+        quitBar: (meter => `${meter.height}/${meter.borderTopLeftRadius}`)(getComputedStyle(document.querySelector('.shutdown-meter'))),
         backdrop: getComputedStyle(document.querySelector('.ambient-image')).backgroundImage,
         weatherLayer: getComputedStyle(document.querySelector('.rain-layer'), '::before').backgroundImage,
         scheme: getComputedStyle(document.documentElement).colorScheme,
@@ -75,7 +79,7 @@ const accents = { tokyo: '#d4eb89', kyoto: '#773269', okinawa: '#107a79', hokkai
         theme: id, city: theme.hero, edition: t(locale, theme.edition), subtitle: t(locale, theme.subtitle), tagline: t(locale, theme.tagline), breadcrumb: t(locale, theme.subtitle),
         volume: t(locale, theme.volume), headline: t(locale, theme.headline), location: t(locale, theme.location), coordinates: theme.coordinates,
         star: theme.glyph, orbit: theme.glyph, weather: t(locale, theme.weather), station: t(locale, theme.station), placeholder: t(locale, theme.placeholder),
-        footer: workspace, accent: rgb(accents[id]),
+        footer: workspace, accent: rgb(accents[id]), farewell: t(locale, theme.farewell), quitBar: quitBars[id],
       };
       for (const [key, value] of Object.entries(expected)) assert.equal(view[key], value, `${id}/${locale}: ${key}`);
       assert.ok(view.backdrop.includes(theme.backdrop), `${id}: backdrop ${view.backdrop.slice(-80)}`);
