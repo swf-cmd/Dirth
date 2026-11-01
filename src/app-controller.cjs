@@ -28,6 +28,48 @@ const MEDIA_VERSION = 1;
 // simultaneous turns so a burst of tasks cannot exhaust tools or the account.
 const MAX_CONCURRENT_TURNS = 4;
 
+// What quitting waits for, in the order it happens. The window shows these
+// steps while they run, so a slow shutdown says what it is doing.
+const SHUTDOWN_STEPS = ['replies', 'login', 'operation', 'save', 'engine'];
+class ShutdownProgress {
+  constructor(emit, steps) {
+    this.emit = emit;
+    this.status = 'running';
+    this.steps = [];
+    for (const [id, detail] of Object.entries(steps)) if (detail) this.add(id, detail === true ? {} : detail);
+    this.report();
+  }
+  // A step can also join late, such as a sign-in started by the operation
+  // that quitting waited for.
+  add(id, detail = {}) {
+    if (this.steps.some(step => step.id === id)) return;
+    this.steps.push({ id, state: 'pending', ...detail });
+    this.steps.sort((a, b) => SHUTDOWN_STEPS.indexOf(a.id) - SHUTDOWN_STEPS.indexOf(b.id));
+  }
+  update(id, state, detail = {}) {
+    const step = this.steps.find(item => item.id === id);
+    if (!step || step.state === 'failed' || this.status !== 'running') return;
+    Object.assign(step, detail, { state });
+    this.report();
+  }
+  // Runs one stage of shutdown, marking its step when it has one.
+  async run(id, action) {
+    if (!this.steps.some(step => step.id === id)) return action();
+    this.update(id, 'active');
+    try { const result = await action(); this.update(id, 'done'); return result; }
+    catch (error) { this.update(id, 'failed'); throw error; }
+  }
+  finish(error) {
+    this.status = error ? 'failed' : 'done';
+    this.report(error ? { error: error.message } : {});
+  }
+  // Every event carries all steps, so the window never needs an earlier one.
+  // Progress is only shown: a listener that fails must not stop the shutdown.
+  report(detail = {}) {
+    try { this.emit({ type: 'shutdown', status: this.status, steps: this.steps.map(step => ({ ...step })), ...detail }); } catch { /* Shown or not, quitting goes on. */ }
+  }
+}
+
 function isInside(parent, child) {
   const relative = path.relative(parent, child);
   return !path.isAbsolute(relative) && relative.split(path.sep)[0] !== '..';
@@ -608,13 +650,13 @@ class AppController extends EventEmitter {
   async connect() {
     return this.idleOperation(this.t('连接 Grok'), () => this._connect());
   }
-  async closeAdapter() {
+  async closeAdapter({ onProgress } = {}) {
     const adapter = this.adapter;
     if (!adapter) return;
     // Stop accepting events immediately, but retain process ownership until its
     // exit is confirmed so a failed shutdown remains retryable.
     this.retiredAdapters.add(adapter);
-    await adapter.close();
+    await adapter.close({ onProgress });
     if (this.adapter === adapter) this.adapter = null;
   }
   async _connect() {
@@ -1073,34 +1115,52 @@ class AppController extends EventEmitter {
     // Running replies are asked to stop now: shutdown may wait for another
     // operation (a long restore) first, and their tools must not run on
     // meanwhile. Each records how it actually ended, as on any Stop.
+    const stopping = [];
     for (const turn of this.turns.values()) {
       // A finished reply still waiting for its save keeps its final status.
       if (turn.settled) continue;
       turn.cancelled = true;
-      if (turn.message) void this.adapter?.cancel(turn.sessionId)?.catch(() => {});
+      // A send that has not reached the engine yet ends by itself.
+      if (turn.message) { stopping.push(turn.promise); void this.adapter?.cancel(turn.sessionId)?.catch(() => {}); }
     }
-    let failure;
     const initialLogin = this.accountManager.pending;
-    try { await this.accountManager.cancelLogin(); } catch (error) { failure = error; }
-    if (this.operation) await this.operation.promise.catch(() => {});
-    if (this.connecting) await this.connecting.catch(() => {});
+    const progress = new ShutdownProgress(event => this.emitEvent(event), {
+      replies: stopping.length > 0, login: !!initialLogin,
+      operation: (this.operation || this.connecting) && { name: this.operation?.name || this.t('连接 Grok') },
+      save: !this.accountRecoveryError, engine: !!this.adapter,
+    });
+    // A reply ends when Grok confirms the Stop, at the latest when the engine closes.
+    if (stopping.length) void progress.run('replies', () => Promise.allSettled(stopping));
+    let failure;
+    try { await progress.run('login', () => this.accountManager.cancelLogin()); } catch (error) { failure = error; }
+    await progress.run('operation', async () => {
+      if (this.operation) await this.operation.promise.catch(() => {});
+      if (this.connecting) await this.connecting.catch(() => {});
+    });
     if (this.accountManager.pending && this.accountManager.pending !== initialLogin) {
-      try { await this.accountManager.cancelLogin(); } catch (error) { failure ||= error; }
+      progress.add('login');
+      try { await progress.run('login', () => this.accountManager.cancelLogin()); } catch (error) { failure ||= error; }
     }
     // While staged account data could not be quarantined, history is deliberately
     // never written (save() refuses). Quitting must still work: the message asks
     // the user to restart after fixing the folder.
     if (!this.accountRecoveryError) {
-      await this.blobs.retryRefused();
-      try { await this.historyOperation(() => this.save({ content: [...this.turns.keys()] })); } catch (error) { failure ||= error; }
+      try {
+        await progress.run('save', async () => {
+          await this.blobs.retryRefused();
+          await this.historyOperation(() => this.save({ content: [...this.turns.keys()] }));
+        });
+      } catch (error) { failure ||= error; }
     }
     try {
       const running = [...this.turns.values()].map(turn => turn.promise).filter(Boolean);
       // A full/unavailable disk must never leave the owned Grok process running.
-      await this.closeAdapter();
+      if (this.adapter) progress.add('engine');
+      await progress.run('engine', () => this.closeAdapter({ onProgress: stage => progress.update('engine', 'active', { stage }) }));
       await Promise.all(running);
     } catch (error) { failure ||= error; }
     finally { this.journal.cancel(); await this.cleanupQueue.catch(() => {}); await this.saveQueue.catch(() => {}); }
+    progress.finish(failure);
     if (failure) throw failure;
   }
 

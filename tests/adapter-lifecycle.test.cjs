@@ -316,6 +316,22 @@ test('an unanswered Stop closes every session before it ends the CLI, so their t
   });
 });
 
+test('shutdown says what it waits for: the sessions, then the CLI itself', async t => {
+  const received = [];
+  const adapter = new GrokAdapter({ cwd: __dirname, spawnProcess: () => syntheticChild((message, child) => {
+    received.push(message.method);
+    if (message.method === 'initialize') child.send({ id: message.id, result: { protocolVersion: 1, agentCapabilities: { loadSession: true, sessionCapabilities: { close: {} } } } });
+    else if (message.method === 'session/new') child.send({ id: message.id, result: { sessionId: 'session', configOptions: [] } });
+    else if (message.method === 'session/close') child.send({ id: message.id, result: {} });
+  }) });
+  t.after(() => adapter.close().catch(() => {}));
+  await adapter.newSession();
+  const stages = [];
+  // A listener that throws only loses its own report.
+  await adapter.close({ onProgress: stage => { stages.push([stage, received.filter(method => method === 'session/close').length]); throw new Error('listener failed'); } });
+  assert.deepEqual(stages, [['sessions', 0], ['process', 1]]);
+});
+
 test('a CLI that exits after long stderr reports whole lines, never a cut credential', async t => {
   const { adapter, children, events } = synthetic(t);
   await adapter.start();
@@ -390,7 +406,9 @@ process.stdin.on('end', () => {});
   const pid = Number(await fs.readFile(path.join(cwd, 'tool.pid'), 'utf8'));
   t.after(() => { try { process.kill(pid, 'SIGKILL'); } catch {} });
   // The CLI ignores the end of its input, as a CLI busy with a tool would.
-  await adapter.close();
+  const stages = [];
+  await adapter.close({ onProgress: stage => stages.push(stage) });
+  assert.deepEqual(stages, ['process', 'force'], 'quitting says that Grok has to be stopped');
   const alive = async () => {
     try { process.kill(pid, 0); } catch { return false; }
     return !(process.platform === 'linux' && /\) Z /.test(await fs.readFile(`/proc/${pid}/stat`, 'utf8').catch(() => ') Z ')));

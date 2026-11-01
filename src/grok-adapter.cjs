@@ -988,10 +988,13 @@ class GrokAdapter extends EventEmitter {
     }
   }
 
-  async close() {
+  // onProgress hears each stage of a slow shutdown: 'sessions', 'process',
+  // then 'force' when Grok does not exit by itself.
+  async close({ onProgress } = {}) {
     if (this.closePromise) return this.closePromise;
     this.closed = true;
-    const closing = this._close();
+    const report = stage => { try { onProgress?.(stage); } catch { /* Progress is only shown. */ } };
+    const closing = this._close(report);
     this.closePromise = closing;
     try { await closing; }
     finally { if (this.closePromise === closing) this.closePromise = null; }
@@ -1012,7 +1015,7 @@ class GrokAdapter extends EventEmitter {
     if (!await this._waitForExit(child)) throw failure(this.t('无法确认 Grok 进程已停止，请重试关闭。'), 'PROCESS_STOP_FAILED');
   }
 
-  async _close() {
+  async _close(report = () => {}) {
     for (const turn of this.preparing.values()) turn.cancelled = true;
     for (const sessionId of this.active.keys()) {
       try { await this.cancel(sessionId); } catch {}
@@ -1020,7 +1023,8 @@ class GrokAdapter extends EventEmitter {
     this._cancelPermissions();
     const child = this.process;
     if (!child) return;
-    await this._closeSessions(child);
+    await this._closeSessions(child, report);
+    report('process');
     // Windows workers may retain the working directory after their parent exits.
     // Kill this owned tree before ending stdin so taskkill can still find descendants.
     if (process.platform === 'win32') {
@@ -1028,7 +1032,10 @@ class GrokAdapter extends EventEmitter {
       return;
     }
     try { child.stdin.end(); } catch { /* Escalate below if exit is not observed. */ }
-    if (!await this._waitForExit(child, 1000)) await this._terminateProcess(child);
+    if (!await this._waitForExit(child, 1000)) {
+      report('force');
+      await this._terminateProcess(child);
+    }
   }
 
   // Grok stops a session's tool processes (dev servers, watchers, long
@@ -1038,11 +1045,12 @@ class GrokAdapter extends EventEmitter {
   // also ends its job object, which reaches processes whose parent already
   // exited and that a process-tree kill can no longer find. Closed sessions
   // stay on disk and are loaded again as usual.
-  async _closeSessions(child) {
+  async _closeSessions(child, report = () => {}) {
     if (!isRecord(this.info.capabilities?.sessionCapabilities?.close)) return;
     if (this.process !== child || this.disconnectedProcesses.has(child) || !this.ready) return;
     const ids = [...this.sessions.keys()];
     if (!ids.length) return;
+    report('sessions');
     let timer;
     const deadline = new Promise(resolve => { timer = setTimeout(resolve, SESSION_CLOSE_TIMEOUT); timer.unref?.(); });
     try {
