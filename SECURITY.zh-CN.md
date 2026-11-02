@@ -35,6 +35,6 @@ node tests/ui-security.cjs --packaged
 
 请在每个支持的平台执行对应的本机检查。Mac 通用版使用 `npm run build:mac` 和 `node scripts/verify-package.cjs --platform darwin --arch universal`，并分别在 Intel 和 Apple Silicon 上验证运行行为。完整的界面回归及打包后测试见 [CONTRIBUTING.zh-CN.md](CONTRIBUTING.zh-CN.md)。默认测试使用隔离的模拟 CLI/登录行为，不执行真实模型请求。真实检查需单独运行，需要本机 CLI 访问权限，并可能消耗账户用量。
 
-Mac 构建使用本地临时签名（ad hoc），这不代表具有 Developer ID 身份或经过 Apple 公证。Mac ZIP 压缩包另附 SHA-256 校验文件，可用于完整性检查。
+Mac 构建使用本地临时签名（ad hoc），这不代表具有 Developer ID 身份或经过 Apple 公证；Windows 构建未进行代码签名。Mac 与 Windows 的 ZIP 压缩包均另附 SHA-256 校验文件，可用于完整性检查。
 
 构建使用明确的源码文件清单，拒绝清单中的符号链接，并整体替换输出目录；旧 `App/` 保存在 `work/package-backups/`。发布新版本时应扫描完整 Git 历史和最终发布文件，不要只依赖 `.gitignore`。某个版本通过检查，并不意味着以后的提交或发行包自动安全。

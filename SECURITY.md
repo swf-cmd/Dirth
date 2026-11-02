@@ -35,6 +35,6 @@ node tests/ui-security.cjs --packaged
 
 Run the host checks on each supported platform. For Mac universal distributions, use `npm run build:mac` and `node scripts/verify-package.cjs --platform darwin --arch universal`, then verify runtime behavior on Intel and Apple Silicon. See [CONTRIBUTING.md](CONTRIBUTING.md) for the complete UI and packaged checks. Default tests use isolated mock CLI/login behavior and do not execute real model requests. Live checks are separate, require local CLI access, and can consume account usage.
 
-Mac builds are ad-hoc signed; this does not establish a Developer ID identity or Apple notarization. Mac ZIP archives have separate SHA-256 checksums for integrity checks.
+Mac builds are ad-hoc signed; this does not establish a Developer ID identity or Apple notarization. Windows builds are not code-signed. Mac and Windows ZIP archives each come with a separate SHA-256 checksum for integrity checks.
 
 Packaging uses an explicit source file allowlist, rejects symbolic links in that list, and replaces the entire output directory. The previous `App/` directory is retained under `work/package-backups/`. Scan the full Git history and final distribution for private data before a release; `.gitignore` alone is insufficient. Passing checks for one revision does not establish that future changes or release files are safe.
