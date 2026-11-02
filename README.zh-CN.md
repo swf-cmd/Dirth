@@ -111,7 +111,7 @@ irm https://x.ai/cli/install.ps1 | iex
 | **[Mac 通用版 ZIP](https://github.com/swf-cmd/Dirth/releases/download/v1.3.2/Dirth-1.3.2-mac-universal.zip)** | macOS 13 Ventura 及以上 · Intel 与 Apple Silicon | [SHA-256](https://github.com/swf-cmd/Dirth/releases/download/v1.3.2/Dirth-1.3.2-mac-universal.zip.sha256) |
 | **[Windows x64 便携版 ZIP](https://github.com/swf-cmd/Dirth/releases/download/v1.3.2/Dirth-1.3.2-win-x64.zip)** | Windows x64 · 完整应用文件夹，免安装 | [SHA-256](https://github.com/swf-cmd/Dirth/releases/download/v1.3.2/Dirth-1.3.2-win-x64.zip.sha256) |
 
-- **Mac**：解压一次，将 **Dirth.app** 拖入**应用程序**（v1.2.5 及更早版本名为 **Grokbuild Tokyo.app**）。应用使用临时签名（ad hoc），尚未使用 Developer ID 证书或经过 Apple 公证。如首次启动被 macOS 阻止，请确认下载来自本仓库，再按照**系统设置 → 隐私与安全性 → 仍要打开**操作（[Apple 说明](https://support.apple.com/en-us/102445)）。
+- **Mac**：解压下载的 ZIP，将 **Dirth.app** 拖入**应用程序**（v1.2.5 及更早版本名为 **Grokbuild Tokyo.app**）。应用使用临时签名（ad hoc），尚未使用 Developer ID 证书或经过 Apple 公证。如首次启动被 macOS 阻止，请确认下载来自本仓库，再按照**系统设置 → 隐私与安全性 → 仍要打开**操作（[Apple 说明](https://support.apple.com/en-us/102445)）。
 - **Windows**：将 ZIP 完整解压到可写入的目录，运行 **`App\Dirth.exe`**（v1.2.5 及更早版本为 **`App\Grokbuild Tokyo.exe`**）。请保留**整个 `App` 文件夹**；这是便携版，不是安装器。升级时用新的 **`App`** 文件夹替换旧的即可，旁边的 `data` 与 `Workspace` 保持不动。应用尚未进行代码签名。如果出现 SmartScreen 提示，请先核实下载来源；如果系统提供相应选项，可点击**更多信息 → 仍要运行**。
 - 两版均已包含桌面运行环境，只有[从源码构建](#从源码构建)时才需要 Node.js。最低 macOS 版本来自 [Electron 44](https://www.electronjs.org/blog/electron-44-0)。客户端暂不将 Linux 作为支持目标。
 
