@@ -4,7 +4,7 @@
 
 Dirth's original code and documentation are available under the [MIT License](LICENSE), copyright 2026 swf-cmd and contributors. The project-maintained icon, synthesized music, generated background and documentation screenshots are made available under the same license to the extent the contributors hold applicable rights. Third-party software and third-party names, signs or marks remain subject to their respective rights; the MIT license does not grant trademark rights.
 
-Dirth is an independent, unofficial client. It is not affiliated with or endorsed by SpaceXAI or xAI (the company was renamed SpaceXAI in 2026). The Grok, Grok Build, SpaceXAI and xAI names identify the service and CLI this client connects to. The official Grok Build CLI is installed separately and is not bundled in this repository or the desktop build; its own license and service terms apply independently.
+Dirth is an independent, unofficial client. It is not affiliated with or endorsed by SpaceXSI, SpaceXAI or xAI (the company was renamed SpaceXAI and then SpaceXSI in 2026). The Grok, Grok Build, SpaceXSI, SpaceXAI and xAI names identify the service and CLI this client connects to. The official Grok Build CLI is installed separately and is not bundled in this repository or the desktop build; its own license and service terms apply independently.
 
 ## Bundled browser libraries
 
@@ -37,7 +37,7 @@ Other development dependencies and their exact versions are recorded in `package
 
 本项目原创代码、文档，以及维护者有权授权的图标、合成器音乐、生成背景和文档截图，采用根目录的 [MIT 许可证](LICENSE)。第三方组件保留各自的许可证；第三方名称、标识或商标不因本许可证而获得授权。
 
-本项目为独立、非官方客户端，与 SpaceXAI 或 xAI（该公司已于 2026 年更名为 SpaceXAI）无隶属关系，也未获其背书。Grok Build CLI 需单独安装，不随本仓库或桌面构建分发，其许可证和服务条款独立适用。
+本项目为独立、非官方客户端，与 SpaceXSI、SpaceXAI 或 xAI（该公司于 2026 年先后更名为 SpaceXAI 和 SpaceXSI）无隶属关系，也未获其背书。Grok Build CLI 需单独安装，不随本仓库或桌面构建分发，其许可证和服务条款独立适用。
 
 Marked 与 DOMPurify 的原始声明和许可文本随程序保留。Windows 的 Electron 许可文件为 `App` 中的 `LICENSE` 与 `LICENSES.chromium.html`；Mac 则将它们以 `LICENSE.electron.txt` 和 `LICENSES.chromium.html` 保存在 `Dirth.app/Contents/Resources` 内，单独分发 `.app` 或 ZIP 时也会保留。本项目的许可证、本文及浏览器库许可文本位于 Windows 的 `App/resources/app.asar` 或 Mac 的 `Dirth.app/Contents/Resources/app.asar` 内。
 

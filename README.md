@@ -6,7 +6,7 @@
 
 **Your ideas, by city light.**
 
-A desktop app for [Grok Build](https://x.ai/cli), SpaceXAI's terminal coding agent. Streaming chats, up to four tasks at once and separate account profiles, with a Japanese city outside the window: rainy Tokyo, lantern-lit Kyoto, sunny Okinawa or snowy Hokkaido.
+A desktop app for [Grok Build](https://x.ai/build), SpaceXSI's terminal coding agent. Streaming chats, up to four tasks at once and separate account profiles, with a Japanese city outside the window: rainy Tokyo, lantern-lit Kyoto, sunny Okinawa or snowy Hokkaido.
 
 **English** · [简体中文](README.zh-CN.md)
 
@@ -28,9 +28,9 @@ A desktop app for [Grok Build](https://x.ai/cli), SpaceXAI's terminal coding age
 
 *Animated rain in the Windows interface, using an isolated demo profile. Mac uses native window controls and Command-key shortcuts. [Still image](docs/images/welcome-en.png?v=20261031) · [Capture details](docs/images/README.md).*
 
-[Grok Build](https://x.ai/cli) is the terminal coding agent from SpaceXAI (formerly xAI). Dirth is an **unofficial, open-source desktop app** for it: it starts the Grok Build CLI you installed and talks to it over the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP), the same protocol editors use to embed it. Your sign-in, models, tools, permission rules, MCP servers and skills stay exactly as the CLI configures them. The app gives them a window worth keeping open.
+[Grok Build](https://x.ai/build) is the terminal coding agent from SpaceXSI (formerly xAI and SpaceXAI). Dirth is an **unofficial, open-source desktop app** for it: it starts the Grok Build CLI you installed and talks to it over the [Agent Client Protocol](https://agentclientprotocol.com/) (ACP), the same protocol editors use to embed it. Your sign-in, models, tools, permission rules, MCP servers and skills stay exactly as the CLI configures them. The app gives them a window worth keeping open.
 
-This project is not affiliated with or endorsed by SpaceXAI or xAI. Authentication, model access and usage are handled by the official CLI and your account.
+This project is not affiliated with or endorsed by SpaceXSI, SpaceXAI or xAI. Authentication, model access and usage are handled by the official CLI and your account.
 
 ## Four cities, one workspace
 
@@ -146,7 +146,7 @@ English is the initial interface language. Change it in **Preferences → Interf
 <details>
 <summary><b>Is this an official app?</b></summary>
 
-No. Dirth is an independent project under the MIT License and is not affiliated with or endorsed by SpaceXAI or xAI. It does not bundle or modify the CLI: it starts the Grok Build CLI you installed and shows what that CLI reports.
+No. Dirth is an independent project under the MIT License and is not affiliated with or endorsed by SpaceXSI, SpaceXAI or xAI. It does not bundle or modify the CLI: it starts the Grok Build CLI you installed and shows what that CLI reports.
 
 </details>
 

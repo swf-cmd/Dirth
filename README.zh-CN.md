@@ -6,7 +6,7 @@
 
 **城市灯火，照亮你的灵感。**
 
-为 SpaceXAI 的终端编程智能体 [Grok Build](https://x.ai/cli) 打造的桌面应用：流式对话、最多四个任务并行、多账户独立管理，窗外是一座日本城市——东京的雨夜、京都的灯笼、冲绳的海或北海道的雪。
+为 SpaceXSI 的终端编程智能体 [Grok Build](https://x.ai/build) 打造的桌面应用：流式对话、最多四个任务并行、多账户独立管理，窗外是一座日本城市——东京的雨夜、京都的灯笼、冲绳的海或北海道的雪。
 
 [English](README.md) · **简体中文**
 
@@ -28,9 +28,9 @@
 
 *Windows 欢迎页雨滴动态演示，使用隔离的演示账户；Mac 使用原生窗口按钮和 Command 快捷键。[静态截图](docs/images/welcome-zh-CN.png?v=20261031) · [拍摄说明](docs/images/README.md)。*
 
-[Grok Build](https://x.ai/cli) 是 SpaceXAI（原 xAI）推出的终端编程智能体。Dirth 是它的**非官方开源桌面应用**：启动你本机安装的 Grok Build CLI，并通过 [Agent Client Protocol](https://agentclientprotocol.com/)（ACP，编辑器嵌入它时使用的同一协议）与之通信。登录、模型、工具、授权规则、MCP 服务和 Skills 都按 CLI 原有配置运行，应用只是为它们开了一扇值得一直亮着的窗。
+[Grok Build](https://x.ai/build) 是 SpaceXSI（曾用名 xAI、SpaceXAI）推出的终端编程智能体。Dirth 是它的**非官方开源桌面应用**：启动你本机安装的 Grok Build CLI，并通过 [Agent Client Protocol](https://agentclientprotocol.com/)（ACP，编辑器嵌入它时使用的同一协议）与之通信。登录、模型、工具、授权规则、MCP 服务和 Skills 都按 CLI 原有配置运行，应用只是为它们开了一扇值得一直亮着的窗。
 
-本项目与 SpaceXAI 或 xAI 无隶属关系，也未获其背书。登录、模型访问和用量由官方 CLI 及你的账户处理。
+本项目与 SpaceXSI、SpaceXAI 或 xAI 无隶属关系，也未获其背书。登录、模型访问和用量由官方 CLI 及你的账户处理。
 
 ## 四座城市，同一个工作台
 
@@ -148,7 +148,7 @@ Get-Content .\Dirth-1.3.3-win-x64.zip.sha256
 <details>
 <summary><b>这是官方应用吗？</b></summary>
 
-不是。Dirth 是采用 MIT 许可证的独立项目，与 SpaceXAI 或 xAI 无隶属关系，也未获其背书。它不内置、也不修改 CLI，只是启动你安装的 Grok Build CLI，并显示 CLI 返回的内容。
+不是。Dirth 是采用 MIT 许可证的独立项目，与 SpaceXSI、SpaceXAI 或 xAI 无隶属关系，也未获其背书。它不内置、也不修改 CLI，只是启动你安装的 Grok Build CLI，并显示 CLI 返回的内容。
 
 </details>
 
