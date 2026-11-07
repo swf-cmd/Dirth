@@ -124,7 +124,7 @@ If the reasoning selector says **Please update Grok CLI**, the engine reports re
 
 Every soundtrack is an original 96-second loop that works offline, and changing city crossfades to the new one. Music is enabled by default at 90% volume. If playback has not started after launch, click the window or press a key. City, weather, music, and volume changes preview immediately; saving remembers them, while closing settings restores the previous values. These preferences can be saved during generation without restarting the engine. Weather animation stops when your system enables reduced motion.
 
-Before it quits, Dirth stops any replies in progress, saves your chats, and shuts down Grok together with the commands its tools started, so nothing is lost or left running in the background. When that takes more than a moment, a window lists each step and says which one is under way, drawn in the city’s style: a neon line in Tokyo, an ink stroke with a vermilion seal in Kyoto, a channel of sea in Okinawa, and a frosted glass tube lit by snow candles in Hokkaido. If a step fails, Dirth shows why and lets you cancel or quit anyway.
+Before it quits, Dirth stops any replies in progress, saves your chats, and shuts down Grok together with the commands its tools started, so nothing is lost or left running in the background. As soon as you quit, a window lists each step and says which one is under way, drawn in the city’s style: a neon line in Tokyo, an ink stroke with a vermilion seal in Kyoto, a channel of sea in Okinawa, and a frosted glass tube lit by snow candles in Hokkaido. If a step fails, Dirth shows why and lets you cancel or quit anyway.
 
 ## Local data and repository contents
 

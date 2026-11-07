@@ -79,8 +79,26 @@ fs.writeFileSync(path.join(testRoot, 'data/conversations.json'), JSON.stringify(
         return new Promise((resolve, reject) => { test.releaseClose = resolve; test.rejectClose = reject; });
       };
     });
+    // Quit is answered at once: by the time the first report is on the page,
+    // the dialog is open and fully drawn, neither waiting nor fading in.
+    const watchShutdown = () => page.evaluate(() => {
+      const dialog = document.querySelector('#shutdown-dialog');
+      delete window.__shutdownShown;
+      const observer = new MutationObserver(() => {
+        if (dialog.dataset.status !== 'running') return;
+        observer.disconnect();
+        window.__shutdownShown = { open: dialog.open, opacity: getComputedStyle(dialog).opacity };
+      });
+      observer.observe(dialog, { attributes: true, attributeFilter: ['data-status'] });
+    });
+    const shownAtOnce = async message => {
+      await page.waitForFunction(() => window.__shutdownShown);
+      assert.deepEqual(await page.evaluate(() => window.__shutdownShown), { open: true, opacity: '1' }, message);
+    };
+    await watchShutdown();
     if (process.platform === 'darwin') await desktop.evaluate(({ app }) => { app.quit(); });
     else await page.evaluate(() => window.tokyo.windowControl('close'));
+    await shownAtOnce('the quit progress appears as Quit is chosen');
     // Shutdown cancels sign-in and saves history before it closes the engine,
     // so each step is awaited rather than read straight after the request.
     const settled = async (read, expected, message) => {
@@ -118,8 +136,10 @@ fs.writeFileSync(path.join(testRoot, 'data/conversations.json'), JSON.stringify(
     assert.equal(page.isClosed(), false, 'failed shutdown must preserve a window for retry');
     await page.locator('#shutdown-dialog').waitFor({ state: 'hidden' });
     assert.equal(await page.evaluate(() => document.querySelector('#shutdown-dialog').dataset.status), 'failed', 'the step that failed was shown until Cancel');
+    await watchShutdown();
     if (process.platform === 'darwin') await desktop.evaluate(({ app }) => { app.quit(); });
     else await page.evaluate(() => window.tokyo.windowControl('close'));
+    await shownAtOnce('a retry shows its progress at once too');
     await settled(() => desktop.evaluate(() => globalThis.__tokyoUITest.shutdownCalls), 2, 'a failed shutdown permits retry');
     await page.locator('#shutdown-dialog').waitFor({ state: 'visible' });
     await settled(progress, { ...waiting, steps: [`done:${t('保存对话记录')}`, `active:${t('关闭 Grok 引擎')}`] }, 'a retry shows its own steps');

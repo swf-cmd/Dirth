@@ -271,10 +271,11 @@ dialog{color:var(--text);background:#121b1e;border:1px solid #a8b29a28;border-ra
 .theme-field .field-help { margin: 10px 0 18px; }
 
 /* Quitting: what Dirth still finishes before it closes, and the step under way.
- * The bar fills step by step; the step in progress creeps on and moves, so a
- * long wait never looks frozen. Each city restyles the bar in themes.css. */
+ * It opens fully drawn as Quit is chosen, without fading in, so the click is
+ * answered at once. The bar fills step by step; the step in progress creeps
+ * on and moves, so a long wait never looks frozen. Each city restyles the bar
+ * in themes.css. */
 .shutdown-dialog { width: 440px; max-width: calc(100vw - 40px); padding: 30px 32px 26px; overflow: hidden; }
-.shutdown-dialog[open] { animation: fade-in .2s ease-out; }
 .shutdown-dialog::backdrop { background: #030809d9; backdrop-filter: blur(10px); }
 .shutdown-farewell { display: block; font-family: var(--mono); font-size: 8px; letter-spacing: 1.8px; color: var(--lime); }
 .shutdown-heading h2 { margin: 10px 0 0; font-size: 20px; font-weight: 400; letter-spacing: .5px; overflow-wrap: anywhere; }

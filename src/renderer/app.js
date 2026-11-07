@@ -1306,12 +1306,9 @@
   // Quitting stops replies, saves and shuts Grok down before the window goes.
   // Each event lists every step: show them, the one under way and why the
   // wait, so a slow quit reads as work being finished, not a hung window.
+  // The first event arrives as Quit is chosen, and the dialog opens with it.
   let shutdownStatus = null;
-  let shutdownTimer = null;
-  // A quit that finishes at once closes the window before this would show.
-  const SHUTDOWN_DELAY = 300;
   function openShutdown() {
-    clearTimeout(shutdownTimer); shutdownTimer = null;
     if (shutdownStatus && !$('shutdown-dialog').open) { try { $('shutdown-dialog').showModal(); } catch { /* The window is already closing. */ } }
   }
   // A step's label in the list, and what it is doing while under way.
@@ -1329,7 +1326,7 @@
   function renderShutdown(event) {
     const dialog = $('shutdown-dialog');
     // Quitting failed and the person chose to stay.
-    if (event.status === 'cancelled') { shutdownStatus = null; clearTimeout(shutdownTimer); shutdownTimer = null; if (dialog.open) dialog.close(); return; }
+    if (event.status === 'cancelled') { shutdownStatus = null; if (dialog.open) dialog.close(); return; }
     if (!['running', 'done', 'failed'].includes(event.status)) return;
     const list = $('shutdown-steps');
     if (!shutdownStatus) list.replaceChildren();
@@ -1372,10 +1369,7 @@
     $('shutdown-now').textContent = failed ? (event.error ? diagnostic(safeText(event.error)) : t('有一步没有完成。'))
       : event.status === 'done' || !current ? t('全部完成，Dirth 即将关闭。') : shutdownCopy(current)[1];
     dialog.dataset.status = event.status;
-    if (dialog.open) return;
-    if (event.status === 'failed') openShutdown();
-    else if (event.status === 'done') { clearTimeout(shutdownTimer); shutdownTimer = null; }
-    else shutdownTimer ??= setTimeout(openShutdown, SHUTDOWN_DELAY);
+    openShutdown();
   }
 
   function onEvent(event) {
