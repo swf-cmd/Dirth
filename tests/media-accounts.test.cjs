@@ -407,6 +407,14 @@ test('an already exited login child can be cancelled even if its close event is 
   assert.equal(f.events.at(-1).status, 'cancelled');
 });
 
+test('a login finishes when the CLI exits, while a browser it started still holds its output open', t => {
+  const f = accountFixture(t); f.login(); f.authenticate();
+  f.child().exitCode = 0; f.child().emit('exit', 0, null);
+  assert.equal(f.events.at(-1).status, 'succeeded'); assert.equal(f.manager.pending, null);
+  f.child().emit('close', 0, null);
+  assert.equal(f.events.filter(e => e.status === 'succeeded').length, 1);
+});
+
 test('profile deletion helpers reject default homes and malformed profile identifiers', t => {
   const f = accountFixture(t);
   for (const id of ['local', '../outside', '-'.repeat(36), 'bad', null]) assert.throws(() => f.manager.stageDelete(id), /账户/);
