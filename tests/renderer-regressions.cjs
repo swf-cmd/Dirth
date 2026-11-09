@@ -185,7 +185,7 @@ fs.writeFileSync(path.join(profile, 'data', 'conversations.json'), JSON.stringif
         const range = document.createRange(); range.selectNodeContents(first);
         getSelection().removeAllRanges(); getSelection().addRange(range);
       });
-      for (const text of [' paragraph grows', ' and grows', '\n\nThird paragraph.']) await emit({ type: 'text', text });
+      for (const text of [' paragraph grows', ' and grows', '\n\n| Day | Rain |\n| --- | --- |\n| Mon | 4 mm |', '\n\nThird paragraph.']) await emit({ type: 'text', text });
       await page.locator('.message').last().filter({ hasText: 'Third paragraph.' }).waitFor();
       await settle();
       const after = await page.evaluate(() => ({

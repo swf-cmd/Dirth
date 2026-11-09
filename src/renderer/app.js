@@ -502,7 +502,8 @@
     if (token.type === 'html') out.push(token.raw);
     for (const child of token.tokens || []) rawHtmlOf(child, out);
     for (const item of token.items || []) rawHtmlOf(item, out);
-    for (const cell of token.header || []) rawHtmlOf(cell, out);
+    // A table lists its heading cells in `header`; each cell has a flag by that name.
+    for (const cell of Array.isArray(token.header) ? token.header : []) rawHtmlOf(cell, out);
     for (const row of token.rows || []) for (const cell of row) rawHtmlOf(cell, out);
     return out;
   }
