@@ -17,9 +17,11 @@ const within = (root, target) => { const rel = path.relative(root, target); retu
 
 function safeName(value) {
   // Direction controls make "invoice‮fdp.exe" display as "invoiceexe.pdf"
-  // while the save dialog still proposes an .exe.
+  // while the save dialog still proposes an .exe. The end is cleaned after the
+  // cut, which can land on a dot or a space: most Windows programs cannot open
+  // such a name, and Send looks a staged file up by its trimmed path.
   let name = String(value || 'attachment').split(/[\\/]/).pop().replace(/[؜‎‏‪-‮⁦-⁩]/g, '')
-    .replace(/[<>:"|?*\x00-\x1f]/g, '_').replace(/[. ]+$/g, '').slice(0, 160) || 'attachment';
+    .replace(/[<>:"|?*\x00-\x1f]/g, '_').slice(0, 160).replace(/[.\s]+$/g, '') || 'attachment';
   if (/^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\.|$)/i.test(name)) name = '_' + name;
   return name;
 }
