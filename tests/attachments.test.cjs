@@ -34,6 +34,17 @@ test('selected image and document bytes are copied, names sanitized and MIME sni
   assert.equal((await fs.readFile(copy.src)).toString(), 'original');
 });
 
+test('a name cut to length, or ending in a wide space, still names the file Send looks up', async t => {
+  const root = await fixture(t);
+  // The cut can land on a space or a dot, and Send finds the file by its trimmed path.
+  const names = [`${'long title '.repeat(15).slice(0, 159)} and its subtitle.pdf`, `${'v'.repeat(159)}.2.pdf`, '報告書　'];
+  const staged = await stageAttachments(names.map(name => ({ name, data: Buffer.from(name).toString('base64') })), root);
+  for (const [index, file] of staged.entries()) {
+    assert.doesNotMatch(file.name, /[.\s]$/);
+    assert.equal((await resolveAttachment(file.src, [root])).toString(), names[index]);
+  }
+});
+
 test('invalid, oversized and excessive imports fail and leave no partial staged files', async t => {
   const root = await fixture(t);
   await assert.rejects(stageAttachments(Array(11).fill({ name: 'x', data: '' }), root), /10/);

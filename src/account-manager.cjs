@@ -225,6 +225,10 @@ class AccountManager extends EventEmitter {
       if ((!pending.cancelled && child.pid == null) || child.exitCode != null || child.signalCode != null) complete(null, true);
       else this.emit('login', { ...this.loginState(), error: this.t('登录进程发生错误，请取消后重试。') });
     });
+    // The CLI opens the sign-in page itself. On Windows a browser it had to
+    // start inherits its output pipes and holds them open until that browser
+    // is closed, so "close" can come hours after the CLI has exited.
+    child.once('exit', code => complete(code));
     child.once('close', code => complete(code));
     pending.timer = setTimeout(() => { void this.cancelLogin().catch(() => {
       if (this.pending === pending) this.emit('login', { ...this.loginState(), error: this.t('登录已超时，无法确认登录进程已停止，请重试取消。') });
